@@ -1,0 +1,275 @@
+{
+    "ESP": {
+        "Armor": false,
+        "ArmorColor": [
+            0.3499999940395355,
+            0.6499999761581421,
+            1.0,
+            1.0
+        ],
+        "ArmorText": true,
+        "BombColor": [
+            1.0,
+            0.6499999761581421,
+            0.20000000298023224,
+            1.0
+        ],
+        "BombInfo": true,
+        "BombText": false,
+        "BombTextSize": 0.0,
+        "Box": true,
+        "BoxColor": [
+            1.0,
+            0.20000000298023224,
+            0.20000000298023224,
+            1.0
+        ],
+        "Distance": false,
+        "DistanceColor": [
+            0.800000011920929,
+            0.9200000166893005,
+            1.0,
+            1.0
+        ],
+        "DistanceSize": 0.0,
+        "Enabled": true,
+        "FlagBlind": true,
+        "FlagBlindColor": [
+            0.800000011920929,
+            0.9200000166893005,
+            1.0,
+            1.0
+        ],
+        "FlagBlindSize": 0.0,
+        "FlagColor": [
+            0.800000011920929,
+            0.9200000166893005,
+            1.0,
+            1.0
+        ],
+        "FlagDefusing": true,
+        "FlagDefusingColor": [
+            0.800000011920929,
+            0.9200000166893005,
+            1.0,
+            1.0
+        ],
+        "FlagDefusingSize": 0.0,
+        "FlagKit": true,
+        "FlagKitColor": [
+            0.800000011920929,
+            0.9200000166893005,
+            1.0,
+            1.0
+        ],
+        "FlagKitSize": 0.0,
+        "FlagMoney": false,
+        "FlagMoneyColor": [
+            0.800000011920929,
+            0.9200000166893005,
+            1.0,
+            1.0
+        ],
+        "FlagMoneySize": 0.0,
+        "FlagScoped": true,
+        "FlagScopedColor": [
+            0.800000011920929,
+            0.9200000166893005,
+            1.0,
+            1.0
+        ],
+        "FlagScopedSize": 0.0,
+        "Flags": true,
+        "Health": true,
+        "HealthColor": [
+            0.25,
+            0.949999988079071,
+            0.3499999940395355,
+            1.0
+        ],
+        "HealthText": true,
+        "HiddenColor": [
+            0.6499999761581421,
+            0.6499999761581421,
+            0.6499999761581421,
+            1.0
+        ],
+        "Item": false,
+        "ItemHiddenIds": [
+            42,
+            59,
+            500,
+            501,
+            502,
+            503,
+            504,
+            505,
+            506,
+            507,
+            508,
+            509,
+            510,
+            511,
+            512,
+            513,
+            514,
+            515,
+            516,
+            517,
+            518,
+            519,
+            520,
+            521,
+            522,
+            523,
+            524,
+            525,
+            526
+        ],
+        "Name": false,
+        "NameColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        "NameFontSize": 16.0,
+        "OffscreenArrows": false,
+        "OffscreenColor": [
+            1.0,
+            0.30000001192092896,
+            0.20000000298023224,
+            1.0
+        ],
+        "OffscreenSize": 14.0,
+        "Skeleton": true,
+        "SkeletonColor": [
+            0.0,
+            1.0,
+            0.5,
+            1.0
+        ],
+        "SkeletonDots": false,
+        "SnapFromTop": false,
+        "SnaplineColor": [
+            1.0,
+            1.0,
+            0.0,
+            0.800000011920929
+        ],
+        "Snaplines": false,
+        "Sound": false,
+        "SoundColor": [
+            0.3499999940395355,
+            0.75,
+            1.0,
+            1.0
+        ],
+        "VisibilityColoring": true,
+        "VisibleColor": [
+            1.0,
+            0.20000000298023224,
+            0.20000000298023224,
+            1.0
+        ],
+        "Weapon": true,
+        "WeaponAmmo": false,
+        "WeaponAmmoColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        "WeaponAmmoSize": 0.0,
+        "WeaponIcon": true,
+        "WeaponIconColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        "WeaponIconNoKnife": false,
+        "WeaponIconSize": 10.0,
+        "WeaponText": false,
+        "WeaponTextColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        "WeaponTextSize": 0.0,
+        "World": false,
+        "WorldColor": [
+            1.0,
+            1.0,
+            1.0,
+            1.0
+        ],
+        "WorldDecoyTimer": true,
+        "WorldExplosiveTimer": true,
+        "WorldInfernoTimer": true,
+        "WorldProjectiles": false,
+        "WorldSmokeTimer": true
+    },
+    "Radar": {
+        "AngleColor": [
+            1.0,
+            1.0,
+            1.0,
+            0.949999988079071
+        ],
+        "BgColor": [
+            0.0,
+            0.0,
+            0.0,
+            0.75
+        ],
+        "BombColor": [
+            1.0,
+            0.7471697926521301,
+            0.0,
+            1.0
+        ],
+        "BorderColor": [
+            0.0,
+            0.0,
+            0.0,
+            0.3499999940395355
+        ],
+        "DotColor": [
+            1.0,
+            0.1320754885673523,
+            0.1320754885673523,
+            1.0
+        ],
+        "DotSize": 4.0,
+        "Enabled": true,
+        "Mode": 1,
+        "ShowAngles": true,
+        "ShowBomb": true,
+        "ShowCrosshair": false,
+        "ShowLocalDot": false,
+        "Size": 290.0,
+        "StaticFlipX": false,
+        "WorldOffsetX": 0.0,
+        "WorldOffsetY": 0.0,
+        "WorldRotationDeg": 0.0,
+        "WorldScale": 1.0
+    },
+    "Screen": {
+        "FPSLimit": 0,
+        "VSync": true
+    },
+    "UI": {
+        "EspPreviewOpen": false,
+        "MenuToggleKey": 80,
+        "RadarCalibrationOpen": false,
+        "WebRadarDebugOpen": false,
+        "WebRadarQrOpen": true
+    },
+    "WEBRadar": {
+        "Enabled": true,
+        "MapOverride": "",
+        "Port": 22006
+    }
+}

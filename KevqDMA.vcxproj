@@ -1,0 +1,290 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>18.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{c3a5597f-dc1c-441d-98d6-315ab51123b1}</ProjectGuid>
+    <RootNamespace>KevqDMA</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <TargetName>KevqDMA</TargetName>
+    <CharacterSet>Unicode</CharacterSet>
+    <IntDir>$(ProjectDir)build\obj\$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <TargetName>KevqDMA</TargetName>
+    <CharacterSet>Unicode</CharacterSet>
+    <IntDir>$(ProjectDir)build\obj\$(Platform)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <TargetName>KevqDMA</TargetName>
+    <CharacterSet>Unicode</CharacterSet>
+    <IntDir>$(ProjectDir)x64\obj\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <TargetName>KevqDMA</TargetName>
+    <CharacterSet>Unicode</CharacterSet>
+    <IntDir>$(ProjectDir)x64\obj\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <Optimization>Disabled</Optimization>
+      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+      <DebugInformationFormat>None</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(TargetName).pdb</ProgramDatabaseFile>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <Optimization>Disabled</Optimization>
+      <FunctionLevelLinking>false</FunctionLevelLinking>
+      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExceptionHandling>Async</ExceptionHandling>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <DiagnosticsFormat>Column</DiagnosticsFormat>
+      <DebugInformationFormat>None</DebugInformationFormat>
+      <ExternalWarningLevel>Level4</ExternalWarningLevel>
+      <AdditionalOptions>/FC /Zc:inline /wd4100 /wd4200 /wd4201 /wd4456 /wd4477 /wd4840 /wd4018 /wd4267 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>false</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(TargetName).pdb</ProgramDatabaseFile>
+      <OptimizeReferences>true</OptimizeReferences>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;vmm.lib;leechcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)src\vendor\DMALibrary\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <StackReserveSize>8388608</StackReserveSize>
+    </Link>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+  <ItemGroup>
+    <ResourceCompile Include="src\Features\WebRadar\Assets\webradar_resources.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\app\Bootstrap\main.cpp" />
+    <ClCompile Include="src\app\Bootstrap\runtime_console.cpp" />
+    <ClCompile Include="src\app\Bootstrap\version_update.cpp" />
+    <ClCompile Include="src\app\Config\config.cpp" />
+    <ClCompile Include="src\app\Config\project_paths.cpp" />
+    <ClCompile Include="src\app\Platform\overlay.cpp" />
+    <ClCompile Include="src\app\UI\MenuShell\menu_controller.cpp" />
+    <ClCompile Include="src\app\UI\MenuShell\menu_utils.cpp" />
+    <ClCompile Include="src\app\UI\MenuShell\ui_style.cpp" />
+    <ClCompile Include="src\Features\ESP\esp.cpp" />
+    <ClCompile Include="src\Features\ESP\UI\esp_preview.cpp" />
+    <ClCompile Include="src\Features\ESP\UI\esp_sections.cpp" />
+    <ClCompile Include="src\Features\ESP\UI\esp_tab.cpp" />
+    <ClCompile Include="src\Features\Radar\UI\radar_sections.cpp" />
+    <ClCompile Include="src\Features\Radar\UI\radar_tab.cpp" />
+    <ClCompile Include="src\Features\Settings\UI\settings_sections.cpp" />
+    <ClCompile Include="src\Features\Settings\UI\settings_tab.cpp" />
+    <ClCompile Include="src\Features\WebRadar\Runtime\embedded_assets.cpp" />
+    <ClCompile Include="src\Features\WebRadar\Runtime\webradar.cpp" />
+    <ClCompile Include="src\Features\WebRadar\UI\webradar_sections.cpp" />
+    <ClCompile Include="src\Features\WebRadar\UI\webradar_tab.cpp" />
+    <ClCompile Include="src\Game\Offsets\runtime_offsets.cpp" />
+    <ClCompile Include="src\vendor\DMALibrary\Memory\InputManager.cpp" />
+    <ClCompile Include="src\vendor\DMALibrary\Memory\Memory.cpp" />
+    <ClCompile Include="src\vendor\DMALibrary\Memory\Registry.cpp" />
+    <ClCompile Include="src\vendor\DMALibrary\Memory\Shellcode.cpp" />
+    <ClCompile Include="src\vendor\DMALibrary\pch.cpp" />
+    <ClCompile Include="src\vendor\imgui\backends\imgui_impl_dx11.cpp" />
+    <ClCompile Include="src\vendor\imgui\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="src\vendor\imgui\imgui.cpp" />
+    <ClCompile Include="src\vendor\imgui\imgui_draw.cpp" />
+    <ClCompile Include="src\vendor\imgui\imgui_tables.cpp" />
+    <ClCompile Include="src\vendor\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="src\vendor\qrcodegen\qrcodegen.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\app\Bootstrap\runtime_console.h" />
+    <ClInclude Include="include\app\Bootstrap\version_update.h" />
+    <ClInclude Include="include\app\Config\config.h" />
+    <ClInclude Include="include\app\Config\project_paths.h" />
+    <ClInclude Include="include\app\Core\app_state.h" />
+    <ClInclude Include="include\app\Core\build_info.h" />
+    <ClInclude Include="include\app\Core\globals.h" />
+    <ClInclude Include="include\app\Platform\overlay.h" />
+    <ClInclude Include="include\app\UI\MenuShell\menu_controller.h" />
+    <ClInclude Include="include\app\UI\MenuShell\menu_state.h" />
+    <ClInclude Include="include\app\UI\MenuShell\menu_utils.h" />
+    <ClInclude Include="include\app\UI\MenuShell\tab_page.h" />
+    <ClInclude Include="include\app\UI\MenuShell\ui_style.h" />
+    <ClInclude Include="include\Features\ESP\esp.h" />
+    <ClInclude Include="include\Features\ESP\UI\esp_sections.h" />
+    <ClInclude Include="include\Features\ESP\UI\esp_tab.h" />
+    <ClInclude Include="include\Features\Radar\UI\radar_sections.h" />
+    <ClInclude Include="include\Features\Radar\UI\radar_tab.h" />
+    <ClInclude Include="include\Features\Settings\UI\settings_sections.h" />
+    <ClInclude Include="include\Features\Settings\UI\settings_tab.h" />
+    <ClInclude Include="include\Features\WebRadar\embedded_assets.h" />
+    <ClInclude Include="include\Features\WebRadar\UI\webradar_sections.h" />
+    <ClInclude Include="include\Features\WebRadar\UI\webradar_tab.h" />
+    <ClInclude Include="include\Features\WebRadar\webradar.h" />
+    <ClInclude Include="include\Game\Offsets\runtime_offsets.h" />
+    <ClInclude Include="include\Game\Schema\structs.h" />
+    <ClInclude Include="src\assets\fonts\weapons.hpp" />
+    <ClInclude Include="src\Features\ESP\Core\draw.inl" />
+    <ClInclude Include="src\Features\ESP\Core\get_web_radar_snapshot.inl" />
+    <ClInclude Include="src\Features\ESP\Core\state.inl" />
+    <ClInclude Include="src\Features\ESP\DataReader\base_reads.inl" />
+    <ClInclude Include="src\Features\ESP\DataReader\bomb_reads.inl" />
+    <ClInclude Include="src\Features\ESP\DataReader\commit_bomb.inl" />
+    <ClInclude Include="src\Features\ESP\DataReader\commit_players.inl" />
+    <ClInclude Include="src\Features\ESP\DataReader\commit_state.inl" />
+    <ClInclude Include="src\Features\ESP\DataReader\commit_world.inl" />
+    <ClInclude Include="src\Features\ESP\DataReader\inventory_reads.inl" />
+    <ClInclude Include="src\Features\ESP\DataReader\player_reads.inl" />
+    <ClInclude Include="src\Features\ESP\DataReader\update_data.inl" />
+    <ClInclude Include="src\Features\ESP\DataReader\world_reads.inl" />
+    <ClInclude Include="src\Features\ESP\Helpers\basic_helpers.inl" />
+    <ClInclude Include="src\Features\ESP\Helpers\draw_corner_box.inl" />
+    <ClInclude Include="src\Features\ESP\Helpers\draw_text_shadow.inl" />
+    <ClInclude Include="src\Features\ESP\Helpers\project_world_aabb_to_screen.inl" />
+    <ClInclude Include="src\Features\ESP\Helpers\weapon_lookup.inl" />
+    <ClInclude Include="src\Features\ESP\Render\bomb_esp.inl" />
+    <ClInclude Include="src\Features\ESP\Render\player_box.inl" />
+    <ClInclude Include="src\Features\ESP\Render\player_distance.inl" />
+    <ClInclude Include="src\Features\ESP\Render\player_flags.inl" />
+    <ClInclude Include="src\Features\ESP\Render\player_health_armor.inl" />
+    <ClInclude Include="src\Features\ESP\Render\player_name.inl" />
+    <ClInclude Include="src\Features\ESP\Render\player_offscreen_arrows.inl" />
+    <ClInclude Include="src\Features\ESP\Render\player_skeleton.inl" />
+    <ClInclude Include="src\Features\ESP\Render\player_snaplines.inl" />
+    <ClInclude Include="src\Features\ESP\Render\player_sound.inl" />
+    <ClInclude Include="src\Features\ESP\Render\player_weapon_ammo.inl" />
+    <ClInclude Include="src\Features\ESP\Render\player_weapon_and_bomb.inl" />
+    <ClInclude Include="src\Features\ESP\Render\world_esp.inl" />
+    <ClInclude Include="src\Features\ESP\Worker\camera_worker_loop.inl" />
+    <ClInclude Include="src\Features\ESP\Worker\data_worker_loop.inl" />
+    <ClInclude Include="src\Features\ESP\Worker\dma_health_helpers.inl" />
+    <ClInclude Include="src\Features\ESP\Worker\try_recover_dma.inl" />
+    <ClInclude Include="src\Features\ESP\Worker\worker_lifecycle.inl" />
+    <ClInclude Include="src\Features\Radar\Calibration\build_map_key_from_bounds.inl" />
+    <ClInclude Include="src\Features\Radar\Calibration\get_radar_profiles_path.inl" />
+    <ClInclude Include="src\Features\Radar\Calibration\handle_map_calibration.inl" />
+    <ClInclude Include="src\Features\Radar\Calibration\ini_helpers.inl" />
+    <ClInclude Include="src\Features\Radar\Calibration\load_radar_calibration_for_map.inl" />
+    <ClInclude Include="src\Features\Radar\Calibration\save_radar_calibration_for_map.inl" />
+    <ClInclude Include="src\Features\Radar\Render\radar_overlay.inl" />
+  </ItemGroup>
+</Project>

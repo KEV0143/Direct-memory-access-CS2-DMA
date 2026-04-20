@@ -1,0 +1,77 @@
+﻿{
+  "maps": [
+    {
+      "name": "de_mirage",
+      "display_name": "Mirage",
+      "origin": { "x": -3230.0, "y": 1713.0 },
+      "scale": 5.0,
+      "bounds": { "min_x": -3230.0, "max_x": 1890.0, "min_y": -3407.0, "max_y": 1713.0 },
+      "images": { "radar": "/data/de_mirage/radar.png", "background": "/data/de_mirage/background.png" }
+    },
+    {
+      "name": "de_inferno",
+      "display_name": "Inferno",
+      "origin": { "x": -2087.0, "y": 3870.0 },
+      "scale": 4.9,
+      "bounds": { "min_x": -2087.0, "max_x": 2930.6, "min_y": -1147.6, "max_y": 3870.0 },
+      "images": { "radar": "/data/de_inferno/radar.png", "background": "/data/de_inferno/background.png" }
+    },
+    {
+      "name": "de_dust2",
+      "display_name": "Dust II",
+      "origin": { "x": -2476.0, "y": 3239.0 },
+      "scale": 4.4,
+      "bounds": { "min_x": -2476.0, "max_x": 2029.6, "min_y": -1266.6, "max_y": 3239.0 },
+      "images": { "radar": "/data/de_dust2/radar.png", "background": "/data/de_dust2/background.png" }
+    },
+    {
+      "name": "de_nuke",
+      "display_name": "Nuke",
+      "origin": { "x": -3453.0, "y": 2887.0 },
+      "scale": 7.0,
+      "bounds": { "min_x": -3453.0, "max_x": 3715.0, "min_y": -4281.0, "max_y": 2887.0 },
+      "images": { "radar": "/data/de_nuke/radar.png", "background": "/data/de_nuke/background.png" }
+    },
+    {
+      "name": "de_overpass",
+      "display_name": "Overpass",
+      "origin": { "x": -4831.0, "y": 1781.0 },
+      "scale": 5.2,
+      "bounds": { "min_x": -4831.0, "max_x": 493.8, "min_y": -3543.8, "max_y": 1781.0 },
+      "images": { "radar": "/data/de_overpass/radar.png", "background": "/data/de_overpass/background.png" }
+    },
+    {
+      "name": "de_ancient",
+      "display_name": "Ancient",
+      "origin": { "x": -2953.0, "y": 2164.0 },
+      "scale": 5.0,
+      "bounds": { "min_x": -2953.0, "max_x": 2167.0, "min_y": -2956.0, "max_y": 2164.0 },
+      "images": { "radar": "/data/de_ancient/radar.png", "background": "/data/de_ancient/background.png" }
+    },
+    {
+      "name": "de_anubis",
+      "display_name": "Anubis",
+      "origin": { "x": -2796.0, "y": 3328.0 },
+      "scale": 5.22,
+      "bounds": { "min_x": -2796.0, "max_x": 2549.28, "min_y": -2017.28, "max_y": 3328.0 },
+      "images": { "radar": "/data/de_anubis/radar.png", "background": "/data/de_anubis/background.png" }
+    },
+    {
+      "name": "de_vertigo",
+      "display_name": "Vertigo",
+      "origin": { "x": -3168.0, "y": 1762.0 },
+      "scale": 4.0,
+      "bounds": { "min_x": -3168.0, "max_x": 928.0, "min_y": -2334.0, "max_y": 1762.0 },
+      "images": { "radar": "/data/de_vertigo/radar.png", "background": "/data/de_vertigo/background.png" }
+    },
+    {
+      "name": "aim_custom",
+      "display_name": "Aim / Workshop (Dynamic)",
+      "origin": { "x": 0.0, "y": 0.0 },
+      "scale": 1.0,
+      "dynamic": true,
+      "bounds": { "min_x": -1024.0, "max_x": 1024.0, "min_y": -1024.0, "max_y": 1024.0 },
+      "images": { "radar": "", "background": "" }
+    }
+  ]
+}

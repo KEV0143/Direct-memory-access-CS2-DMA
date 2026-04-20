@@ -1,0 +1,518 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{11A3FCC3-AB4A-44EA-8B02-9B3FD6BAA87A}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm</Extensions>
+    </Filter>
+    <Filter Include="Inline Files">
+      <UniqueIdentifier>{B2356675-7872-440B-841A-257451E664FD}</UniqueIdentifier>
+      <Extensions>inl;inc;ipp</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{325C3085-4D4B-496F-900D-6F2B48C9FF51}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{E776CAF6-E632-4A38-8E5C-B45935C9ED6F}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files\app">
+      <UniqueIdentifier>{10A767D6-ACC4-4FD9-89A4-8A3114D22F90}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\assets">
+      <UniqueIdentifier>{E0036F73-8C94-48A9-9033-596EE537F41B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Features">
+      <UniqueIdentifier>{26984820-830D-482B-AF8B-2A2DCDEA3593}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Game">
+      <UniqueIdentifier>{485F7065-5C7C-456A-AC0D-4313081A6DC0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Inline Files\Features">
+      <UniqueIdentifier>{5F38D62B-983B-49BE-9799-CE32E5DE0E93}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Features">
+      <UniqueIdentifier>{C40E6AFD-9941-4EFB-80BB-6D2B4AC46114}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\app">
+      <UniqueIdentifier>{0D9F0352-642B-439D-A722-65A142F5923E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Features">
+      <UniqueIdentifier>{4B3CD328-5582-4F85-9731-E1BB7F9A1BBC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Game">
+      <UniqueIdentifier>{CC4E5DE3-A45F-48C5-90D2-BEEB9109FFE1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\vendor">
+      <UniqueIdentifier>{4528D3A8-F0B3-4F87-A9B6-58647B01F50B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\app\Bootstrap">
+      <UniqueIdentifier>{DAC3BAFC-ED15-46A2-8DC2-B66BAACF23BC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\app\Config">
+      <UniqueIdentifier>{31ACB893-1126-4D1A-B353-7C702D7844B8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\app\Core">
+      <UniqueIdentifier>{8B56888A-5CF3-4AF5-AFFB-5EFA370EDA15}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\app\Platform">
+      <UniqueIdentifier>{64200294-3445-4EDD-8E9D-2D0DDF302ABA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\app\UI">
+      <UniqueIdentifier>{DFFF33A1-B332-45AE-9943-D6F3D3D99D5B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\assets\fonts">
+      <UniqueIdentifier>{1A46A6B6-B47F-4688-8B51-CF423847DE6A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Features\ESP">
+      <UniqueIdentifier>{3817D3B9-76C9-4AF1-9AB1-E31B28197A0F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Features\Radar">
+      <UniqueIdentifier>{DA62DB6C-D4EC-4EF9-892E-B18AC7D41946}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Features\Settings">
+      <UniqueIdentifier>{1E2AAB3C-F7B2-4E3B-B928-BC4EC3C5BD77}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Features\WebRadar">
+      <UniqueIdentifier>{752EE86B-0C93-41D2-B194-D4598FB2970E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Game\Offsets">
+      <UniqueIdentifier>{2E39B0A8-6B39-4D3A-83B6-E8C18D795DE3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Game\Schema">
+      <UniqueIdentifier>{53E02BD2-77E7-48EE-9536-07E2FA1C154C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Inline Files\Features\ESP">
+      <UniqueIdentifier>{23849359-96D8-496B-8D30-C1F4DBECFA7E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Inline Files\Features\Radar">
+      <UniqueIdentifier>{98DD144F-F68E-4476-AEE8-D2945FD4CB85}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Features\WebRadar">
+      <UniqueIdentifier>{D9D5C4A5-BB38-4D65-8AAA-64029D8E8CDA}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\app\Bootstrap">
+      <UniqueIdentifier>{276E570F-EDF0-49CF-8762-DE785DD1E16E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\app\Config">
+      <UniqueIdentifier>{D00F36D7-F0C6-419E-8057-0F9A0A4C4EF4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\app\Platform">
+      <UniqueIdentifier>{20E79B27-AF5B-4AB4-8302-AC13614E688D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\app\UI">
+      <UniqueIdentifier>{9FEC1E5E-62C7-466E-AA62-9906007699CE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Features\ESP">
+      <UniqueIdentifier>{D9D4DB2A-38E8-4778-88F7-CE44622B5CF1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Features\Radar">
+      <UniqueIdentifier>{636BCE0B-5EA1-40BB-9C5D-27BD1B1E9E44}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Features\Settings">
+      <UniqueIdentifier>{58066C93-9BA4-4615-B6D2-EE3F0A8805A1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Features\WebRadar">
+      <UniqueIdentifier>{8B900C1A-59B4-4D2B-BC9E-49653195759B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Game\Offsets">
+      <UniqueIdentifier>{6E56FAC7-E378-43F5-BA51-065B9509211B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\vendor\DMALibrary">
+      <UniqueIdentifier>{51157FE3-EE3D-4617-8CF2-7ECF296CE133}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\vendor\imgui">
+      <UniqueIdentifier>{2BD5CC71-75B5-4508-A822-5339514B1227}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\vendor\qrcodegen">
+      <UniqueIdentifier>{B17F6C0D-93E8-4FAF-BF16-00703FFC1EBC}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\app\UI\MenuShell">
+      <UniqueIdentifier>{2006A0CC-A3FD-4895-B9BF-57311973A6AE}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Features\ESP\UI">
+      <UniqueIdentifier>{53620DCB-DBB3-4E78-A769-379289D79AA1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Features\Radar\UI">
+      <UniqueIdentifier>{80C2E3D6-0416-469D-AA79-F7BBFA4E4075}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Features\Settings\UI">
+      <UniqueIdentifier>{C11F6008-CD1E-4A09-9CC7-06B0AB323B79}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\Features\WebRadar\UI">
+      <UniqueIdentifier>{54790E82-FA9F-494F-8C1E-D871F795B47D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Inline Files\Features\ESP\Core">
+      <UniqueIdentifier>{2AD38C92-5133-4C62-894C-F3B62DB04706}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Inline Files\Features\ESP\DataReader">
+      <UniqueIdentifier>{A9B6CA77-C6FF-470E-8CD3-66AFC93F0362}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Inline Files\Features\ESP\Helpers">
+      <UniqueIdentifier>{EB9E2912-4928-4F29-BBA5-BC36D5FA459D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Inline Files\Features\ESP\Render">
+      <UniqueIdentifier>{7136B157-5B7E-4285-BC12-9BF2E8542FEB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Inline Files\Features\ESP\Worker">
+      <UniqueIdentifier>{BA120C1E-1B92-42A9-B2BF-39FE1FBEE0CD}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Inline Files\Features\Radar\Calibration">
+      <UniqueIdentifier>{F046DD72-9CE1-4989-B2F8-7204DEDF86C1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Inline Files\Features\Radar\Render">
+      <UniqueIdentifier>{3FDE932F-E29F-4592-8E36-C72B790B4BB1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files\Features\WebRadar\Assets">
+      <UniqueIdentifier>{C05C315D-3881-47FF-BC09-FA01A4DE512A}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\app\UI\MenuShell">
+      <UniqueIdentifier>{534BF067-3B73-4297-9094-E08F43D89718}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Features\ESP\UI">
+      <UniqueIdentifier>{AFA5D341-B8B4-4FCA-99B1-48B72C21994D}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Features\Radar\UI">
+      <UniqueIdentifier>{E22ADAB2-79A7-4AAD-AA74-7B4E5222720E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Features\Settings\UI">
+      <UniqueIdentifier>{DB62A4AB-D11D-4554-9BA8-546A57E330BB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Features\WebRadar\Runtime">
+      <UniqueIdentifier>{93627D04-22FA-4516-9183-EA366E96FBE2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\Features\WebRadar\UI">
+      <UniqueIdentifier>{8874FE2A-5E9B-4D2F-B327-8393CEFC58B6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\vendor\DMALibrary\Memory">
+      <UniqueIdentifier>{0814D6B0-86AE-4089-B07F-6D11AD4BCD29}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\vendor\imgui\backends">
+      <UniqueIdentifier>{0629E4AC-23B3-41A6-88A3-CA119DA7C666}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\Bootstrap\main.cpp">
+      <Filter>Source Files\app\Bootstrap</Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\Bootstrap\runtime_console.cpp">
+      <Filter>Source Files\app\Bootstrap</Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\Config\config.cpp">
+      <Filter>Source Files\app\Config</Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\Config\project_paths.cpp">
+      <Filter>Source Files\app\Config</Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\Platform\overlay.cpp">
+      <Filter>Source Files\app\Platform</Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\UI\MenuShell\menu_controller.cpp">
+      <Filter>Source Files\app\UI\MenuShell</Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\UI\MenuShell\menu_utils.cpp">
+      <Filter>Source Files\app\UI\MenuShell</Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\UI\MenuShell\ui_style.cpp">
+      <Filter>Source Files\app\UI\MenuShell</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\ESP\esp.cpp">
+      <Filter>Source Files\Features\ESP</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\ESP\UI\esp_preview.cpp">
+      <Filter>Source Files\Features\ESP\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\ESP\UI\esp_sections.cpp">
+      <Filter>Source Files\Features\ESP\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\ESP\UI\esp_tab.cpp">
+      <Filter>Source Files\Features\ESP\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\Radar\UI\radar_sections.cpp">
+      <Filter>Source Files\Features\Radar\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\Radar\UI\radar_tab.cpp">
+      <Filter>Source Files\Features\Radar\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\Settings\UI\settings_sections.cpp">
+      <Filter>Source Files\Features\Settings\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\Settings\UI\settings_tab.cpp">
+      <Filter>Source Files\Features\Settings\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\WebRadar\Runtime\embedded_assets.cpp">
+      <Filter>Source Files\Features\WebRadar\Runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\WebRadar\Runtime\webradar.cpp">
+      <Filter>Source Files\Features\WebRadar\Runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\WebRadar\UI\webradar_sections.cpp">
+      <Filter>Source Files\Features\WebRadar\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\WebRadar\UI\webradar_tab.cpp">
+      <Filter>Source Files\Features\WebRadar\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Game\Offsets\runtime_offsets.cpp">
+      <Filter>Source Files\Game\Offsets</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\DMALibrary\Memory\InputManager.cpp">
+      <Filter>Source Files\vendor\DMALibrary\Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\DMALibrary\Memory\Memory.cpp">
+      <Filter>Source Files\vendor\DMALibrary\Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\DMALibrary\Memory\Registry.cpp">
+      <Filter>Source Files\vendor\DMALibrary\Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\DMALibrary\Memory\Shellcode.cpp">
+      <Filter>Source Files\vendor\DMALibrary\Memory</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\DMALibrary\pch.cpp">
+      <Filter>Source Files\vendor\DMALibrary</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\imgui\backends\imgui_impl_dx11.cpp">
+      <Filter>Source Files\vendor\imgui\backends</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\imgui\backends\imgui_impl_win32.cpp">
+      <Filter>Source Files\vendor\imgui\backends</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\imgui\imgui.cpp">
+      <Filter>Source Files\vendor\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\imgui\imgui_draw.cpp">
+      <Filter>Source Files\vendor\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\imgui\imgui_tables.cpp">
+      <Filter>Source Files\vendor\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\imgui\imgui_widgets.cpp">
+      <Filter>Source Files\vendor\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\qrcodegen\qrcodegen.cpp">
+      <Filter>Source Files\vendor\qrcodegen</Filter>
+    </ClCompile>
+    <ClInclude Include="include\app\Bootstrap\runtime_console.h">
+      <Filter>Header Files\app\Bootstrap</Filter>
+    </ClInclude>
+    <ClInclude Include="include\app\Config\config.h">
+      <Filter>Header Files\app\Config</Filter>
+    </ClInclude>
+    <ClInclude Include="include\app\Config\project_paths.h">
+      <Filter>Header Files\app\Config</Filter>
+    </ClInclude>
+    <ClInclude Include="include\app\Core\app_state.h">
+      <Filter>Header Files\app\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="include\app\Core\build_info.h">
+      <Filter>Header Files\app\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="include\app\Core\globals.h">
+      <Filter>Header Files\app\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="include\app\Platform\overlay.h">
+      <Filter>Header Files\app\Platform</Filter>
+    </ClInclude>
+    <ClInclude Include="include\app\UI\MenuShell\menu_controller.h">
+      <Filter>Header Files\app\UI\MenuShell</Filter>
+    </ClInclude>
+    <ClInclude Include="include\app\UI\MenuShell\menu_state.h">
+      <Filter>Header Files\app\UI\MenuShell</Filter>
+    </ClInclude>
+    <ClInclude Include="include\app\UI\MenuShell\menu_utils.h">
+      <Filter>Header Files\app\UI\MenuShell</Filter>
+    </ClInclude>
+    <ClInclude Include="include\app\UI\MenuShell\tab_page.h">
+      <Filter>Header Files\app\UI\MenuShell</Filter>
+    </ClInclude>
+    <ClInclude Include="include\app\UI\MenuShell\ui_style.h">
+      <Filter>Header Files\app\UI\MenuShell</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\ESP\esp.h">
+      <Filter>Header Files\Features\ESP</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\ESP\UI\esp_sections.h">
+      <Filter>Header Files\Features\ESP\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\ESP\UI\esp_tab.h">
+      <Filter>Header Files\Features\ESP\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\Radar\UI\radar_sections.h">
+      <Filter>Header Files\Features\Radar\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\Radar\UI\radar_tab.h">
+      <Filter>Header Files\Features\Radar\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\Settings\UI\settings_sections.h">
+      <Filter>Header Files\Features\Settings\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\Settings\UI\settings_tab.h">
+      <Filter>Header Files\Features\Settings\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\WebRadar\embedded_assets.h">
+      <Filter>Header Files\Features\WebRadar</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\WebRadar\UI\webradar_sections.h">
+      <Filter>Header Files\Features\WebRadar\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\WebRadar\UI\webradar_tab.h">
+      <Filter>Header Files\Features\WebRadar\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\WebRadar\webradar.h">
+      <Filter>Header Files\Features\WebRadar</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Game\Offsets\runtime_offsets.h">
+      <Filter>Header Files\Game\Offsets</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Game\Schema\structs.h">
+      <Filter>Header Files\Game\Schema</Filter>
+    </ClInclude>
+    <ClInclude Include="src\assets\fonts\weapons.hpp">
+      <Filter>Header Files\assets\fonts</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Core\draw.inl">
+      <Filter>Inline Files\Features\ESP\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Core\get_web_radar_snapshot.inl">
+      <Filter>Inline Files\Features\ESP\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Core\state.inl">
+      <Filter>Inline Files\Features\ESP\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\DataReader\base_reads.inl">
+      <Filter>Inline Files\Features\ESP\DataReader</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\DataReader\bomb_reads.inl">
+      <Filter>Inline Files\Features\ESP\DataReader</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\DataReader\commit_bomb.inl">
+      <Filter>Inline Files\Features\ESP\DataReader</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\DataReader\commit_players.inl">
+      <Filter>Inline Files\Features\ESP\DataReader</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\DataReader\commit_state.inl">
+      <Filter>Inline Files\Features\ESP\DataReader</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\DataReader\commit_world.inl">
+      <Filter>Inline Files\Features\ESP\DataReader</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\DataReader\inventory_reads.inl">
+      <Filter>Inline Files\Features\ESP\DataReader</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\DataReader\player_reads.inl">
+      <Filter>Inline Files\Features\ESP\DataReader</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\DataReader\update_data.inl">
+      <Filter>Inline Files\Features\ESP\DataReader</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\DataReader\world_reads.inl">
+      <Filter>Inline Files\Features\ESP\DataReader</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Helpers\basic_helpers.inl">
+      <Filter>Inline Files\Features\ESP\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Helpers\draw_corner_box.inl">
+      <Filter>Inline Files\Features\ESP\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Helpers\draw_text_shadow.inl">
+      <Filter>Inline Files\Features\ESP\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Helpers\project_world_aabb_to_screen.inl">
+      <Filter>Inline Files\Features\ESP\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Helpers\weapon_lookup.inl">
+      <Filter>Inline Files\Features\ESP\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\bomb_esp.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\player_box.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\player_distance.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\player_flags.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\player_health_armor.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\player_name.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\player_offscreen_arrows.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\player_skeleton.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\player_snaplines.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\player_sound.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\player_weapon_ammo.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\player_weapon_and_bomb.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Render\world_esp.inl">
+      <Filter>Inline Files\Features\ESP\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Worker\camera_worker_loop.inl">
+      <Filter>Inline Files\Features\ESP\Worker</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Worker\data_worker_loop.inl">
+      <Filter>Inline Files\Features\ESP\Worker</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Worker\dma_health_helpers.inl">
+      <Filter>Inline Files\Features\ESP\Worker</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Worker\try_recover_dma.inl">
+      <Filter>Inline Files\Features\ESP\Worker</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\ESP\Worker\worker_lifecycle.inl">
+      <Filter>Inline Files\Features\ESP\Worker</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\Radar\Calibration\build_map_key_from_bounds.inl">
+      <Filter>Inline Files\Features\Radar\Calibration</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\Radar\Calibration\get_radar_profiles_path.inl">
+      <Filter>Inline Files\Features\Radar\Calibration</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\Radar\Calibration\handle_map_calibration.inl">
+      <Filter>Inline Files\Features\Radar\Calibration</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\Radar\Calibration\ini_helpers.inl">
+      <Filter>Inline Files\Features\Radar\Calibration</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\Radar\Calibration\load_radar_calibration_for_map.inl">
+      <Filter>Inline Files\Features\Radar\Calibration</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\Radar\Calibration\save_radar_calibration_for_map.inl">
+      <Filter>Inline Files\Features\Radar\Calibration</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Features\Radar\Render\radar_overlay.inl">
+      <Filter>Inline Files\Features\Radar\Render</Filter>
+    </ClInclude>
+    <ResourceCompile Include="src\Features\WebRadar\Assets\webradar_resources.rc">
+      <Filter>Resource Files\Features\WebRadar\Assets</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#07141f" />
+<title>KevqDMA WEBRadar</title>
+<link rel="icon" type="image/png" href="./favicon.png" />
+<link rel="stylesheet" href="./viewer.css?v=20260320i" />
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__title">KevqDMA WEBRadar</div>
+      </div>
+
+      <div id="connection-pill" class="connection-pill is-connecting">
+        <span class="connection-pill__dot"></span>
+        <span id="connection-text">Realtime connecting</span>
+      </div>
+
+      <div class="topbar__meta">
+        <span class="meta-chip">Map <strong id="meta-map">unknown</strong></span>
+        <span class="meta-chip">RTT <strong id="meta-rtt">--</strong></span>
+      </div>
+
+      <div class="topbar__controls">
+        <button id="only-radar-launch" class="topbar-button" type="button">Only Radar</button>
+
+        <button id="settings-toggle" class="icon-button" type="button" aria-label="Open viewer settings">
+          <img src="./assets/icons/cog.svg" alt="" />
+        </button>
+
+        <div id="settings-popover" class="settings-popover hidden">
+          <div class="settings-popover__title">Radar Controls</div>
+          <div class="settings-popover__rows">
+            <div class="settings-section-title">Display</div>
+            <label class="settings-row">
+              <span>Dot Size</span>
+              <input id="setting-dot-size" type="range" min="0.25" max="2" step="0.05" value="1" />
+              <strong id="setting-dot-size-value">1.0x</strong>
+            </label>
+
+            <label class="settings-row">
+              <span>Dropped Bomb Size</span>
+              <input id="setting-bomb-size" type="range" min="0.15" max="2" step="0.05" value="0.5" />
+              <strong id="setting-bomb-size-value">0.5x</strong>
+            </label>
+
+            <label class="settings-toggle-row">
+              <span>Ally Names</span>
+              <input id="setting-ally-names" type="checkbox" />
+            </label>
+
+            <label class="settings-toggle-row">
+              <span>Enemy Names</span>
+              <input id="setting-enemy-names" type="checkbox" checked />
+            </label>
+
+            <label class="settings-toggle-row">
+              <span>View Cones</span>
+              <input id="setting-view-cones" type="checkbox" />
+            </label>
+
+            <label class="settings-row">
+              <span>Cone Opacity</span>
+              <input id="setting-view-cone-opacity" type="range" min="0.05" max="0.65" step="0.05" value="0.2" />
+              <strong id="setting-view-cone-opacity-value">20%</strong>
+            </label>
+
+            <div class="settings-section-title">Filters</div>
+            <div class="settings-filter-grid">
+              <label class="filter-pill"><input id="filter-self" type="checkbox" checked />Self</label>
+              <label class="filter-pill filter-pill--ct"><input id="filter-ct" type="checkbox" checked />CT</label>
+              <label class="filter-pill filter-pill--t"><input id="filter-t" type="checkbox" checked />T</label>
+              <label class="filter-pill"><input id="filter-alive" type="checkbox" checked />Alive</label>
+              <label class="filter-pill"><input id="filter-dead" type="checkbox" checked />Dead</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="team-panel team-panel--left">
+        <div class="team-panel__header">
+          <span class="team-panel__name">Terrorists</span>
+          <span id="terrorist-count" class="team-panel__count">0</span>
+        </div>
+        <div id="terrorist-list" class="team-panel__list">
+          <div class="team-panel__empty">No terrorists</div>
+        </div>
+      </aside>
+
+      <section class="radar-panel">
+        <div class="radar-panel__header">
+          <div class="radar-panel__title">
+            <span class="radar-panel__eyebrow">Current Map</span>
+            <strong id="radar-map-name">UNKNOWN</strong>
+          </div>
+          <div class="radar-panel__stats">
+            <span class="meta-chip">Entities <strong id="radar-entities">0</strong></span>
+            <span class="meta-chip">Feed <strong>Local</strong></span>
+            <span class="meta-chip">Focus <strong id="radar-focus">Tactical</strong></span>
+          </div>
+        </div>
+
+        <div id="radar-stage" class="radar-stage">
+          <div class="radar-stage__grid"></div>
+          <div class="radar-stage__rings"></div>
+
+          <div id="map-shell" class="map-shell">
+            <img id="map-background" class="map-shell__background" alt="" />
+            <img id="map-image" class="map-shell__image" alt="Radar map" />
+            <canvas id="radar-overlay" class="radar-overlay"></canvas>
+          </div>
+
+          <div id="radar-message" class="radar-message">Connected. Waiting for live entities</div>
+          <div id="bomb-status" class="bomb-status hidden">
+            <span class="bomb-status__dot"></span>
+            <span id="bomb-status-text">Bomb status</span>
+          </div>
+        </div>
+
+        <div class="radar-panel__footer">
+          <span class="meta-chip meta-chip--t">T <strong id="footer-t-count">0</strong></span>
+          <span class="meta-chip meta-chip--ct">CT <strong id="footer-ct-count">0</strong></span>
+          <span class="meta-chip">Visible <strong id="footer-visible-count">0</strong></span>
+        </div>
+      </section>
+
+      <aside class="team-panel team-panel--right">
+        <div class="team-panel__header">
+          <span class="team-panel__name">Counter-Terrorists</span>
+          <span id="counter-terrorist-count" class="team-panel__count">0</span>
+        </div>
+        <div id="counter-terrorist-list" class="team-panel__list">
+          <div class="team-panel__empty">No counter-terrorists</div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <script src="./viewer.js?v=20260411a"></script>
+</body>
+</html>

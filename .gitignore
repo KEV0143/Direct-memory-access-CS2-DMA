@@ -1,0 +1,6 @@
+*.pdb
+*.obj
+*.tlog
+x64/obj/
+x64/Release/data/offsets/offsets.json
+output/
