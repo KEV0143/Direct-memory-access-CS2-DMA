@@ -1,4 +1,5 @@
 #include "app/Core/globals.h"
+#include "Features/ESP/esp.h"
 
 #include <algorithm>
 #include <charconv>
@@ -89,36 +90,76 @@ namespace
     {
         float s = scale;
         switch (boneId) {
-        case 6:  return { cx,          top + 10*s  };
-        case 5:  return { cx,          top + 22*s  };
-        case 4:  return { cx,          top + 42*s  };
-        case 2:  return { cx,          top + 70*s  };
-        case 0:  return { cx,          top + 90*s  };
-        case 8:  return { cx + 18*s,   top + 26*s  };
-        case 9:  return { cx + 32*s,   top + 52*s  };
-        case 10: return { cx + 34*s,   top + 70*s  };
-        case 13: return { cx - 18*s,   top + 26*s  };
-        case 14: return { cx - 32*s,   top + 52*s  };
-        case 15: return { cx - 34*s,   top + 70*s  };
-        case 22: return { cx + 10*s,   top + 95*s  };
-        case 23: return { cx + 13*s,   top + 125*s };
-        case 24: return { cx + 14*s,   top + 152*s };
-        case 25: return { cx - 10*s,   top + 95*s  };
-        case 26: return { cx - 13*s,   top + 125*s };
-        case 27: return { cx - 14*s,   top + 152*s };
+        case esp::HEAD:           return { cx,          top + 10*s  };
+        case esp::NECK:           return { cx,          top + 22*s  };
+        case esp::CHEST:          return { cx,          top + 38*s  };
+        case esp::SPINE2:         return { cx,          top + 54*s  };
+        case esp::SPINE1:         return { cx,          top + 70*s  };
+        case esp::PELVIS:         return { cx,          top + 90*s  };
+        case esp::SHOULDER_L:     return { cx + 18*s,   top + 26*s  };
+        case esp::ELBOW_L:        return { cx + 32*s,   top + 52*s  };
+        case esp::HAND_L:         return { cx + 34*s,   top + 70*s  };
+        case esp::SHOULDER_R:     return { cx - 18*s,   top + 26*s  };
+        case esp::ELBOW_R:        return { cx - 32*s,   top + 52*s  };
+        case esp::HAND_R:         return { cx - 34*s,   top + 70*s  };
+        case esp::HIP_L:          return { cx + 10*s,   top + 95*s  };
+        case esp::KNEE_L:         return { cx + 13*s,   top + 125*s };
+        case esp::FOOT_HEEL_L:    return { cx + 14*s,   top + 146*s };
+        case esp::FOOT_TOES_L_T:
+        case esp::FOOT_TOES_L_CT: return { cx + 16*s,   top + 154*s };
+        case esp::HIP_R:          return { cx - 10*s,   top + 95*s  };
+        case esp::KNEE_R:         return { cx - 13*s,   top + 125*s };
+        case esp::FOOT_HEEL_R:    return { cx - 14*s,   top + 146*s };
+        case esp::FOOT_TOES_R_T:
+        case esp::FOOT_TOES_R_CT: return { cx - 16*s,   top + 154*s };
         default: return { cx,          top + 50*s  };
         }
     }
 
     struct BonePair { int from, to; };
     static const BonePair kPairs[] = {
-        {6,5},{5,4},{4,2},{2,0},
-        {5,8},{8,9},{9,10},
-        {5,13},{13,14},{14,15},
-        {0,22},{22,23},{23,24},
-        {0,25},{25,26},{26,27},
+        {esp::PELVIS,     esp::SPINE1},
+        {esp::SPINE1,     esp::SPINE2},
+        {esp::SPINE2,     esp::CHEST},
+        {esp::CHEST,      esp::NECK},
+        {esp::NECK,       esp::HEAD},
+        {esp::NECK,       esp::SHOULDER_L},
+        {esp::SHOULDER_L, esp::ELBOW_L},
+        {esp::ELBOW_L,    esp::HAND_L},
+        {esp::NECK,       esp::SHOULDER_R},
+        {esp::SHOULDER_R, esp::ELBOW_R},
+        {esp::ELBOW_R,    esp::HAND_R},
+        {esp::PELVIS,     esp::HIP_L},
+        {esp::HIP_L,      esp::KNEE_L},
+        {esp::KNEE_L,     esp::FOOT_HEEL_L},
+        {esp::FOOT_HEEL_L, esp::FOOT_TOES_L_CT},
+        {esp::PELVIS,     esp::HIP_R},
+        {esp::HIP_R,      esp::KNEE_R},
+        {esp::KNEE_R,     esp::FOOT_HEEL_R},
+        {esp::FOOT_HEEL_R, esp::FOOT_TOES_R_CT},
     };
-    static const int kJoints[] = { 0,2,5,8,9,10,13,14,15,22,23,24,25,26,27 };
+    static const int kJoints[] = {
+        esp::PELVIS,
+        esp::SPINE1,
+        esp::SPINE2,
+        esp::CHEST,
+        esp::NECK,
+        esp::HEAD,
+        esp::SHOULDER_L,
+        esp::ELBOW_L,
+        esp::HAND_L,
+        esp::SHOULDER_R,
+        esp::ELBOW_R,
+        esp::HAND_R,
+        esp::HIP_L,
+        esp::KNEE_L,
+        esp::FOOT_HEEL_L,
+        esp::FOOT_TOES_L_CT,
+        esp::HIP_R,
+        esp::KNEE_R,
+        esp::FOOT_HEEL_R,
+        esp::FOOT_TOES_R_CT
+    };
 
     
     void DrawPlayerSilhouette(ImDrawList* dl, float cx, float boxTop,
@@ -283,7 +324,7 @@ namespace
                                     IM_COL32(0, 0, 0, 200), 8);
                 dl->AddCircleFilled(ImVec2(bp.x, bp.y), 1.4f, skelCol, 8);
             }
-            Vec2 head = BonePos2D(6, cx, boxTop, boneScale);
+            Vec2 head = BonePos2D(esp::HEAD, cx, boxTop, boneScale);
             float headR = 7.0f * boneScale;
             dl->AddCircle(ImVec2(head.x, head.y), headR,
                           IM_COL32(0, 0, 0, 200), 16, 2.8f);

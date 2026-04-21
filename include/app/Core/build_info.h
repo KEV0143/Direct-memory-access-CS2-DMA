@@ -8,10 +8,11 @@
 #include <string_view>
 
 namespace app::build_info {
-inline constexpr std::string_view kVersionTag = "v1.0.0";
+inline constexpr std::string_view kVersionTag = "v1.0.1";
 inline constexpr std::string_view kRepositoryUrl = "https://github.com/KEV0143/Direct-memory-access-CS2-DMA";
-inline constexpr std::string_view kLatestReleaseApiUrl = "https://api.github.com/repos/KEV0143/Direct-memory-access-CS2-DMA/releases/latest";
-inline constexpr std::string_view kLatestTagApiUrl = "https://api.github.com/repos/KEV0143/Direct-memory-access-CS2-DMA/tags?per_page=1";
+inline constexpr std::string_view kRepositoryReleasesUrl = "https://github.com/KEV0143/Direct-memory-access-CS2-DMA/releases";
+inline constexpr std::string_view kRemoteBuildInfoUrl = "https://raw.githubusercontent.com/KEV0143/Direct-memory-access-CS2-DMA/main/include/app/Core/build_info.h";
+inline constexpr std::string_view kRemoteBuildInfoFallbackUrl = "https://raw.githubusercontent.com/KEV0143/Direct-memory-access-CS2-DMA/master/include/app/Core/build_info.h";
 
 inline const std::string& VersionTag()
 {
@@ -25,15 +26,27 @@ inline const std::string& RepositoryUrl()
     return url;
 }
 
-inline const std::string& LatestReleaseApiUrl()
+inline const std::string& RepositoryReleasesUrl()
 {
-    static const std::string url(kLatestReleaseApiUrl);
+    static const std::string url(kRepositoryReleasesUrl);
     return url;
 }
 
-inline const std::string& LatestTagApiUrl()
+inline const std::string& HttpUserAgent()
 {
-    static const std::string url(kLatestTagApiUrl);
+    static const std::string userAgent = "KevqDMA/" + VersionTag();
+    return userAgent;
+}
+
+inline const std::string& RemoteBuildInfoUrl()
+{
+    static const std::string url(kRemoteBuildInfoUrl);
+    return url;
+}
+
+inline const std::string& RemoteBuildInfoFallbackUrl()
+{
+    static const std::string url(kRemoteBuildInfoFallbackUrl);
     return url;
 }
 

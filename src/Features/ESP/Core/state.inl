@@ -86,6 +86,7 @@ namespace {
         esp::PlayerData prevPlayers[64] = {};
         esp::PlayerData webRadarPlayers[64] = {};
         char       localName[128] = {};
+        char       activeMapKey[64] = {};
         int        localPlayerIndex = -1;
         int        localTeam = 0;
         uintptr_t  localPawn = 0;
@@ -317,11 +318,23 @@ static auto s_lastMapPersistTime = std::chrono::steady_clock::time_point();
 struct BonePair { int from, to; };
 
 static const BonePair skeletonPairs[] = {
-    { 6,  5 }, { 5,  4 }, { 4,  2 }, { 2,  0 },
-    { 5,  8 }, { 8,  9 }, { 9,  10 },
-    { 5,  13 }, { 13, 14 }, { 14, 15 },
-    { 0,  22 }, { 22, 23 }, { 23, 24 },
-    { 0,  25 }, { 25, 26 }, { 26, 27 },
+    { esp::PELVIS,     esp::SPINE1 },
+    { esp::SPINE1,     esp::SPINE2 },
+    { esp::SPINE2,     esp::CHEST },
+    { esp::CHEST,      esp::NECK },
+    { esp::NECK,       esp::HEAD },
+    { esp::NECK,       esp::SHOULDER_L },
+    { esp::SHOULDER_L, esp::ELBOW_L },
+    { esp::ELBOW_L,    esp::HAND_L },
+    { esp::NECK,       esp::SHOULDER_R },
+    { esp::SHOULDER_R, esp::ELBOW_R },
+    { esp::ELBOW_R,    esp::HAND_R },
+    { esp::PELVIS,     esp::HIP_L },
+    { esp::HIP_L,      esp::KNEE_L },
+    { esp::KNEE_L,     esp::FOOT_HEEL_L },
+    { esp::PELVIS,     esp::HIP_R },
+    { esp::HIP_R,      esp::KNEE_R },
+    { esp::KNEE_R,     esp::FOOT_HEEL_R },
 };
 static constexpr int skeletonPairCount = static_cast<int>(std::size(skeletonPairs));
 
@@ -347,6 +360,9 @@ static void PublishCurrentSnapshot(uint32_t mask = SnapshotAll)
 
     if ((mask & SnapshotLocalView) != 0u) {
         memcpy(snap.localName, s_localName, sizeof(snap.localName));
+        memset(snap.activeMapKey, 0, sizeof(snap.activeMapKey));
+        if (!s_activeMapKey.empty())
+            strncpy_s(snap.activeMapKey, sizeof(snap.activeMapKey), s_activeMapKey.c_str(), _TRUNCATE);
         snap.localPlayerIndex = s_localPlayerIndex;
         snap.localTeam = s_localTeam;
         snap.localPawn = s_localPawn;

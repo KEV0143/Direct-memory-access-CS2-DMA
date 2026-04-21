@@ -1,3 +1,7 @@
+    const std::string resolvedMapKey = NormalizeMapName(snapshot.mapKey);
+    if (!resolvedMapKey.empty())
+        return resolvedMapKey;
+
     if (!snapshot.hasMinimapBounds)
         return "unknown";
 

@@ -98,6 +98,9 @@
     static uint64_t s_lastMinimapRefreshUs = 0;
     static uint64_t s_lastSensitivityRefreshUs = 0;
     static uint64_t s_lastIntervalRefreshUs = 0;
+    static uint32_t s_gameRulesSanityFailureStreak = 0;
+    static uint64_t s_lastGameRulesSanityLogUs = 0;
+    static uint64_t s_lastGameRulesSanityRecoveryUs = 0;
     static bool s_entityHierarchyMissing = false;
     static uint32_t s_entityHierarchyMissingStreak = 0;
     static uint64_t s_lastEntityHierarchyRecoveryUs = 0;
@@ -120,6 +123,9 @@
             s_lastMinimapRefreshUs = 0;
             s_lastSensitivityRefreshUs = 0;
             s_lastIntervalRefreshUs = 0;
+            s_gameRulesSanityFailureStreak = 0;
+            s_lastGameRulesSanityLogUs = 0;
+            s_lastGameRulesSanityRecoveryUs = 0;
             
             
             s_entityHierarchyMissing = false;
@@ -314,17 +320,6 @@
             }
         }
 
-        
-        s_cbpLocalPawn = localPawn;
-        s_cbpLocalController = localController;
-        s_cbpGameRules = gameRules;
-        s_cbpGlobalVars = globalVars;
-        s_cbpSensPtr = sensPtr;
-        s_cbpPlantedC4 = plantedC4Entity;
-        s_cbpWeaponC4 = weaponC4Entity;
-        s_cbpWeaponC4Raw = sanitizePointer(rawWeaponC4);
-
-
         listEntry = sanitizePointer(rawListEntry);
         if (localPawn && ofs.C_BaseEntity_m_iTeamNum > 0 && (liveLocalTeam == 2 || liveLocalTeam == 3)) {
             localTeam = liveLocalTeam;
@@ -365,6 +360,84 @@
                 }
             }
         }
+
+        auto minimapBoundsLookPlausible = [&](const Vector3& minsToCheck, const Vector3& maxsToCheck) -> bool {
+            if (!std::isfinite(minsToCheck.x) || !std::isfinite(minsToCheck.y) ||
+                !std::isfinite(maxsToCheck.x) || !std::isfinite(maxsToCheck.y)) {
+                return false;
+            }
+
+            const float spanX = std::fabs(maxsToCheck.x - minsToCheck.x);
+            const float spanY = std::fabs(maxsToCheck.y - minsToCheck.y);
+            return spanX > 100.0f && spanY > 100.0f &&
+                spanX < 20000.0f && spanY < 20000.0f;
+        };
+
+        const auto gameRulesWarmupState =
+            static_cast<esp::SceneWarmupState>(s_sceneWarmupState.load(std::memory_order_relaxed));
+        const bool stableInGameGameRulesWindow =
+            s_engineInGame.load(std::memory_order_relaxed) &&
+            gameRules != 0 &&
+            gameRulesWarmupState == esp::SceneWarmupState::Stable &&
+            (baseNowUs - s_lastSceneResetUs.load(std::memory_order_relaxed)) >= 2000000;
+        const bool plantedFlagSane =
+            ofs.C_CSGameRules_m_bBombPlanted <= 0 || bombPlantedFlag <= 1u;
+        const bool droppedFlagSane =
+            ofs.C_CSGameRules_m_bBombDropped <= 0 || bombDroppedFlag <= 1u;
+        const bool minimapBoundsSane =
+            (ofs.C_CSGameRules_m_vMinimapMins <= 0 || ofs.C_CSGameRules_m_vMinimapMaxs <= 0) ||
+            minimapBoundsLookPlausible(minimapMins, minimapMaxs);
+        const bool gameRulesLooksSane =
+            plantedFlagSane &&
+            droppedFlagSane &&
+            minimapBoundsSane;
+
+        if (stableInGameGameRulesWindow && !gameRulesLooksSane) {
+            ++s_gameRulesSanityFailureStreak;
+
+            const bool shouldLog =
+                s_gameRulesSanityFailureStreak == 1u ||
+                (s_gameRulesSanityFailureStreak % 10u) == 0u ||
+                (baseNowUs - s_lastGameRulesSanityLogUs) >= 3000000u;
+            if (shouldLog) {
+                s_lastGameRulesSanityLogUs = baseNowUs;
+                DmaLogPrintf(
+                    "[WARN] GameRules sanity failed: ptr=0x%llX dwGameRules=0x%llX mins=(%.1f,%.1f) maxs=(%.1f,%.1f) planted=%u dropped=%u. Suspect stale/bad output.",
+                    static_cast<unsigned long long>(gameRules),
+                    static_cast<unsigned long long>(ofs.dwGameRules),
+                    minimapMins.x,
+                    minimapMins.y,
+                    minimapMaxs.x,
+                    minimapMaxs.y,
+                    static_cast<unsigned>(bombPlantedFlag),
+                    static_cast<unsigned>(bombDroppedFlag));
+            }
+
+            if (s_gameRulesSanityFailureStreak >= 3u &&
+                (baseNowUs - s_lastGameRulesSanityRecoveryUs) >= 1000000u) {
+                s_lastGameRulesSanityRecoveryUs = baseNowUs;
+                refreshDmaCaches("gamerules_sanity_failed", DmaRefreshTier::Repair, true);
+            }
+
+            gameRules = 0;
+            minimapMins = s_minimapMins;
+            minimapMaxs = s_minimapMaxs;
+            minimapBoundsValid = s_hasMinimapBounds;
+            bombPlantedByRules = false;
+            bombDroppedByRules = false;
+        } else if (!stableInGameGameRulesWindow || gameRulesLooksSane) {
+            s_gameRulesSanityFailureStreak = 0;
+        }
+
+        
+        s_cbpLocalPawn = localPawn;
+        s_cbpLocalController = localController;
+        s_cbpGameRules = gameRules;
+        s_cbpGlobalVars = globalVars;
+        s_cbpSensPtr = sensPtr;
+        s_cbpPlantedC4 = plantedC4Entity;
+        s_cbpWeaponC4 = weaponC4Entity;
+        s_cbpWeaponC4Raw = sanitizePointer(rawWeaponC4);
         
         
         

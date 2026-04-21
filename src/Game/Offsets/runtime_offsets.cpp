@@ -1,5 +1,6 @@
 #include "Game/Offsets/runtime_offsets.h"
 #include "app/Config/project_paths.h"
+#include "app/Core/build_info.h"
 
 #include <Windows.h>
 #include <winhttp.h>
@@ -74,10 +75,9 @@ namespace
         int patchBuildNumber = 0;
     };
 
-    #include "runtime_offsets_parts/runtime_offsets_defaults_tables.inl"
     #include "runtime_offsets_parts/runtime_offsets_remote_fields.inl"
 
-    runtime_offsets::Values g_values = BuildDefaults();
+    runtime_offsets::Values g_values = {};
     #include "runtime_offsets_parts/runtime_offsets_paths_helpers.inl"
 
     #include "runtime_offsets_parts/runtime_offsets_parse_helpers.inl"
@@ -112,10 +112,87 @@ namespace
     bool RemoveFileIfExists(const std::filesystem::path& path);
     bool TryParseOffsetsJsonFile(const std::filesystem::path& jsonPath, json& outRoot);
     void LoadValuesFromJson(const json& root,
-                            const runtime_offsets::Values& defaults,
                             runtime_offsets::Values& outValues,
                             std::vector<std::string>* missingKeys,
                             std::vector<std::string>* invalidKeys);
+    std::vector<std::string> ValidateLoadedValues(const runtime_offsets::Values& values, bool requiredOnly = false);
+
+    const std::vector<OffsetField> kOffsetFields = {
+        OffsetField{"offsets", "dwEntityList", &runtime_offsets::Values::dwEntityList},
+        OffsetField{"offsets", "dwGameEntitySystem_highestEntityIndex", &runtime_offsets::Values::dwGameEntitySystem_highestEntityIndex},
+        OffsetField{"offsets", "dwGameRules", &runtime_offsets::Values::dwGameRules},
+        OffsetField{"offsets", "dwGlobalVars", &runtime_offsets::Values::dwGlobalVars},
+        OffsetField{"offsets", "dwLocalPlayerController", &runtime_offsets::Values::dwLocalPlayerController},
+        OffsetField{"offsets", "dwLocalPlayerPawn", &runtime_offsets::Values::dwLocalPlayerPawn},
+        OffsetField{"offsets", "dwPlantedC4", &runtime_offsets::Values::dwPlantedC4},
+        OffsetField{"offsets", "dwViewMatrix", &runtime_offsets::Values::dwViewMatrix},
+        OffsetField{"offsets", "dwViewAngles", &runtime_offsets::Values::dwViewAngles},
+        OffsetField{"offsets", "dwWeaponC4", &runtime_offsets::Values::dwWeaponC4},
+        OffsetField{"offsets", "dwSensitivity", &runtime_offsets::Values::dwSensitivity},
+        OffsetField{"offsets", "dwSensitivity_sensitivity", &runtime_offsets::Values::dwSensitivity_sensitivity},
+        OffsetField{"offsets", "dwNetworkGameClient", &runtime_offsets::Values::dwNetworkGameClient},
+        OffsetField{"offsets", "dwNetworkGameClient_signOnState", &runtime_offsets::Values::dwNetworkGameClient_signOnState},
+        OffsetField{"offsets", "dwNetworkGameClient_localPlayer", &runtime_offsets::Values::dwNetworkGameClient_localPlayer},
+        OffsetField{"offsets", "dwNetworkGameClient_maxClients", &runtime_offsets::Values::dwNetworkGameClient_maxClients},
+        OffsetField{"offsets", "dwNetworkGameClient_isBackgroundMap", &runtime_offsets::Values::dwNetworkGameClient_isBackgroundMap},
+        OffsetField{"schemas", "CBasePlayerController.m_iPing", &runtime_offsets::Values::CBasePlayerController_m_iPing},
+        OffsetField{"schemas", "CCSPlayerController.m_pInGameMoneyServices", &runtime_offsets::Values::CCSPlayerController_m_pInGameMoneyServices},
+        OffsetField{"schemas", "CCSPlayerController_InGameMoneyServices.m_iAccount", &runtime_offsets::Values::CCSPlayerController_InGameMoneyServices_m_iAccount},
+        OffsetField{"schemas", "C_BaseEntity.m_iTeamNum", &runtime_offsets::Values::C_BaseEntity_m_iTeamNum},
+        OffsetField{"schemas", "C_BasePlayerPawn.m_vOldOrigin", &runtime_offsets::Values::C_BasePlayerPawn_m_vOldOrigin},
+        OffsetField{"schemas", "C_BasePlayerPawn.m_pWeaponServices", &runtime_offsets::Values::C_BasePlayerPawn_m_pWeaponServices},
+        OffsetField{"schemas", "CCSPlayerController.m_hPlayerPawn", &runtime_offsets::Values::CCSPlayerController_m_hPlayerPawn},
+        OffsetField{"schemas", "CBasePlayerController.m_iszPlayerName", &runtime_offsets::Values::CBasePlayerController_m_iszPlayerName},
+        OffsetField{"schemas", "CPlayer_WeaponServices.m_hActiveWeapon", &runtime_offsets::Values::CPlayer_WeaponServices_m_hActiveWeapon},
+        OffsetField{"schemas", "CPlayer_WeaponServices.m_hMyWeapons", &runtime_offsets::Values::CPlayer_WeaponServices_m_hMyWeapons},
+        OffsetField{"schemas", "C_BaseEntity.m_iHealth", &runtime_offsets::Values::C_BaseEntity_m_iHealth},
+        OffsetField{"schemas", "C_CSPlayerPawn.m_ArmorValue", &runtime_offsets::Values::C_CSPlayerPawn_m_ArmorValue},
+        OffsetField{"schemas", "C_BaseEntity.m_lifeState", &runtime_offsets::Values::C_BaseEntity_m_lifeState},
+        OffsetField{"schemas", "C_BaseEntity.m_CBodyComponent", &runtime_offsets::Values::C_BaseEntity_m_CBodyComponent},
+        OffsetField{"schemas", "C_BaseEntity.m_pGameSceneNode", &runtime_offsets::Values::C_BaseEntity_m_pGameSceneNode},
+        OffsetField{"schemas", "C_BaseEntity.m_hOwnerEntity", &runtime_offsets::Values::C_BaseEntity_m_hOwnerEntity},
+        OffsetField{"schemas", "C_BaseModelEntity.m_Collision", &runtime_offsets::Values::C_BaseModelEntity_m_Collision},
+        OffsetField{"schemas", "CCollisionProperty.m_vecMins", &runtime_offsets::Values::CCollisionProperty_m_vecMins},
+        OffsetField{"schemas", "CCollisionProperty.m_vecMaxs", &runtime_offsets::Values::CCollisionProperty_m_vecMaxs},
+        OffsetField{"schemas", "C_BaseEntity.m_nSubclassID", &runtime_offsets::Values::C_BaseEntity_m_nSubclassID},
+        OffsetField{"schemas", "C_BaseEntity.m_vecVelocity", &runtime_offsets::Values::C_BaseEntity_m_vecVelocity},
+        OffsetField{"schemas", "C_BasePlayerWeapon.m_iClip1", &runtime_offsets::Values::C_BasePlayerWeapon_m_iClip1},
+        OffsetField{"schemas", "C_CSPlayerPawn.m_pClippingWeapon", &runtime_offsets::Values::C_CSPlayerPawn_m_pClippingWeapon},
+        OffsetField{"schemas", "C_CSPlayerPawn.m_bIsScoped", &runtime_offsets::Values::C_CSPlayerPawn_m_bIsScoped},
+        OffsetField{"schemas", "C_CSPlayerPawn.m_bIsDefusing", &runtime_offsets::Values::C_CSPlayerPawn_m_bIsDefusing},
+        OffsetField{"schemas", "C_CSPlayerPawn.m_angEyeAngles", &runtime_offsets::Values::C_CSPlayerPawn_m_angEyeAngles},
+        OffsetField{"schemas", "C_CSPlayerPawnBase.m_flFlashDuration", &runtime_offsets::Values::C_CSPlayerPawnBase_m_flFlashDuration},
+        OffsetField{"schemas", "C_CSPlayerPawnBase.m_pItemServices", &runtime_offsets::Values::C_CSPlayerPawnBase_m_pItemServices},
+        OffsetField{"schemas", "CCSPlayer_ItemServices.m_bHasDefuser", &runtime_offsets::Values::CCSPlayer_ItemServices_m_bHasDefuser},
+        OffsetField{"schemas", "C_CSPlayerPawn.m_entitySpottedState", &runtime_offsets::Values::C_CSPlayerPawn_m_entitySpottedState},
+        OffsetField{"schemas", "C_EconEntity.m_AttributeManager", &runtime_offsets::Values::C_EconEntity_m_AttributeManager},
+        OffsetField{"schemas", "C_AttributeContainer.m_Item", &runtime_offsets::Values::C_AttributeContainer_m_Item},
+        OffsetField{"schemas", "C_EconItemView.m_iItemDefinitionIndex", &runtime_offsets::Values::C_EconItemView_m_iItemDefinitionIndex},
+        OffsetField{"schemas", "C_CSGameRules.m_vMinimapMins", &runtime_offsets::Values::C_CSGameRules_m_vMinimapMins},
+        OffsetField{"schemas", "C_CSGameRules.m_vMinimapMaxs", &runtime_offsets::Values::C_CSGameRules_m_vMinimapMaxs},
+        OffsetField{"schemas", "C_CSGameRules.m_bBombPlanted", &runtime_offsets::Values::C_CSGameRules_m_bBombPlanted},
+        OffsetField{"schemas", "C_CSGameRules.m_bBombDropped", &runtime_offsets::Values::C_CSGameRules_m_bBombDropped},
+        OffsetField{"schemas", "CGameSceneNode.m_vecAbsOrigin", &runtime_offsets::Values::CGameSceneNode_m_vecAbsOrigin},
+        OffsetField{"schemas", "EntitySpottedState_t.m_bSpotted", &runtime_offsets::Values::EntitySpottedState_t_m_bSpotted},
+        OffsetField{"schemas", "EntitySpottedState_t.m_bSpottedByMask", &runtime_offsets::Values::EntitySpottedState_t_m_bSpottedByMask},
+        OffsetField{"schemas", "C_PlantedC4.m_bBombTicking", &runtime_offsets::Values::C_PlantedC4_m_bBombTicking},
+        OffsetField{"schemas", "C_PlantedC4.m_flC4Blow", &runtime_offsets::Values::C_PlantedC4_m_flC4Blow},
+        OffsetField{"schemas", "C_PlantedC4.m_bBeingDefused", &runtime_offsets::Values::C_PlantedC4_m_bBeingDefused},
+        OffsetField{"schemas", "C_PlantedC4.m_flDefuseCountDown", &runtime_offsets::Values::C_PlantedC4_m_flDefuseCountDown},
+        OffsetField{"schemas", "C_Inferno.m_nFireEffectTickBegin", &runtime_offsets::Values::C_Inferno_m_nFireEffectTickBegin},
+        OffsetField{"schemas", "C_Inferno.m_nFireLifetime", &runtime_offsets::Values::C_Inferno_m_nFireLifetime},
+        OffsetField{"schemas", "C_Inferno.m_fireCount", &runtime_offsets::Values::C_Inferno_m_fireCount},
+        OffsetField{"schemas", "C_Inferno.m_bInPostEffectTime", &runtime_offsets::Values::C_Inferno_m_bInPostEffectTime},
+        OffsetField{"schemas", "C_SmokeGrenadeProjectile.m_nSmokeEffectTickBegin", &runtime_offsets::Values::C_SmokeGrenadeProjectile_m_nSmokeEffectTickBegin},
+        OffsetField{"schemas", "C_SmokeGrenadeProjectile.m_bDidSmokeEffect", &runtime_offsets::Values::C_SmokeGrenadeProjectile_m_bDidSmokeEffect},
+        OffsetField{"schemas", "C_SmokeGrenadeProjectile.m_bSmokeVolumeDataReceived", &runtime_offsets::Values::C_SmokeGrenadeProjectile_m_bSmokeVolumeDataReceived},
+        OffsetField{"schemas", "C_SmokeGrenadeProjectile.m_bSmokeEffectSpawned", &runtime_offsets::Values::C_SmokeGrenadeProjectile_m_bSmokeEffectSpawned},
+        OffsetField{"schemas", "C_DecoyProjectile.m_nDecoyShotTick", &runtime_offsets::Values::C_DecoyProjectile_m_nDecoyShotTick},
+        OffsetField{"schemas", "C_DecoyProjectile.m_nClientLastKnownDecoyShotTick", &runtime_offsets::Values::C_DecoyProjectile_m_nClientLastKnownDecoyShotTick},
+        OffsetField{"schemas", "C_BaseCSGrenadeProjectile.m_nExplodeEffectTickBegin", &runtime_offsets::Values::C_BaseCSGrenadeProjectile_m_nExplodeEffectTickBegin},
+        OffsetField{"schemas", "CBodyComponentSkeletonInstance.m_skeletonInstance", &runtime_offsets::Values::CBodyComponentSkeletonInstance_m_skeletonInstance},
+        OffsetField{"schemas", "CSkeletonInstance.m_modelState", &runtime_offsets::Values::CSkeletonInstance_m_modelState},
+    };
 
     bool HasMeaningfulOffsetState(const OffsetState& state)
     {
@@ -244,9 +321,10 @@ namespace
         if (!TryParseOffsetsJsonFile(jsonPath, root))
             return false;
 
-        const runtime_offsets::Values defaults = BuildDefaults();
-        runtime_offsets::Values values = defaults;
-        LoadValuesFromJson(root, defaults, values, nullptr, nullptr);
+        runtime_offsets::Values values = {};
+        LoadValuesFromJson(root, values, nullptr, nullptr);
+        if (!ValidateLoadedValues(values, true).empty())
+            return false;
         return WriteOffsetsJson(jsonPath, values, &state);
     }
 
@@ -348,24 +426,67 @@ namespace
         return &keyIt->second;
     }
 
+    std::wstring ToWide(std::string_view text)
+    {
+        if (text.empty())
+            return {};
+
+        const int length =
+            MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+        if (length <= 0)
+            return {};
+
+        std::wstring result(static_cast<size_t>(length), L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), result.data(), length);
+        return result;
+    }
+
+    const std::wstring& HttpUserAgentWide()
+    {
+        static const std::wstring kUserAgent = ToWide(app::build_info::HttpUserAgent());
+        return kUserAgent;
+    }
+
+    const std::wstring& HttpUserAgentHeader()
+    {
+        static const std::wstring kHeader = L"User-Agent: " + HttpUserAgentWide();
+        return kHeader;
+    }
+
+    bool HasHeaderName(const std::vector<std::wstring>& headers, std::wstring_view headerName)
+    {
+        for (const std::wstring& header : headers)
+        {
+            if (header.size() < headerName.size() + 1)
+                continue;
+            if (_wcsnicmp(header.c_str(), headerName.data(), headerName.size()) != 0)
+                continue;
+            if (header[headerName.size()] == L':')
+                return true;
+        }
+
+        return false;
+    }
+
+    std::vector<std::wstring> BuildRequestHeaders(const std::vector<std::wstring>& extraHeaders = {})
+    {
+        std::vector<std::wstring> headers = extraHeaders;
+        if (!HasHeaderName(headers, L"User-Agent"))
+            headers.push_back(HttpUserAgentHeader());
+        return headers;
+    }
+
     ReadResult ReadLegacyIniOffset(const LegacyIniDocument& ini,
                                    const char* section,
                                    const char* key,
-                                   std::ptrdiff_t fallback,
                                    std::ptrdiff_t& outValue)
     {
         const std::string* raw = FindLegacyIniValue(ini, section, key);
         if (raw == nullptr)
-        {
-            outValue = fallback;
             return ReadResult::Missing;
-        }
 
         if (!TryParseOffset(*raw, outValue))
-        {
-            outValue = fallback;
             return ReadResult::Invalid;
-        }
 
         return ReadResult::Parsed;
     }
@@ -373,22 +494,15 @@ namespace
     ReadResult ReadJsonOffset(const json& root,
                               const char* section,
                               const char* key,
-                              std::ptrdiff_t fallback,
                               std::ptrdiff_t& outValue)
     {
         const auto secIt = root.find(section);
         if (secIt == root.end() || !secIt->is_object())
-        {
-            outValue = fallback;
             return ReadResult::Missing;
-        }
 
         const auto keyIt = secIt->find(key);
         if (keyIt == secIt->end())
-        {
-            outValue = fallback;
             return ReadResult::Missing;
-        }
 
         if (keyIt->is_number_integer())
         {
@@ -405,22 +519,33 @@ namespace
         if (keyIt->is_string() && TryParseOffset(keyIt->get_ref<const std::string&>(), outValue))
             return ReadResult::Parsed;
 
-        outValue = fallback;
         return ReadResult::Invalid;
     }
 
-    void LoadValuesFromSource(const runtime_offsets::Values& defaults,
-                              runtime_offsets::Values& outValues,
+    bool IsRequiredOffsetMember(std::ptrdiff_t runtime_offsets::Values::*member)
+    {
+        for (const auto& field : kRequiredRemoteFields)
+        {
+            if (field.member == member)
+                return true;
+        }
+        return false;
+    }
+
+    void LoadValuesFromSource(runtime_offsets::Values& outValues,
                               std::vector<std::string>* missingKeys,
                               std::vector<std::string>* invalidKeys,
                               auto&& reader)
     {
-        outValues = defaults;
+        outValues = {};
         for (const auto& field : kOffsetFields)
         {
-            std::ptrdiff_t value = defaults.*(field.member);
-            const ReadResult result = reader(field.section, field.key, value, value);
-            outValues.*(field.member) = value;
+            std::ptrdiff_t value = 0;
+            const ReadResult result = reader(field.section, field.key, value);
+            if (result == ReadResult::Parsed)
+                outValues.*(field.member) = value;
+            else
+                outValues.*(field.member) = 0;
 
             if (result == ReadResult::Missing && missingKeys)
                 missingKeys->emplace_back(std::string(field.section) + "." + field.key);
@@ -440,42 +565,40 @@ namespace
     }
 
     void LoadValuesFromJson(const json& root,
-                            const runtime_offsets::Values& defaults,
                             runtime_offsets::Values& outValues,
                             std::vector<std::string>* missingKeys,
                             std::vector<std::string>* invalidKeys)
     {
         LoadValuesFromSource(
-            defaults,
             outValues,
             missingKeys,
             invalidKeys,
-            [&](const char* section, const char* key, std::ptrdiff_t fallback, std::ptrdiff_t& outValue) {
-                return ReadJsonOffset(root, section, key, fallback, outValue);
+            [&](const char* section, const char* key, std::ptrdiff_t& outValue) {
+                return ReadJsonOffset(root, section, key, outValue);
             });
     }
 
     void LoadValuesFromLegacyIni(const LegacyIniDocument& ini,
-                                 const runtime_offsets::Values& defaults,
                                  runtime_offsets::Values& outValues,
                                  std::vector<std::string>* missingKeys,
                                  std::vector<std::string>* invalidKeys)
     {
         LoadValuesFromSource(
-            defaults,
             outValues,
             missingKeys,
             invalidKeys,
-            [&](const char* section, const char* key, std::ptrdiff_t fallback, std::ptrdiff_t& outValue) {
-                return ReadLegacyIniOffset(ini, section, key, fallback, outValue);
+            [&](const char* section, const char* key, std::ptrdiff_t& outValue) {
+                return ReadLegacyIniOffset(ini, section, key, outValue);
             });
     }
 
-    std::vector<std::string> ValidateLoadedValues(const runtime_offsets::Values& values)
+    std::vector<std::string> ValidateLoadedValues(const runtime_offsets::Values& values, bool requiredOnly)
     {
         std::vector<std::string> zeroFields;
         for (const auto& field : kOffsetFields)
         {
+            if (requiredOnly && !IsRequiredOffsetMember(field.member))
+                continue;
             if (values.*(field.member) <= 0)
                 zeroFields.emplace_back(std::string(field.section) + "." + field.key);
         }
@@ -534,7 +657,12 @@ namespace
         std::wstring wHost(hostStr.begin(), hostStr.end());
         std::wstring wPath(pathStr.begin(), pathStr.end());
 
-        HINTERNET hSession = WinHttpOpen(L"KevqDMA/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        HINTERNET hSession = WinHttpOpen(
+            HttpUserAgentWide().c_str(),
+            WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+            WINHTTP_NO_PROXY_NAME,
+            WINHTTP_NO_PROXY_BYPASS,
+            0);
         if (!hSession) {
             if (error) *error = "WinHttpOpen failed";
             return false;
@@ -557,12 +685,41 @@ namespace
             return false;
         }
 
+        for (const std::wstring& header : BuildRequestHeaders()) {
+            WinHttpAddRequestHeaders(
+                hRequest,
+                header.c_str(),
+                static_cast<DWORD>(header.size()),
+                WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE);
+        }
+
         if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) ||
             !WinHttpReceiveResponse(hRequest, nullptr)) {
             WinHttpCloseHandle(hRequest);
             WinHttpCloseHandle(hConnect);
             WinHttpCloseHandle(hSession);
             if (error) *error = "Download failed for " + urlStr;
+            return false;
+        }
+
+        DWORD statusCode = 0;
+        DWORD statusCodeSize = sizeof(statusCode);
+        if (!WinHttpQueryHeaders(
+                hRequest,
+                WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                WINHTTP_HEADER_NAME_BY_INDEX,
+                &statusCode,
+                &statusCodeSize,
+                WINHTTP_NO_HEADER_INDEX)) {
+            statusCode = 0;
+        }
+
+        if (statusCode < 200 || statusCode >= 300) {
+            WinHttpCloseHandle(hRequest);
+            WinHttpCloseHandle(hConnect);
+            WinHttpCloseHandle(hSession);
+            if (error)
+                *error = "Download returned status " + std::to_string(statusCode) + " for " + urlStr;
             return false;
         }
 
@@ -619,7 +776,12 @@ namespace
         const std::wstring wHost(hostStr.begin(), hostStr.end());
         const std::wstring wPath(pathStr.begin(), pathStr.end());
 
-        HINTERNET hSession = WinHttpOpen(L"KevqDMA/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        HINTERNET hSession = WinHttpOpen(
+            HttpUserAgentWide().c_str(),
+            WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+            WINHTTP_NO_PROXY_NAME,
+            WINHTTP_NO_PROXY_BYPASS,
+            0);
         if (!hSession)
         {
             if (error)
@@ -648,7 +810,7 @@ namespace
             return false;
         }
 
-        for (const std::wstring& header : extraHeaders)
+        for (const std::wstring& header : BuildRequestHeaders(extraHeaders))
         {
             if (!header.empty())
                 WinHttpAddRequestHeaders(hRequest, header.c_str(), static_cast<DWORD>(header.size()), WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE);
@@ -757,41 +919,16 @@ namespace
     {
         HttpTextResponse response = {};
         if (!HttpGetText(
-                "https://api.github.com/repos/SteamTracking/GameTracking-CS2/contents/game/csgo/steam.inf?ref=master",
-                { L"Accept: application/vnd.github+json", L"X-GitHub-Api-Version: 2022-11-28" },
+                "https://raw.githubusercontent.com/SteamTracking/GameTracking-CS2/master/game/csgo/steam.inf",
+                {},
                 response,
                 error))
         {
             return false;
         }
 
-        json root = json::parse(response.body, nullptr, false);
-        if (root.is_discarded() || !root.is_object())
-        {
-            if (error)
-                *error = "Invalid JSON returned for steam.inf metadata.";
-            return false;
-        }
-
-        const std::string encodedContent = JsonStringOrEmpty(root, "content");
-        const std::string fileSha = JsonStringOrEmpty(root, "sha");
-        if (encodedContent.empty() || fileSha.empty())
-        {
-            if (error)
-                *error = "steam.inf response is missing content or sha.";
-            return false;
-        }
-
-        std::string decodedContent;
-        if (!Base64Decode(encodedContent, decodedContent))
-        {
-            if (error)
-                *error = "steam.inf content could not be base64-decoded.";
-            return false;
-        }
-
         std::unordered_map<std::string, std::string> kv;
-        std::istringstream stream(decodedContent);
+        std::istringstream stream(response.body);
         std::string line;
         while (std::getline(stream, line))
         {
@@ -809,7 +946,7 @@ namespace
 
         snapshot = {};
         snapshot.patch.etag = StripQuotes(response.etag);
-        snapshot.patch.lastFileSha = fileSha;
+        snapshot.patch.lastFileSha = snapshot.patch.etag;
         snapshot.patch.patchVersion = kv["PatchVersion"];
         snapshot.versionDate = kv["VersionDate"];
         snapshot.versionTime = kv["VersionTime"];
@@ -1312,7 +1449,13 @@ namespace
 
     std::string DescribeOutputDirectoryCandidate(const OutputDirectoryCandidate& candidate)
     {
-        return candidate.label + " (" + candidate.directory.string() + ")";
+        const std::string folderName =
+            candidate.directory.filename().empty()
+            ? candidate.directory.generic_string()
+            : candidate.directory.filename().generic_string();
+        return folderName.empty()
+            ? candidate.label
+            : (candidate.label + " (" + folderName + ")");
     }
 
     bool DownloadFileWithRetry(const std::string& url,

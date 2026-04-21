@@ -17,8 +17,8 @@
         RemoteField{"cs2_dumper::schemas::client_dll::C_BaseEntity::m_iHealth", "client_dll.hpp", &runtime_offsets::Values::C_BaseEntity_m_iHealth},
         RemoteField{"cs2_dumper::schemas::client_dll::C_CSPlayerPawn::m_ArmorValue", "client_dll.hpp", &runtime_offsets::Values::C_CSPlayerPawn_m_ArmorValue},
         RemoteField{"cs2_dumper::schemas::client_dll::C_BaseEntity::m_lifeState", "client_dll.hpp", &runtime_offsets::Values::C_BaseEntity_m_lifeState},
+        RemoteField{"cs2_dumper::schemas::client_dll::C_BaseEntity::m_CBodyComponent", "client_dll.hpp", &runtime_offsets::Values::C_BaseEntity_m_CBodyComponent},
         RemoteField{"cs2_dumper::schemas::client_dll::C_BaseEntity::m_pGameSceneNode", "client_dll.hpp", &runtime_offsets::Values::C_BaseEntity_m_pGameSceneNode},
-        RemoteField{"cs2_dumper::schemas::client_dll::C_CSPlayerPawn::m_pClippingWeapon", "client_dll.hpp", &runtime_offsets::Values::C_CSPlayerPawn_m_pClippingWeapon},
         RemoteField{"cs2_dumper::schemas::client_dll::C_CSPlayerPawn::m_entitySpottedState", "client_dll.hpp", &runtime_offsets::Values::C_CSPlayerPawn_m_entitySpottedState},
         RemoteField{"cs2_dumper::schemas::client_dll::C_EconEntity::m_AttributeManager", "client_dll.hpp", &runtime_offsets::Values::C_EconEntity_m_AttributeManager},
         RemoteField{"cs2_dumper::schemas::client_dll::C_AttributeContainer::m_Item", "client_dll.hpp", &runtime_offsets::Values::C_AttributeContainer_m_Item},
@@ -51,6 +51,7 @@
         RemoteField{"cs2_dumper::schemas::client_dll::C_BaseEntity::m_nSubclassID", "client_dll.hpp", &runtime_offsets::Values::C_BaseEntity_m_nSubclassID},
         RemoteField{"cs2_dumper::schemas::client_dll::C_BaseEntity::m_vecVelocity", "client_dll.hpp", &runtime_offsets::Values::C_BaseEntity_m_vecVelocity},
         RemoteField{"cs2_dumper::schemas::client_dll::C_BasePlayerWeapon::m_iClip1", "client_dll.hpp", &runtime_offsets::Values::C_BasePlayerWeapon_m_iClip1},
+        RemoteField{"cs2_dumper::schemas::client_dll::C_CSPlayerPawn::m_pClippingWeapon", "client_dll.hpp", &runtime_offsets::Values::C_CSPlayerPawn_m_pClippingWeapon},
         RemoteField{"cs2_dumper::schemas::client_dll::C_CSPlayerPawn::m_bIsScoped", "client_dll.hpp", &runtime_offsets::Values::C_CSPlayerPawn_m_bIsScoped},
         RemoteField{"cs2_dumper::schemas::client_dll::C_CSPlayerPawn::m_bIsDefusing", "client_dll.hpp", &runtime_offsets::Values::C_CSPlayerPawn_m_bIsDefusing},
         RemoteField{"cs2_dumper::schemas::client_dll::C_CSPlayerPawn::m_angEyeAngles", "client_dll.hpp", &runtime_offsets::Values::C_CSPlayerPawn_m_angEyeAngles},
@@ -76,4 +77,5 @@
         RemoteField{"cs2_dumper::schemas::client_dll::C_DecoyProjectile::m_nDecoyShotTick", "client_dll.hpp", &runtime_offsets::Values::C_DecoyProjectile_m_nDecoyShotTick},
         RemoteField{"cs2_dumper::schemas::client_dll::C_DecoyProjectile::m_nClientLastKnownDecoyShotTick", "client_dll.hpp", &runtime_offsets::Values::C_DecoyProjectile_m_nClientLastKnownDecoyShotTick},
         RemoteField{"cs2_dumper::schemas::client_dll::C_BaseCSGrenadeProjectile::m_nExplodeEffectTickBegin", "client_dll.hpp", &runtime_offsets::Values::C_BaseCSGrenadeProjectile_m_nExplodeEffectTickBegin},
+        RemoteField{"cs2_dumper::schemas::client_dll::CBodyComponentSkeletonInstance::m_skeletonInstance", "client_dll.hpp", &runtime_offsets::Values::CBodyComponentSkeletonInstance_m_skeletonInstance},
     };

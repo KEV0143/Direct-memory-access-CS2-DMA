@@ -157,6 +157,13 @@ if (g::radarEnabled) {
     };
     static const std::vector<KnownRadarMap> knownRadarMaps = loadKnownRadarMaps();
     auto resolveKnownRadarMap = [&](const Vector3& mins, const Vector3& maxs) -> const KnownRadarMap* {
+        if (!s_activeMapKey.empty()) {
+            for (const auto& map : knownRadarMaps) {
+                if (_stricmp(map.name.c_str(), s_activeMapKey.c_str()) == 0)
+                    return &map;
+            }
+        }
+
         if (!hasMinimapBounds)
             return nullptr;
 

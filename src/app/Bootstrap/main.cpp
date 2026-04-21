@@ -100,7 +100,7 @@ namespace
         catch (...)
         {
             if (message)
-                *message = "Offsets load failed: runtime exception. Using built-in defaults.";
+                *message = "Offsets load failed: runtime exception.";
             return false;
         }
     }
@@ -423,17 +423,15 @@ int main(int argc, char* argv[])
     const std::string offsetCheckLabel = BuildOffsetCheckLabel(autoUpdateReport);
     if (updateOk) {
         console.PrintInfoOk(offsetCheckLabel, autoUpdateReport.offsetsUpdated ? 3 : 1);
-        const runtime_offsets::StateView offsetState = runtime_offsets::GetStateView();
 
         const std::string patchTransition = BuildPatchTransitionDisplay(autoUpdateReport);
         if (!patchTransition.empty())
             console.PrintInfoLine(patchTransition);
 
-        const std::string storedOffsetsPatch = BuildPatchDisplay(offsetState.offsetsPatch);
         const std::string currentPatchDisplay = BuildPatchDisplay(autoUpdateReport.currentPatch);
         const bool offsetsOutdated =
             !currentPatchDisplay.empty() &&
-            (storedOffsetsPatch.empty() || storedOffsetsPatch != currentPatchDisplay);
+            !autoUpdateReport.offsetsCompatibleWithCurrentPatch;
 
         if (offsetsOutdated) {
             console.PrintErrorLine("Offsets are outdated and need to be replaced.");

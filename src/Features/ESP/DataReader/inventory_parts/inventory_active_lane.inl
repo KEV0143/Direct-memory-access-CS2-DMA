@@ -1,4 +1,12 @@
     if (activeWeaponLaneDue) {
+        const bool useClippingWeaponFallback = ofs.C_CSPlayerPawn_m_pClippingWeapon > 0;
+        auto resolveActiveWeaponEntity = [&](int idx) -> uintptr_t {
+            if (idx < 0 || idx >= 64)
+                return 0;
+            if (activeWeapons[idx])
+                return activeWeapons[idx];
+            return useClippingWeaponFallback ? clippingWeapons[idx] : 0;
+        };
         const bool weaponServicesRefreshDue =
             s_lastWeaponServicesRefreshUs == 0 ||
             (inventoryNowUs - s_lastWeaponServicesRefreshUs) >= esp::intervals::kInventoryWeaponServicesRefreshUs;
@@ -23,6 +31,7 @@
             const int i = inventoryPlayerSlots[inventorySlotIdx];
             const bool needsClippingFallback =
                 pawns[i] &&
+                useClippingWeaponFallback &&
                 (weaponServicesRefreshDue || !s_cachedActiveWeaponsResolved[i] || !s_cachedClippingWeaponsResolved[i]);
             if (!needsClippingFallback)
                 continue;
@@ -43,7 +52,10 @@
         
         for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
             const int i = inventoryPlayerSlots[inventorySlotIdx];
-            const uintptr_t cachedEntity = s_cachedActiveWeaponsResolved[i] ? s_cachedActiveWeaponsResolved[i] : clippingWeapons[i];
+            const uintptr_t cachedEntity =
+                s_cachedActiveWeaponsResolved[i]
+                ? s_cachedActiveWeaponsResolved[i]
+                : (useClippingWeaponFallback ? clippingWeapons[i] : 0);
             if (!cachedEntity)
                 continue;
             if (ofs.C_BasePlayerWeapon_m_iClip1 > 0)
@@ -94,8 +106,6 @@
                     
                     
                     memset(activeWeaponHandles, 0, sizeof(activeWeaponHandles));
-                    memset(activeWeaponEntries, 0, sizeof(activeWeaponEntries));
-                    
                     for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
                         const int i = inventoryPlayerSlots[inventorySlotIdx];
                         if (!weaponServices[i])
@@ -103,46 +113,6 @@
                         mem.AddScatterReadRequest(handle,
                             weaponServices[i] + ofs.CPlayer_WeaponServices_m_hActiveWeapon,
                             &activeWeaponHandles[i], sizeof(uint32_t));
-                    }
-                    
-                    for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
-                        const int i = inventoryPlayerSlots[inventorySlotIdx];
-                        const uint32_t cachedHandle = s_cachedActiveWeaponHandles[i];
-                        if (!cachedHandle || cachedHandle == 0xFFFFFFFFu)
-                            continue;
-                        const uint32_t block = (cachedHandle & kEntityHandleMask) >> 9;
-                        mem.AddScatterReadRequest(handle,
-                            entityList + 0x10 + 8 * block,
-                            &activeWeaponEntries[i], sizeof(uintptr_t));
-                    }
-                    
-                    memset(activeWeapons, 0, sizeof(activeWeapons));
-                    for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
-                        const int i = inventoryPlayerSlots[inventorySlotIdx];
-                        const uint32_t cachedHandle = s_cachedActiveWeaponHandles[i];
-                        if (!cachedHandle || cachedHandle == 0xFFFFFFFFu || !s_cachedActiveWeaponEntries[i])
-                            continue;
-                        const uint32_t slot = cachedHandle & kEntitySlotMask;
-                        mem.AddScatterReadRequest(handle,
-                            s_cachedActiveWeaponEntries[i] + kEntitySlotSize * slot,
-                            &activeWeapons[i], sizeof(uintptr_t));
-                    }
-                    
-                    memset(weaponIds, 0, sizeof(weaponIds));
-                    memset(ammoClips, 0, sizeof(ammoClips));
-                    for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
-                        const int i = inventoryPlayerSlots[inventorySlotIdx];
-                        const uintptr_t cachedWeapon = s_cachedActiveWeaponsResolved[i] ? s_cachedActiveWeaponsResolved[i] : clippingWeapons[i];
-                        if (!cachedWeapon)
-                            continue;
-                        const uintptr_t itemDefAddr =
-                            cachedWeapon +
-                            ofs.C_EconEntity_m_AttributeManager +
-                            ofs.C_AttributeContainer_m_Item +
-                            ofs.C_EconItemView_m_iItemDefinitionIndex;
-                        mem.AddScatterReadRequest(handle, itemDefAddr, &weaponIds[i], sizeof(uint16_t));
-                        if (ofs.C_BasePlayerWeapon_m_iClip1 > 0)
-                            mem.AddScatterReadRequest(handle, cachedWeapon + ofs.C_BasePlayerWeapon_m_iClip1, &ammoClips[i], sizeof(int));
                     }
                     if (!mem.ExecuteReadScatter(handle)) {
                         weaponHandleChainFailures = std::max(weaponHandleChainFailures, 1);
@@ -152,6 +122,10 @@
                         memcpy(weaponIds, s_cachedWeaponIdsResolved, sizeof(weaponIds));
                         memcpy(ammoClips, s_cachedAmmoClipsResolved, sizeof(ammoClips));
                     } else {
+                        memcpy(activeWeaponEntries, s_cachedActiveWeaponEntries, sizeof(activeWeaponEntries));
+                        memcpy(activeWeapons, s_cachedActiveWeaponsResolved, sizeof(activeWeapons));
+                        memcpy(weaponIds, s_cachedWeaponIdsResolved, sizeof(weaponIds));
+                        memcpy(ammoClips, s_cachedAmmoClipsResolved, sizeof(ammoClips));
                         
                         bool handlesChanged = false;
                         for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
@@ -234,7 +208,7 @@
                             bool queuedMetaRefresh = false;
                             for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
                                 const int i = inventoryPlayerSlots[inventorySlotIdx];
-                                const uintptr_t weaponEntity = activeWeapons[i] ? activeWeapons[i] : clippingWeapons[i];
+                                const uintptr_t weaponEntity = resolveActiveWeaponEntity(i);
                                 if (!weaponEntity)
                                     continue;
                                 const uintptr_t itemDefAddr =

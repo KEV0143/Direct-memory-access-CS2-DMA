@@ -150,6 +150,14 @@
     for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx)
         copyInventorySlotFromCache(inventoryPlayerSlots[inventorySlotIdx]);
 
+    if (ofs.C_CSPlayerPawn_m_pClippingWeapon <= 0) {
+        for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
+            const int i = inventoryPlayerSlots[inventorySlotIdx];
+            clippingWeapons[i] = 0;
+            s_cachedClippingWeaponsResolved[i] = 0;
+        }
+    }
+
     const uint64_t inventoryNowUs = TickNowUs();
     const bool wantsInventoryData =
         webRadarDemandActive ||

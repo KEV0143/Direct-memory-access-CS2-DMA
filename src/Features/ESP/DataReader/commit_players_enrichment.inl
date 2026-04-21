@@ -79,20 +79,21 @@
             memcpy(p.name, names[i], 128);
             p.name[127] = '\0';
 
-            p.ammoClip = ammoClips[i];
-            const uint16_t resolvedWeaponId = (weaponIds[i] < 20000u) ? weaponIds[i] : 0;
-            if (resolvedWeaponId != 0) {
-                p.weaponId = resolvedWeaponId;
-            } else if (p.weaponId == 0 || p.pawn != pawns[i]) {
-                p.weaponId = 0;
-            }
+            const uint16_t liveWeaponId = (weaponIds[i] < 20000u) ? weaponIds[i] : 0;
+            uint16_t committedWeaponId = 0;
+            int committedAmmoClip = ammoClips[i];
+            resolveCommittedWeaponState(i, liveWeaponId, committedWeaponId, committedAmmoClip);
+            p.ammoClip = committedAmmoClip;
+            p.weaponId = committedWeaponId;
             p.weaponIconId = resolveDisplayWeaponIconId(i, p.weaponId);
             p.hasBomb = (i == resolvedBombCarrierSlot);
             collectGrenadesForSlot(i, p.grenadeIds, p.grenadeCount);
 
-            if (hasBoneData[i]) {
+            if (hasPlausibleCommittedBones(i)) {
                 p.hasBones = true;
                 for (int boneIdx = 0; boneIdx < esp::kPlayerStoredBoneCount; ++boneIdx)
                     p.bones[boneIdx] = allBones[i][esp::kPlayerStoredBoneIds[boneIdx]];
+            } else {
+                p.hasBones = false;
             }
         }

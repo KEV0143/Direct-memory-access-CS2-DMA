@@ -5,31 +5,105 @@
 
 namespace esp {
 
-    inline constexpr int kPlayerStoredBoneIds[] = { 0, 2, 4, 5, 6, 8, 9, 10, 13, 14, 15, 22, 23, 24, 25, 26, 27 };
+    enum BoneIndex : int {
+        ORIGIN = 0,
+        PELVIS = 1,
+        SPINE0 = 2,
+        SPINE1 = 3,
+        SPINE2 = 4,
+        NECK = 6,
+        HEAD = 7,
+        CLAVICLE_L = 8,
+        SHOULDER_L = 9,
+        ELBOW_L = 10,
+        HAND_L = 11,
+        CLAVICLE_R = 12,
+        SHOULDER_R = 13,
+        ELBOW_R = 14,
+        HAND_R = 15,
+        HIP_L = 17,
+        KNEE_L = 18,
+        FOOT_HEEL_L = 19,
+        HIP_R = 20,
+        KNEE_R = 21,
+        FOOT_HEEL_R = 22,
+        CHEST = 23,
+        GUN = 24,
+        EYE_L = 25,
+        EYE_R = 26,
+        RANDOM = 27,
+        CVJ_BONE = 28,
+        FOOT_TOES_L_T = 74,
+        FOOT_TOES_R_T = 77,
+        FOOT_TOES_L_CT = 81,
+        FOOT_TOES_R_CT = 86,
+        BONE_MAX = 128
+    };
+
+    inline constexpr int kPlayerStoredBoneIds[] = {
+        PELVIS,
+        SPINE1,
+        SPINE2,
+        NECK,
+        HEAD,
+        SHOULDER_L,
+        ELBOW_L,
+        HAND_L,
+        SHOULDER_R,
+        ELBOW_R,
+        HAND_R,
+        HIP_L,
+        KNEE_L,
+        FOOT_HEEL_L,
+        HIP_R,
+        KNEE_R,
+        FOOT_HEEL_R,
+        CHEST,
+        FOOT_TOES_L_T,
+        FOOT_TOES_R_T,
+        FOOT_TOES_L_CT,
+        FOOT_TOES_R_CT
+    };
     inline constexpr int kPlayerStoredBoneCount = static_cast<int>(std::size(kPlayerStoredBoneIds));
+    inline constexpr int kSkeletonScreenBoneCapacity = BONE_MAX;
 
     constexpr int PlayerStoredBoneIndex(int boneId)
     {
         switch (boneId) {
-        case 0: return 0;
-        case 2: return 1;
-        case 4: return 2;
-        case 5: return 3;
-        case 6: return 4;
-        case 8: return 5;
-        case 9: return 6;
-        case 10: return 7;
-        case 13: return 8;
-        case 14: return 9;
-        case 15: return 10;
-        case 22: return 11;
-        case 23: return 12;
-        case 24: return 13;
-        case 25: return 14;
-        case 26: return 15;
-        case 27: return 16;
+        case PELVIS: return 0;
+        case SPINE1: return 1;
+        case SPINE2: return 2;
+        case NECK: return 3;
+        case HEAD: return 4;
+        case SHOULDER_L: return 5;
+        case ELBOW_L: return 6;
+        case HAND_L: return 7;
+        case SHOULDER_R: return 8;
+        case ELBOW_R: return 9;
+        case HAND_R: return 10;
+        case HIP_L: return 11;
+        case KNEE_L: return 12;
+        case FOOT_HEEL_L: return 13;
+        case HIP_R: return 14;
+        case KNEE_R: return 15;
+        case FOOT_HEEL_R: return 16;
+        case CHEST: return 17;
+        case FOOT_TOES_L_T: return 18;
+        case FOOT_TOES_R_T: return 19;
+        case FOOT_TOES_L_CT: return 20;
+        case FOOT_TOES_R_CT: return 21;
         default: return -1;
         }
+    }
+
+    constexpr int LeftToeBoneForTeam(int team)
+    {
+        return team == 3 ? FOOT_TOES_L_CT : FOOT_TOES_L_T;
+    }
+
+    constexpr int RightToeBoneForTeam(int team)
+    {
+        return team == 3 ? FOOT_TOES_R_CT : FOOT_TOES_R_T;
     }
 
     enum class GameStatus : uint8_t {
@@ -196,6 +270,7 @@ namespace esp {
     struct WebRadarSnapshot {
         std::array<PlayerData, 64> players = {};
         char localName[128] = {};
+        char mapKey[64] = {};
         Vector3 localPos = {};
         bool localIsDead = false;
         int localHealth = 0;

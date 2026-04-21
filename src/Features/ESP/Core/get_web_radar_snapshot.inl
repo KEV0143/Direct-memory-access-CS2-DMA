@@ -37,6 +37,7 @@ bool esp::GetWebRadarSnapshot(WebRadarSnapshot* outSnapshot)
         snapshot.players[i] = snap.webRadarPlayers[i];
 
     std::copy(std::begin(snap.localName), std::end(snap.localName), std::begin(snapshot.localName));
+    std::copy(std::begin(snap.activeMapKey), std::end(snap.activeMapKey), std::begin(snapshot.mapKey));
     snapshot.localPos = effectiveLocalPos;
     snapshot.localIsDead = snap.localIsDead;
     snapshot.localHealth = snap.localHealth;

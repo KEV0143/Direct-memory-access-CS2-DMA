@@ -74,6 +74,7 @@ namespace runtime_offsets
         std::ptrdiff_t C_BaseEntity_m_iHealth = 0;
         std::ptrdiff_t C_CSPlayerPawn_m_ArmorValue = 0;
         std::ptrdiff_t C_BaseEntity_m_lifeState = 0;
+        std::ptrdiff_t C_BaseEntity_m_CBodyComponent = 0;
         std::ptrdiff_t C_BaseEntity_m_pGameSceneNode = 0;
         std::ptrdiff_t C_BaseEntity_m_hOwnerEntity = 0;
         std::ptrdiff_t C_BaseModelEntity_m_Collision = 0;
@@ -116,6 +117,7 @@ namespace runtime_offsets
         std::ptrdiff_t C_DecoyProjectile_m_nDecoyShotTick = 0;
         std::ptrdiff_t C_DecoyProjectile_m_nClientLastKnownDecoyShotTick = 0;
         std::ptrdiff_t C_BaseCSGrenadeProjectile_m_nExplodeEffectTickBegin = 0;
+        std::ptrdiff_t CBodyComponentSkeletonInstance_m_skeletonInstance = 0;
         std::ptrdiff_t CSkeletonInstance_m_modelState = 0;
     };
 

@@ -1,22 +1,19 @@
     try
     {
-        const Values defaults = BuildDefaults();
-        Values loaded = defaults;
+        Values loaded = {};
         std::vector<std::string> missingKeys;
         std::vector<std::string> invalidKeys;
 
         const std::filesystem::path jsonPath = FindOffsetsJsonPath(true);
         if (jsonPath.empty())
         {
-            g_values = defaults;
+            g_values = {};
             if (message)
-                *message = "Offsets load failed: unable to resolve offsets.json path. Using built-in defaults.";
+                *message = "Offsets load failed: unable to resolve offsets.json path.";
             return false;
         }
 
-        bool createdFile = false;
         bool migratedLegacyIni = false;
-        bool normalizedJson = false;
         bool invalidJson = false;
         std::error_code ec;
         const bool jsonExists = std::filesystem::exists(jsonPath, ec);
@@ -29,13 +26,11 @@
             json root;
             if (TryParseOffsetsJsonFile(jsonPath, root))
             {
-                LoadValuesFromJson(root, defaults, loaded, &missingKeys, &invalidKeys);
-                normalizedJson = !missingKeys.empty() || !invalidKeys.empty();
+                LoadValuesFromJson(root, loaded, &missingKeys, &invalidKeys);
             }
             else
             {
                 invalidJson = true;
-                normalizedJson = true;
             }
         }
         else
@@ -43,27 +38,48 @@
             const auto legacyIniPath = FindLegacyOffsetsPath("offsets.ini");
             if (!legacyIniPath.empty())
             {
-                LoadValuesFromLegacyIni(ParseLegacyIniFile(legacyIniPath), defaults, loaded, &missingKeys, &invalidKeys);
+                LoadValuesFromLegacyIni(ParseLegacyIniFile(legacyIniPath), loaded, &missingKeys, &invalidKeys);
                 migratedLegacyIni = true;
-                normalizedJson = !missingKeys.empty() || !invalidKeys.empty();
             }
             else
             {
-                createdFile = true;
+                g_values = {};
+                if (message)
+                    *message = "Offsets load failed: offsets.json is missing.";
+                return false;
             }
+        }
+
+        const auto requiredZeroFields = ValidateLoadedValues(loaded, true);
+        if (invalidJson || !requiredZeroFields.empty())
+        {
+            g_values = {};
+            if (message)
+            {
+                std::ostringstream oss;
+                oss << "Offsets load failed: ";
+                if (invalidJson)
+                    oss << "invalid JSON in " << jsonPath.filename().string() << ".";
+                else
+                    oss << "required offsets are missing or invalid: " << JoinKeys(requiredZeroFields) << ".";
+                if (!missingKeys.empty())
+                    oss << " Missing keys: " << JoinKeys(missingKeys) << ".";
+                if (!invalidKeys.empty())
+                    oss << " Invalid keys: " << JoinKeys(invalidKeys) << ".";
+                *message = oss.str();
+            }
+            return false;
         }
 
         g_values = loaded;
 
-        const auto zeroFields = ValidateLoadedValues(loaded);
-
-        if (createdFile || migratedLegacyIni || normalizedJson || invalidJson || !jsonExists || legacyStateExists)
+        if (migratedLegacyIni || legacyStateExists)
         {
             if (!WriteOffsetsJson(jsonPath, loaded, &storedState))
             {
-                g_values = defaults;
+                g_values = {};
                 if (message)
-                    *message = "Offsets load failed: cannot create " + jsonPath.string() + ". Using built-in defaults.";
+                    *message = "Offsets load failed: cannot write " + jsonPath.string() + ".";
                 return false;
             }
         }
@@ -72,21 +88,18 @@
 
         std::ostringstream oss;
         const auto displayPath = jsonPath.filename().string();
-        if (createdFile)
-            oss << "Offsets file created: " << displayPath << ". ";
-        else if (migratedLegacyIni)
+        if (migratedLegacyIni)
             oss << "Legacy offsets.ini migrated to: " << displayPath << ". ";
         else
             oss << "Offsets loaded from: " << displayPath << ". ";
 
-        if (invalidJson)
-            oss << "Invalid JSON was replaced with defaults. ";
+        const auto optionalZeroFields = ValidateLoadedValues(loaded, false);
+        if (!optionalZeroFields.empty() && optionalZeroFields.size() > requiredZeroFields.size())
+            oss << "Optional zero offsets kept as-is: " << JoinKeys(optionalZeroFields) << ". ";
         if (!invalidKeys.empty())
-            oss << "Defaults used for invalid values: " << JoinKeys(invalidKeys) << ". ";
+            oss << "Optional invalid keys kept as zero: " << JoinKeys(invalidKeys) << ". ";
         if (!missingKeys.empty())
-            oss << "Defaults used for missing keys: " << JoinKeys(missingKeys) << ". ";
-        if (!zeroFields.empty())
-            oss << "WARNING: zero/negative offsets detected: " << JoinKeys(zeroFields) << ".";
+            oss << "Optional missing keys kept as zero: " << JoinKeys(missingKeys) << ". ";
 
         if (message)
             *message = oss.str();
@@ -95,8 +108,8 @@
     }
     catch (...)
     {
-        g_values = BuildDefaults();
+        g_values = {};
         if (message)
-            *message = "Offsets load failed: runtime exception. Using built-in defaults.";
+            *message = "Offsets load failed: runtime exception.";
         return false;
     }

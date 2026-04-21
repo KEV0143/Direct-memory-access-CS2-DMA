@@ -6,21 +6,19 @@
 #include <Shellapi.h>
 #include <winhttp.h>
 
-#include <json/json.hpp>
-
 #include <algorithm>
 #include <charconv>
 #include <cctype>
+#include <regex>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #pragma comment(lib, "winhttp.lib")
 
 namespace
 {
-    using json = nlohmann::json;
-
     struct HttpTextResponse
     {
         DWORD statusCode = 0;
@@ -52,22 +50,11 @@ namespace
         return result;
     }
 
-    std::string ToLower(std::string value)
-    {
-        std::transform(
-            value.begin(),
-            value.end(),
-            value.begin(),
-            [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-        return value;
-    }
-
-    std::vector<std::wstring> GitHubHeaders()
+    std::vector<std::wstring> SourceHeaders()
     {
         return {
-            L"Accept: application/vnd.github+json",
-            L"X-GitHub-Api-Version: 2022-11-28",
-            ToWide("User-Agent: KevqDMA/" + app::build_info::VersionTag())
+            L"Accept: text/plain, application/octet-stream;q=0.9, */*;q=0.8",
+            ToWide("User-Agent: " + app::build_info::HttpUserAgent())
         };
     }
 
@@ -76,40 +63,11 @@ namespace
         return statusCode >= 200 && statusCode < 300;
     }
 
-    std::string ExtractGitHubApiMessage(const HttpTextResponse& response)
-    {
-        if (response.body.empty())
-            return {};
-
-        json root = json::parse(response.body, nullptr, false);
-        if (root.is_discarded() || !root.is_object())
-            return {};
-
-        return Trim(root.value("message", std::string{}));
-    }
-
-    bool IsGitHubRateLimitResponse(const HttpTextResponse& response)
-    {
-        if (response.statusCode == 429)
-            return true;
-        if (response.statusCode != 403)
-            return false;
-        return ToLower(ExtractGitHubApiMessage(response)).find("rate limit") != std::string::npos;
-    }
-
-    std::string FormatGitHubHttpError(std::string_view context, const HttpTextResponse& response)
-    {
-        std::string message = ExtractGitHubApiMessage(response);
-        if (message.empty())
-            message = "HTTP " + std::to_string(response.statusCode);
-        return std::string(context) + ": " + message;
-    }
-
     void SetNoUpdateDefaults(bootstrap::VersionUpdateInfo& result)
     {
         result.updateAvailable = false;
         if (result.releaseUrl.empty())
-            result.releaseUrl = app::build_info::RepositoryUrl() + "/releases";
+            result.releaseUrl = app::build_info::RepositoryReleasesUrl();
     }
 
     bool HttpGetText(const std::string& url,
@@ -148,7 +106,7 @@ namespace
         }
 
         HINTERNET session = WinHttpOpen(
-            ToWide("KevqDMA/" + app::build_info::VersionTag()).c_str(),
+            ToWide(app::build_info::HttpUserAgent()).c_str(),
             WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
             WINHTTP_NO_PROXY_NAME,
             WINHTTP_NO_PROXY_BYPASS,
@@ -295,62 +253,75 @@ namespace
         return _stricmp(latestNormalized.c_str(), currentNormalized.c_str()) != 0;
     }
 
-    bool TryLoadLatestTag(bootstrap::VersionUpdateInfo& result, std::string* error)
+    std::string BuildReleaseUrlForVersion(std::string_view version)
+    {
+        const std::string cleanVersion = Trim(std::string(version));
+        if (cleanVersion.empty())
+            return app::build_info::RepositoryReleasesUrl();
+        return app::build_info::RepositoryUrl() + "/releases/tag/" + cleanVersion;
+    }
+
+    enum class SourceLoadResult
+    {
+        Loaded,
+        Missing,
+        Failed
+    };
+
+    bool TryExtractQuotedSourceValue(
+        const std::string& sourceText,
+        const char* constantName,
+        std::string* outValue)
+    {
+        if (!outValue || !constantName)
+            return false;
+
+        const std::string pattern = std::string(R"(inline\s+constexpr\s+std::string_view\s+)") +
+                                    constantName +
+                                    "\\s*=\\s*\"([^\"]+)\"";
+        const std::regex regex(pattern);
+        std::smatch match;
+        if (!std::regex_search(sourceText, match, regex) || match.size() < 2)
+            return false;
+
+        *outValue = Trim(match[1].str());
+        return !outValue->empty();
+    }
+
+    SourceLoadResult TryLoadVersionFromBuildInfoSource(
+        std::string_view sourceUrl,
+        bootstrap::VersionUpdateInfo& result,
+        std::string* error)
     {
         HttpTextResponse response = {};
-        if (!HttpGetText(
-                app::build_info::LatestTagApiUrl(),
-                GitHubHeaders(),
-                response,
-                error)) {
-            return false;
-        }
+        if (!HttpGetText(std::string(sourceUrl), SourceHeaders(), response, error))
+            return SourceLoadResult::Failed;
 
-        if (response.statusCode == 404 || IsGitHubRateLimitResponse(response)) {
-            SetNoUpdateDefaults(result);
+        if (response.statusCode == 404) {
             if (error)
                 error->clear();
-            return true;
+            return SourceLoadResult::Missing;
         }
 
         if (!IsSuccessStatus(response.statusCode)) {
             if (error)
-                *error = FormatGitHubHttpError("Latest tag request failed", response);
-            return false;
+                *error = "Remote build_info request failed: HTTP " + std::to_string(response.statusCode);
+            return SourceLoadResult::Failed;
         }
 
-        json root = json::parse(response.body, nullptr, false);
-        if (root.is_discarded() || !root.is_array()) {
+        if (!TryExtractQuotedSourceValue(response.body, "kVersionTag", &result.latestVersion)) {
             if (error)
-                *error = "Latest tag response is not valid JSON.";
-            return false;
+                *error = "Remote build_info.h is missing kVersionTag.";
+            return SourceLoadResult::Failed;
         }
 
-        if (root.empty()) {
-            SetNoUpdateDefaults(result);
-            if (error)
-                error->clear();
-            return true;
-        }
+        result.releaseName = result.latestVersion;
+        result.releaseUrl = BuildReleaseUrlForVersion(result.latestVersion);
 
-        const json& firstTag = root.front();
-        if (!firstTag.is_object()) {
-            if (error)
-                *error = "Latest tag payload is invalid.";
-            return false;
-        }
-
-        result.latestVersion = Trim(firstTag.value("name", std::string{}));
-        result.releaseUrl = app::build_info::RepositoryUrl() + "/releases/tag/" + result.latestVersion;
-        if (result.latestVersion.empty()) {
-            if (error)
-                *error = "Latest tag payload is missing name.";
-            return false;
-        }
-
+        result.updateAvailable = IsNewerVersion(result.latestVersion, result.currentVersion);
         if (error)
             error->clear();
-        return true;
+        return SourceLoadResult::Loaded;
     }
 }
 
@@ -358,33 +329,10 @@ bool bootstrap::CheckForVersionUpdate(VersionUpdateInfo* info, std::string* erro
 {
     VersionUpdateInfo result = {};
     result.currentVersion = app::build_info::VersionTag();
-
-    HttpTextResponse response = {};
-    if (!HttpGetText(
-            app::build_info::LatestReleaseApiUrl(),
-            GitHubHeaders(),
-            response,
-            error)) {
-        return false;
-    }
-
-    if (response.statusCode == 403 || response.statusCode == 429) {
-        if (IsGitHubRateLimitResponse(response)) {
-            SetNoUpdateDefaults(result);
-            if (info)
-                *info = result;
-            if (error)
-                error->clear();
-            return true;
-        }
-    }
-
-    if (response.statusCode == 404) {
-        if (!TryLoadLatestTag(result, error))
-            return false;
-        result.updateAvailable =
-            !result.latestVersion.empty() &&
-            IsNewerVersion(result.latestVersion, result.currentVersion);
+    std::string primaryError;
+    const SourceLoadResult primaryResult =
+        TryLoadVersionFromBuildInfoSource(app::build_info::RemoteBuildInfoUrl(), result, &primaryError);
+    if (primaryResult == SourceLoadResult::Loaded) {
         if (info)
             *info = result;
         if (error)
@@ -392,36 +340,34 @@ bool bootstrap::CheckForVersionUpdate(VersionUpdateInfo* info, std::string* erro
         return true;
     }
 
-    if (!IsSuccessStatus(response.statusCode)) {
+    std::string fallbackError;
+    const SourceLoadResult fallbackResult =
+        TryLoadVersionFromBuildInfoSource(app::build_info::RemoteBuildInfoFallbackUrl(), result, &fallbackError);
+    if (fallbackResult == SourceLoadResult::Loaded) {
+        if (info)
+            *info = result;
         if (error)
-            *error = FormatGitHubHttpError("Version check failed", response);
-        return false;
+            error->clear();
+        return true;
     }
 
-    json root = json::parse(response.body, nullptr, false);
-    if (root.is_discarded() || !root.is_object()) {
+    if (primaryResult == SourceLoadResult::Missing &&
+        fallbackResult == SourceLoadResult::Missing) {
+        SetNoUpdateDefaults(result);
+        if (info)
+            *info = result;
         if (error)
-            *error = "Latest release response is not valid JSON.";
-        return false;
+            error->clear();
+        return true;
     }
 
-    result.latestVersion = Trim(root.value("tag_name", std::string{}));
-    result.releaseName = Trim(root.value("name", std::string{}));
-    result.releaseUrl = Trim(root.value("html_url", std::string{}));
-
-    if (result.latestVersion.empty() || result.releaseUrl.empty()) {
-        if (error)
-            *error = "Latest release payload is missing tag_name or html_url.";
-        return false;
+    if (error) {
+        if (!fallbackError.empty())
+            *error = std::move(fallbackError);
+        else
+            *error = std::move(primaryError);
     }
-
-    result.updateAvailable = IsNewerVersion(result.latestVersion, result.currentVersion);
-
-    if (info)
-        *info = result;
-    if (error)
-        error->clear();
-    return true;
+    return false;
 }
 
 bool bootstrap::OpenVersionUpdateReleasePage(const VersionUpdateInfo& info, std::string* error)

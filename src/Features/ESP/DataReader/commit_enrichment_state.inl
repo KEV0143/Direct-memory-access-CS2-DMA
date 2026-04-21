@@ -80,6 +80,92 @@
         s_lastResolvedBombCarrierUs = 0;
     }
 
+    static uintptr_t s_cachedCommittedWeaponPawns[64] = {};
+    static uint32_t s_cachedCommittedWeaponHandles[64] = {};
+    static uintptr_t s_cachedCommittedWeaponEntities[64] = {};
+    static uint16_t s_cachedCommittedWeaponIds[64] = {};
+    static int s_cachedCommittedAmmoClips[64] = {};
+    for (int i = 0; i < 64; ++i) {
+        if (s_cachedCommittedWeaponPawns[i] == pawns[i])
+            continue;
+        s_cachedCommittedWeaponPawns[i] = pawns[i];
+        s_cachedCommittedWeaponHandles[i] = 0;
+        s_cachedCommittedWeaponEntities[i] = 0;
+        s_cachedCommittedWeaponIds[i] = 0;
+        s_cachedCommittedAmmoClips[i] = -1;
+    }
+
+    auto resolveCommittedWeaponState = [&](int idx, uint16_t liveWeaponId, uint16_t& outWeaponId, int& outAmmoClip) {
+        outWeaponId = 0;
+        outAmmoClip = ammoClips[idx];
+        if (idx < 0 || idx >= 64)
+            return;
+
+        const uint32_t activeHandle = activeWeaponHandles[idx];
+        const bool activeHandleValid = activeHandle != 0u && activeHandle != 0xFFFFFFFFu;
+        const uintptr_t activeEntity = activeWeapons[idx];
+        const bool sameWeaponIdentity =
+            (activeHandleValid && activeHandle == s_cachedCommittedWeaponHandles[idx]) ||
+            (activeEntity != 0 && activeEntity == s_cachedCommittedWeaponEntities[idx]);
+
+        if (liveWeaponId != 0u) {
+            outWeaponId = liveWeaponId;
+            s_cachedCommittedWeaponHandles[idx] = activeHandleValid ? activeHandle : 0u;
+            s_cachedCommittedWeaponEntities[idx] = activeEntity;
+            s_cachedCommittedWeaponIds[idx] = liveWeaponId;
+            s_cachedCommittedAmmoClips[idx] = outAmmoClip;
+            return;
+        }
+
+        if (sameWeaponIdentity && s_cachedCommittedWeaponIds[idx] != 0u) {
+            outWeaponId = s_cachedCommittedWeaponIds[idx];
+            outAmmoClip = s_cachedCommittedAmmoClips[idx];
+            return;
+        }
+
+        if (!activeHandleValid && activeEntity == 0) {
+            s_cachedCommittedWeaponHandles[idx] = 0u;
+            s_cachedCommittedWeaponEntities[idx] = 0;
+            s_cachedCommittedWeaponIds[idx] = 0u;
+            s_cachedCommittedAmmoClips[idx] = -1;
+            return;
+        }
+
+        s_cachedCommittedWeaponHandles[idx] = activeHandleValid ? activeHandle : 0u;
+        s_cachedCommittedWeaponEntities[idx] = activeEntity;
+        s_cachedCommittedWeaponIds[idx] = 0u;
+        s_cachedCommittedAmmoClips[idx] = -1;
+    };
+
+    auto hasPlausibleCommittedBones = [&](int playerSlot) -> bool {
+        if (playerSlot < 0 || playerSlot >= 64 || !hasBoneData[playerSlot])
+            return false;
+
+        const Vector3& pelvis = allBones[playerSlot][esp::PELVIS];
+        const Vector3& chest = allBones[playerSlot][esp::CHEST];
+        const Vector3& head = allBones[playerSlot][esp::HEAD];
+        if (!isValidWorldPos(pelvis) || !isValidWorldPos(chest) || !isValidWorldPos(head))
+            return false;
+        if (head.z <= chest.z || chest.z <= pelvis.z)
+            return false;
+
+        const Vector3& leftHeel = allBones[playerSlot][esp::FOOT_HEEL_L];
+        const Vector3& rightHeel = allBones[playerSlot][esp::FOOT_HEEL_R];
+        if (isValidWorldPos(leftHeel) && leftHeel.z > pelvis.z + 24.0f)
+            return false;
+        if (isValidWorldPos(rightHeel) && rightHeel.z > pelvis.z + 24.0f)
+            return false;
+
+        if (isValidWorldPos(positions[playerSlot])) {
+            const float pelvisDelta = (pelvis - positions[playerSlot]).Length();
+            const float headDelta = (head - positions[playerSlot]).Length();
+            if (pelvisDelta > 240.0f && headDelta > 320.0f)
+                return false;
+        }
+
+        return true;
+    };
+
     auto collectGrenadesForSlot = [&](int idx, auto& grenadeIdsOut, int& grenadeCountOut) {
         grenadeCountOut = 0;
         memset(grenadeIdsOut, 0, sizeof(grenadeIdsOut));
@@ -103,7 +189,7 @@
             return;
 
         const uint32_t activeHandle = activeWeaponHandles[idx];
-        const uintptr_t activeEntity = activeWeapons[idx] ? activeWeapons[idx] : clippingWeapons[idx];
+        const uintptr_t activeEntity = activeWeapons[idx];
         bool activeAlreadyRepresented = false;
         for (int slot = 0; slot < inventorySlotCount; ++slot) {
             if (activeHandle && activeHandle != 0xFFFFFFFFu &&
@@ -153,11 +239,17 @@
         localMoneyResolved,
         localHasDefuserResolved);
     if (localPlayerIndexValid && localPlayerIndexHasLiveEvidence) {
-        const uint16_t resolvedLocalWeaponId =
+        const uint16_t liveLocalWeaponId =
             (weaponIds[localPlayerIndex] < 20000u) ? weaponIds[localPlayerIndex] : 0;
-        if (resolvedLocalWeaponId != 0)
-            localWeaponIdResolved = resolvedLocalWeaponId;
-        localAmmoClipResolved = ammoClips[localPlayerIndex];
+        uint16_t committedLocalWeaponId = 0;
+        int committedLocalAmmoClip = ammoClips[localPlayerIndex];
+        resolveCommittedWeaponState(
+            localPlayerIndex,
+            liveLocalWeaponId,
+            committedLocalWeaponId,
+            committedLocalAmmoClip);
+        localWeaponIdResolved = committedLocalWeaponId;
+        localAmmoClipResolved = committedLocalAmmoClip;
         localHasBombResolved = (localPlayerIndex == resolvedBombCarrierSlot);
         collectGrenadesForSlot(localPlayerIndex, localGrenadeIdsResolved, localGrenadeCountResolved);
     } else if (localControllerMaskBit > 0 && localControllerMaskBit <= 64) {
@@ -298,17 +390,21 @@
             wp.flashDuration = flashDurations[i];
             wp.flashed = wp.flashDuration > 0.05f;
             wp.eyeYaw = eyeAnglesPerPlayer[i].y;
-            wp.ammoClip = ammoClips[i];
             wp.visible = false;
             wp.soundUntilMs = 0;
             wp.spottedMask = 0;
-            wp.weaponId = (weaponIds[i] < 20000u) ? weaponIds[i] : 0;
+            const uint16_t liveWeaponId = (weaponIds[i] < 20000u) ? weaponIds[i] : 0;
+            uint16_t committedWeaponId = 0;
+            int committedAmmoClip = ammoClips[i];
+            resolveCommittedWeaponState(i, liveWeaponId, committedWeaponId, committedAmmoClip);
+            wp.ammoClip = committedAmmoClip;
+            wp.weaponId = committedWeaponId;
             wp.hasBomb = (i == resolvedBombCarrierSlot);
-            wp.hasBones = hasBoneData[i];
+            wp.hasBones = hasPlausibleCommittedBones(i);
             collectGrenadesForSlot(i, wp.grenadeIds, wp.grenadeCount);
             memcpy(wp.name, names[i], 128);
             wp.name[127] = '\0';
-            if (hasBoneData[i]) {
+            if (wp.hasBones) {
                 for (int boneIdx = 0; boneIdx < esp::kPlayerStoredBoneCount; ++boneIdx)
                     wp.bones[boneIdx] = allBones[i][esp::kPlayerStoredBoneIds[boneIdx]];
             }
@@ -319,10 +415,11 @@
         memset(s_webRadarPlayers, 0, sizeof(s_webRadarPlayers));
     }
 
+    if (minimapBoundsValid)
+        HandleMapCalibration(minimapMins, minimapMaxs);
+
     PublishCurrentSnapshot(SnapshotAll);
     s_lastPublishUs.store(TickNowUs(), std::memory_order_relaxed);
 
-    if (minimapBoundsValid)
-        HandleMapCalibration(minimapMins, minimapMaxs);
     s_requiredReadFailureCount = 0;
     MarkDmaReadSuccess();

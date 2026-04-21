@@ -20,25 +20,62 @@ static std::string BuildMapKeyFromBounds(const Vector3& mins, const Vector3& max
         { "de_vertigo",  -3168.0f, 928.0f,    -2334.0f, 1762.0f },
     };
 
-    if (std::isfinite(mins.x) && std::isfinite(maxs.x) &&
-        std::isfinite(mins.y) && std::isfinite(maxs.y)) {
-        const KnownMapBounds* best = nullptr;
-        float bestScore = FLT_MAX;
-        for (const auto& map : kKnownMaps) {
-            const float score =
-                std::fabs(mins.x - map.minX) +
-                std::fabs(maxs.x - map.maxX) +
-                std::fabs(mins.y - map.minY) +
-                std::fabs(maxs.y - map.maxY);
-            if (score < bestScore) {
-                bestScore = score;
-                best = &map;
-            }
+    auto resolveKnownMap = [&](const Vector3& runtimeMins, const Vector3& runtimeMaxs) -> const KnownMapBounds* {
+        if (!std::isfinite(runtimeMins.x) || !std::isfinite(runtimeMaxs.x) ||
+            !std::isfinite(runtimeMins.y) || !std::isfinite(runtimeMaxs.y)) {
+            return nullptr;
         }
 
-        if (best != nullptr && bestScore <= 2200.0f)
-            return best->name;
-    }
+        const float runtimeSpanX = std::fabs(runtimeMaxs.x - runtimeMins.x);
+        const float runtimeSpanY = std::fabs(runtimeMaxs.y - runtimeMins.y);
+        const float runtimeCenterX = (runtimeMins.x + runtimeMaxs.x) * 0.5f;
+        const float runtimeCenterY = (runtimeMins.y + runtimeMaxs.y) * 0.5f;
+
+        const KnownMapBounds* best = nullptr;
+        float bestLegacyScore = FLT_MAX;
+        float bestSpanScore = FLT_MAX;
+        float bestCenterScore = FLT_MAX;
+
+        for (const auto& map : kKnownMaps) {
+            const float mapSpanX = std::fabs(map.maxX - map.minX);
+            const float mapSpanY = std::fabs(map.maxY - map.minY);
+            const float mapCenterX = (map.minX + map.maxX) * 0.5f;
+            const float mapCenterY = (map.minY + map.maxY) * 0.5f;
+
+            const float legacyScore =
+                std::fabs(runtimeMins.x - map.minX) +
+                std::fabs(runtimeMaxs.x - map.maxX) +
+                std::fabs(runtimeMins.y - map.minY) +
+                std::fabs(runtimeMaxs.y - map.maxY);
+            const float spanScore =
+                std::fabs(runtimeSpanX - mapSpanX) +
+                std::fabs(runtimeSpanY - mapSpanY);
+            const float centerScore =
+                std::fabs(runtimeCenterX - mapCenterX) +
+                std::fabs(runtimeCenterY - mapCenterY);
+
+            const bool betterCandidate =
+                legacyScore < bestLegacyScore - 0.1f ||
+                (std::fabs(legacyScore - bestLegacyScore) <= 0.1f &&
+                 (spanScore < bestSpanScore - 0.1f ||
+                  (std::fabs(spanScore - bestSpanScore) <= 0.1f &&
+                   centerScore < bestCenterScore)));
+            if (!betterCandidate)
+                continue;
+
+            best = &map;
+            bestLegacyScore = legacyScore;
+            bestSpanScore = spanScore;
+            bestCenterScore = centerScore;
+        }
+
+        const bool exactBoundsMatch = bestLegacyScore <= 2200.0f;
+        const bool closeSpanMatch = bestSpanScore <= 192.0f && bestCenterScore <= 768.0f;
+        return (best != nullptr && (exactBoundsMatch || closeSpanMatch)) ? best : nullptr;
+    };
+
+    if (const KnownMapBounds* resolved = resolveKnownMap(mins, maxs))
+        return resolved->name;
 
     auto quantize = [](float value) -> int {
         constexpr float kStep = 16.0f;

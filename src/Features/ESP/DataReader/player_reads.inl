@@ -77,7 +77,7 @@
     Vector3 velocities[64] = {};
     uint8_t spottedFlags[64] = {};
     uint32_t spottedMasks[64][2] = {};
-    Vector3 allBones[64][28] = {};
+    Vector3 allBones[64][esp::kSkeletonScreenBoneCapacity] = {};
     bool hasBoneData[64] = {};
     static char s_cachedPlayerNames[64][128] = {};
     static uint32_t s_cachedPlayerPings[64] = {};
@@ -180,11 +180,16 @@
         }
         teams[i] = s_cachedCoreTeams[i];
     }
-    const bool hasSpottedStateOffsets =
+    const bool hasSpottedMaskOffset =
         ofs.C_CSPlayerPawn_m_entitySpottedState > 0 &&
         ofs.EntitySpottedState_t_m_bSpottedByMask > 0;
     const std::ptrdiff_t spottedFlagOffset =
-        hasSpottedStateOffsets ? (ofs.EntitySpottedState_t_m_bSpottedByMask - 4) : -1;
+        (ofs.C_CSPlayerPawn_m_entitySpottedState > 0 && ofs.EntitySpottedState_t_m_bSpotted > 0)
+        ? ofs.EntitySpottedState_t_m_bSpotted
+        : hasSpottedMaskOffset
+        ? (ofs.EntitySpottedState_t_m_bSpottedByMask - 4)
+        : -1;
+    const bool hasSpottedStateOffsets = hasSpottedMaskOffset;
     auto teamLooksValid = [](int teamValue) -> bool {
         return teamValue == 2 || teamValue == 3;
     };

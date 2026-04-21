@@ -3,7 +3,6 @@
         if (report)
             *report = runtime_offsets::AutoUpdateReport{};
 
-        const Values defaults = BuildDefaults();
         const auto jsonPath = FindOffsetsJsonPath(true);
         if (jsonPath.empty())
         {
@@ -12,7 +11,7 @@
             return false;
         }
 
-        Values localValues = defaults;
+        Values localValues = {};
         std::vector<std::string> missingKeys;
         std::vector<std::string> invalidKeys;
         std::error_code ec;
@@ -25,7 +24,7 @@
             json root;
             if (TryParseOffsetsJsonFile(jsonPath, root))
             {
-                LoadValuesFromJson(root, defaults, localValues, &missingKeys, &invalidKeys);
+                LoadValuesFromJson(root, localValues, &missingKeys, &invalidKeys);
             }
             else
             {
@@ -37,7 +36,7 @@
             const auto legacyIniPath = FindLegacyOffsetsPath("offsets.ini");
             if (!legacyIniPath.empty())
             {
-                LoadValuesFromLegacyIni(ParseLegacyIniFile(legacyIniPath), defaults, localValues, &missingKeys, &invalidKeys);
+                LoadValuesFromLegacyIni(ParseLegacyIniFile(legacyIniPath), localValues, &missingKeys, &invalidKeys);
                 loadedFromLegacyIni = true;
             }
         }
@@ -147,7 +146,9 @@
                 else
                 {
                     if (message)
-                        *message = "Offset sync failed. Using local offsets.";
+                        *message = error.empty()
+                            ? "Offset sync failed. Using local offsets."
+                            : ("Offset sync failed: " + error + ". Using local offsets.");
                     return false;
                 }
             }
@@ -156,7 +157,9 @@
                 if (!ParseOutputDirectory(remoteOutputDir, parsedMap, &error))
                 {
                     if (message)
-                        *message = "Offset sync failed. Using local offsets.";
+                        *message = error.empty()
+                            ? "Offset sync failed. Using local offsets."
+                            : ("Offset sync failed: " + error + ". Using local offsets.");
                     return false;
                 }
 
@@ -166,18 +169,24 @@
             }
         }
 
-        Values updated = defaults;
+        Values updated = {};
         if (!ExtractRequiredValues(parsedMap, updated, &error))
         {
             if (message)
-                *message = "Offset sync failed. Using local offsets.";
+                *message = error.empty()
+                    ? "Offset sync failed. Using local offsets."
+                    : ("Offset sync failed: " + error + ". Using local offsets.");
             return false;
         }
         ExtractOptionalValues(parsedMap, updated);
 
         const size_t changedKeys = CountValueDifferences(localValues, updated);
         const bool needsNormalization = !missingKeys.empty() || !invalidKeys.empty() || invalidJson;
-        const bool needsWrite = changedKeys > 0 || needsNormalization || !jsonExistedBeforeSync || loadedFromLegacyIni;
+        const bool needsWrite =
+            changedKeys > 0 ||
+            needsNormalization ||
+            !jsonExistedBeforeSync ||
+            loadedFromLegacyIni;
         const bool sourcePredatesCurrentPatch =
             hasCurrentPatch &&
             !selectedSourceTimestamp.empty() &&
@@ -205,6 +214,8 @@
             OffsetState nextState = storedState;
             if (hasCurrentPatch)
                 nextState.lastSeenPatch = currentPatch.patch;
+            if (offsetsCompatibleWithCurrentPatch)
+                nextState.offsetsPatch = currentPatch.patch;
             nextState.selectedSource = sourceDescription;
             nextState.selectedSourceTimestamp = selectedSourceTimestamp;
             nextState.remoteOutputTimestamp = remoteTimestamp;
@@ -236,7 +247,7 @@
         if (!WriteOffsetsJson(jsonPath, updated, &nextState))
         {
             if (message)
-                *message = "Offset sync failed. Using local offsets.";
+                *message = "Offset sync failed: cannot write " + jsonPath.string() + ". Using local offsets.";
             return false;
         }
 
@@ -264,6 +275,12 @@
             *message = oss.str();
         }
         return true;
+    }
+    catch (const std::exception& e)
+    {
+        if (message)
+            *message = std::string("Offset sync failed: ") + e.what() + ". Using local offsets.";
+        return false;
     }
     catch (...)
     {

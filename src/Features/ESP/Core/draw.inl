@@ -129,6 +129,28 @@ void esp::Draw()
         return isFiniteVec(bone) &&
                !(bone.x == 0.0f && bone.y == 0.0f && bone.z == 0.0f);
     };
+    auto isPlausibleToeSegment = [&](const Vector3& heel, const Vector3& toe) -> bool {
+        if (!isFiniteVec(heel) || !isFiniteVec(toe))
+            return false;
+        const Vector3 delta = toe - heel;
+        const float distance = delta.Length();
+        return distance >= 1.0f &&
+               distance <= 30.0f &&
+               std::fabs(delta.z) <= 18.0f;
+    };
+    auto selectToeBoneId = [&](const esp::PlayerData& player, bool leftSide) -> int {
+        const int primary = leftSide
+            ? esp::LeftToeBoneForTeam(player.team)
+            : esp::RightToeBoneForTeam(player.team);
+        const int alternate = leftSide
+            ? (primary == esp::FOOT_TOES_L_CT ? esp::FOOT_TOES_L_T : esp::FOOT_TOES_L_CT)
+            : (primary == esp::FOOT_TOES_R_CT ? esp::FOOT_TOES_R_T : esp::FOOT_TOES_R_CT);
+        if (hasUsableBone(player, primary))
+            return primary;
+        if (hasUsableBone(player, alternate))
+            return alternate;
+        return -1;
+    };
 
     if (g::espEnabled) {
         for (int i = 0; i < 64; i++) {
@@ -174,22 +196,36 @@ void esp::Draw()
             
             Vector3 feetPos;
             Vector3 headPos;
-            ScreenPos boneScreen[28] = {};
-            bool boneScreenValid[28] = {};
-            const Vector3 headBone = getPlayerBone(p, 6);
-            const Vector3 pelvisBone = getPlayerBone(p, 0);
-            const Vector3 spineBone = getPlayerBone(p, 5);
-            const Vector3 leftFootBone = getPlayerBone(p, 24);
-            const Vector3 rightFootBone = getPlayerBone(p, 27);
-            const bool hasHeadBone = hasUsableBone(p, 6);
-            const bool hasPelvisBone = hasUsableBone(p, 0);
-            const bool hasSpineBone = hasUsableBone(p, 5);
-            const bool hasLeftFootBone = hasUsableBone(p, 24);
-            const bool hasRightFootBone = hasUsableBone(p, 27);
+            ScreenPos boneScreen[esp::kSkeletonScreenBoneCapacity] = {};
+            bool boneScreenValid[esp::kSkeletonScreenBoneCapacity] = {};
+            const int leftToeBoneId = selectToeBoneId(p, true);
+            const int rightToeBoneId = selectToeBoneId(p, false);
+            const Vector3 headBone = getPlayerBone(p, esp::HEAD);
+            const Vector3 pelvisBone = getPlayerBone(p, esp::PELVIS);
+            const Vector3 chestBone = getPlayerBone(p, esp::CHEST);
+            const Vector3 leftHeelBone = getPlayerBone(p, esp::FOOT_HEEL_L);
+            const Vector3 rightHeelBone = getPlayerBone(p, esp::FOOT_HEEL_R);
+            const Vector3 leftToeBone = leftToeBoneId >= 0 ? getPlayerBone(p, leftToeBoneId) : Vector3{};
+            const Vector3 rightToeBone = rightToeBoneId >= 0 ? getPlayerBone(p, rightToeBoneId) : Vector3{};
+            const bool hasHeadBone = hasUsableBone(p, esp::HEAD);
+            const bool hasPelvisBone = hasUsableBone(p, esp::PELVIS);
+            const bool hasChestBone = hasUsableBone(p, esp::CHEST);
+            const bool hasLeftHeelBone = hasUsableBone(p, esp::FOOT_HEEL_L);
+            const bool hasRightHeelBone = hasUsableBone(p, esp::FOOT_HEEL_R);
+            const bool hasLeftToeBone =
+                leftToeBoneId >= 0 &&
+                hasLeftHeelBone &&
+                isPlausibleToeSegment(leftHeelBone, leftToeBone);
+            const bool hasRightToeBone =
+                rightToeBoneId >= 0 &&
+                hasRightHeelBone &&
+                isPlausibleToeSegment(rightHeelBone, rightToeBone);
+            const bool hasLeftFootBone = hasLeftHeelBone;
+            const bool hasRightFootBone = hasRightHeelBone;
             const bool hasCoreBoneChain =
                 hasHeadBone &&
                 hasPelvisBone &&
-                hasSpineBone &&
+                hasChestBone &&
                 (hasLeftFootBone || hasRightFootBone);
             int validStoredBoneCount = 0;
             for (int bIdx = 0; bIdx < esp::kPlayerStoredBoneCount; ++bIdx) {
@@ -199,10 +235,10 @@ void esp::Draw()
             float skeletonHeight = 0.0f;
             if (hasHeadBone && (hasLeftFootBone || hasRightFootBone)) {
                 float lowestFootZ = FLT_MAX;
-                if (hasLeftFootBone)
-                    lowestFootZ = std::min(lowestFootZ, leftFootBone.z);
-                if (hasRightFootBone)
-                    lowestFootZ = std::min(lowestFootZ, rightFootBone.z);
+                if (hasLeftHeelBone)
+                    lowestFootZ = std::min(lowestFootZ, leftHeelBone.z);
+                if (hasRightHeelBone)
+                    lowestFootZ = std::min(lowestFootZ, rightHeelBone.z);
                 skeletonHeight = headBone.z - lowestFootZ;
             }
             const float pelvisAnchor2D =
@@ -216,15 +252,15 @@ void esp::Draw()
                 footAnchor2D = std::min(
                     footAnchor2D,
                     static_cast<float>(std::hypot(
-                        leftFootBone.x - renderPlayerPos.x,
-                        leftFootBone.y - renderPlayerPos.y)));
+                        leftHeelBone.x - renderPlayerPos.x,
+                        leftHeelBone.y - renderPlayerPos.y)));
             }
             if (hasRightFootBone) {
                 footAnchor2D = std::min(
                     footAnchor2D,
                     static_cast<float>(std::hypot(
-                        rightFootBone.x - renderPlayerPos.x,
-                        rightFootBone.y - renderPlayerPos.y)));
+                        rightHeelBone.x - renderPlayerPos.x,
+                        rightHeelBone.y - renderPlayerPos.y)));
             }
             const bool plausibleBoneAnchor =
                 pelvisAnchor2D <= 96.0f ||
@@ -243,18 +279,24 @@ void esp::Draw()
             if (renderHasReliableBones) {
                 headPos = headBone;
                 if (canBlendSnapshots && prevP.hasBones)
-                    headPos = lerpVec3(getPlayerBone(prevP, 6), headBone);
+                    headPos = lerpVec3(getPlayerBone(prevP, esp::HEAD), headBone);
                 else
                     headPos = headPos + positionOffset;
                 if (extrapolationSec > 0.0f)
                     headPos = headPos + velocityOffset;
                 headPos.z += 8.0f;
 
-                Vector3 leftFoot = getPlayerBone(p, 24);
-                Vector3 rightFoot = getPlayerBone(p, 27);
+                Vector3 leftFoot = leftHeelBone;
+                Vector3 rightFoot = rightHeelBone;
                 if (canBlendSnapshots && prevP.hasBones) {
-                    leftFoot = lerpVec3(getPlayerBone(prevP, 24), leftFoot);
-                    rightFoot = lerpVec3(getPlayerBone(prevP, 27), rightFoot);
+                    const Vector3 prevLeftFoot = getPlayerBone(prevP, esp::FOOT_HEEL_L);
+                    const Vector3 prevRightFoot = getPlayerBone(prevP, esp::FOOT_HEEL_R);
+                    if (isFiniteVec(prevLeftFoot) &&
+                        !(prevLeftFoot.x == 0.0f && prevLeftFoot.y == 0.0f && prevLeftFoot.z == 0.0f))
+                        leftFoot = lerpVec3(prevLeftFoot, leftFoot);
+                    if (isFiniteVec(prevRightFoot) &&
+                        !(prevRightFoot.x == 0.0f && prevRightFoot.y == 0.0f && prevRightFoot.z == 0.0f))
+                        rightFoot = lerpVec3(prevRightFoot, rightFoot);
                 } else {
                     leftFoot = leftFoot + positionOffset;
                     rightFoot = rightFoot + positionOffset;
@@ -300,6 +342,10 @@ void esp::Draw()
                     if (boneScreenValid[pair.from] && boneScreenValid[pair.to])
                         ++validBoneSegmentCount;
                 }
+                if (boneScreenValid[esp::FOOT_HEEL_L] && hasLeftToeBone && boneScreenValid[leftToeBoneId])
+                    ++validBoneSegmentCount;
+                if (boneScreenValid[esp::FOOT_HEEL_R] && hasRightToeBone && boneScreenValid[rightToeBoneId])
+                    ++validBoneSegmentCount;
             } else {
                 feetPos = renderPlayerPos;
                 headPos = feetPos;
