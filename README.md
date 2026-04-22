@@ -70,8 +70,8 @@ An open-source software framework designed for the research and implementation o
 
 | **Display** | **Dichen Fuser V6** |
 | :---: | :---: |
-| <img src="https://github.com/user-attachments/assets/d80a31e9-3797-48da-9af3-78aa48e27f3f" width="400"/> | <img src="https://github.com/user-attachments/assets/c52be22c-2df2-44e5-9e22-6885467b78b0" width="400"/> |
-| <img src="https://github.com/user-attachments/assets/27424760-5d6f-4f81-8d19-66b38f9196d5" width="400"/> | <img src="https://github.com/user-attachments/assets/1aac33bc-ad1c-4e0d-8b47-3d351513fc66" width="400"/> |
+| <img src="https://github.com/user-attachments/assets/d80a31e9-3797-48da-9af3-78aa48e27f3f" width="380"/> | <img src="https://github.com/user-attachments/assets/c52be22c-2df2-44e5-9e22-6885467b78b0" width="380"/> |
+| <img src="https://github.com/user-attachments/assets/27424760-5d6f-4f81-8d19-66b38f9196d5" width="380"/> | <img src="https://github.com/user-attachments/assets/1aac33bc-ad1c-4e0d-8b47-3d351513fc66" width="380"/> |
 <p><code>How ESP works: The game and the DMA Card are connected to the main PC, while the software runs on a second PC. The visual output is shown by overlaying the second display onto the main monitor using Dichen Fuser v6.
 Sequence: main PC → DMA data → second PC software → display overlay via Dichen Fuser v6.</code></p>
 
@@ -104,11 +104,12 @@ Sequence: main PC → DMA data → second PC software → display overlay via Di
     </td>
   </tr>
 </table>
-<p><code>Radar UI</code>
-<code>The main radar workspace for monitoring live in-session information. It is used to display tracked data, current status, and radar-related controls in a single overview panel.</code>
+<p>
+<code>Radar UI</code>
+<code>The main radar workspace for monitoring live in-session information. It displays tracked data, current status, and radar-related controls in a single overview panel.</code>
 
 <code>WebRadar UI</code>
-<code>The web-based radar access panel. It provides a browser-friendly entry point for the radar system, including connection setup, quick access options, and session-related information.</code>
+<code>The web-based radar access panel. It provides a browser-friendly entry point for the radar system, including connection setup, quick-access options, and session information.</code>
 
 <code>Settings / Debug UI</code>
 <code>The configuration and diagnostics panel used for advanced adjustment and testing. It allows fine-tuning of behavior, debugging workflows, and verification of internal states during runtime.</code>
