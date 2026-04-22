@@ -115,10 +115,10 @@ Sequence: main PC → DMA data → second PC software → display overlay via Di
 <code>The configuration and diagnostics panel used for advanced adjustment and testing. It allows fine-tuning of behavior, debugging workflows, and verification of internal states during runtime.</code>
 
 <code>Main Start UI</code>
-<code>The startup and initialization window that logs the main launch sequence. It shows connection state, version checks, offset loading, subsystem initialization, and readiness status before the main workflow begins.</code>
+<code>The startup and initialization window that logs the main launch sequence. It shows connection state, version checks, offset loading, subsystem initialization, and readiness before the main workflow begins.</code>
 
 <code>ESP UI</code>
-<code>The main ESP configuration interface for visual customization and preview. It is used to control rendering options, enable or disable individual elements, preview layouts, and adjust colors for different ESP components.</code>
+<code>The main ESP configuration interface for visual customization and preview. It is used to control rendering options, toggle individual elements, preview layouts, and adjust colors for different ESP components.</code>
 </p>
 
 </div>
