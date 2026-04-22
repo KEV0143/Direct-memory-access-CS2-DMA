@@ -7,7 +7,9 @@ An open-source software framework designed for the research and implementation o
 </p>
 
 <p style="color: #ff6b6b; font-weight: 600; font-size: 0.95em; margin: 10px 0;">
-{ ! } This project is for educational and research purposes only
+{ ! } This project is for educational and research purposes only <br>
+{ ! } This is an external method and requires a 
+<a href="https://github.com/ufrisk/pcileech-fpga" target="_blank">DMA Card</a> to work.
 </p>
 
 <p>
@@ -56,5 +58,16 @@ An open-source software framework designed for the research and implementation o
     <b>中文本地化</b>
   </a>
 </p>
+
+<br>
+
+<h2>WebRadar</h2>
+<img width="1920" height="1080" alt="WebRadar" src="https://github.com/user-attachments/assets/13d3c864-22f5-4745-99db-338cb28c5ecc" style="border-radius: 8px;" />
+<p><code> How WebRadar works: DMA reads data from CS2’s memory, sends it to a local backend, and 
+ the backend streams player positions to the browser via WebSocket for map display. 
+ The address in the browser points to the local web service, for example 192.168.x.x or localhost or 0.0.0.0 
+ Sequence: DMA → memory reading → backend → WebSocket → map display. </code></p>
+
+<br>
 
 </div>
