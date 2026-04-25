@@ -106,19 +106,56 @@ Sequence: main PC → DMA data → second PC software → display overlay via Di
 </table>
 <p>
 <code>Radar UI</code>
-<code>The main radar workspace for monitoring live in-session information. It displays tracked data, current status, and radar-related controls in a single overview panel.</code>
+<code>Live session overview with tracked data, status, and radar controls.</code>
 
 <code>WebRadar UI</code>
-<code>The web-based radar access panel. It provides a browser-friendly entry point for the radar system, including connection setup, quick-access options, and session information.</code>
+<code>Browser access panel with connection setup, quick actions, and session info.</code>
 
 <code>Settings / Debug UI</code>
-<code>The configuration and diagnostics panel used for advanced adjustment and testing. It allows fine-tuning of behavior, debugging workflows, and verification of internal states during runtime.</code>
+<code>Advanced settings and diagnostics for tuning, debugging, and state verification.</code>
 
 <code>Main Start UI</code>
-<code>The startup and initialization window that logs the main launch sequence. It shows connection state, version checks, offset loading, subsystem initialization, and readiness before the main workflow begins.</code>
+<code>Launch log for connection, version checks, offsets, initialization, and readiness.</code>
 
 <code>ESP UI</code>
-<code>The main ESP configuration interface for visual customization and preview. It is used to control rendering options, toggle individual elements, preview layouts, and adjust colors for different ESP components.</code>
+<code>ESP visual settings for toggles, previews, layouts, and colors.</code>
 </p>
+<h2>Hardware Setup</h2>
+
+<p style="max-width: 850px;">
+This project was tested with a dedicated DMA hardware configuration based on the 
+<b>Captain DMA 75T v3.0</b> card.  
+The card is configured with <b>No-Show M2 SSD Disk (Stealth Firmware)</b>, which is used as the firmware profile for this research setup.
+</p>
+
+<p style="color: #f39c12; font-weight: 600; font-size: 0.95em; margin: 10px 0;">
+{ ! } Hardware behavior, firmware compatibility, and system stability may vary depending on your motherboard, BIOS settings, PCIe layout, and operating system environment.
+<br>
+ Tested build: Windows 11 Pro (25H2) + Ryzen 9 9950X3D + X870 AORUS Elite motherboard (F10).
+</p>
+
+<table align="center" cellpadding="6" cellspacing="0">
+  <tr>
+    <td align="center" valign="top" width="390">
+      <b>Captain DMA 75T v3.0</b><br>
+      <img src="https://github.com/user-attachments/assets/1094dc7c-8008-4dc3-8815-0c960d838050" width="380" style="border-radius: 8px;"/>
+    </td>
+    <td align="center" valign="top" width="390">
+      <b>No-show m2 ssd disk Firmware</b><br>
+      <img src="" width="380" style="border-radius: 8px;"/>
+    </td>
+  </tr>
+</table>
+
+<p>
+<code> Captain DMA 75T v3.0 is used as the external PCIe-based memory access device in this research setup. 
+ It provides the hardware layer required for DMA interaction and external memory reading experiments. </code>
+
+<code> The setup also uses several runtime DLL components; updates and documentation can be reviewed through the official project pages: 
+<a href="https://ftdichip.com/drivers/d3xx-drivers/" target="_blank">FTD3XX.dll</a>, <a href="https://github.com/ufrisk/MemProcFS" target="_blank">vmm.dll </a>, and <a href="https://github.com/ufrisk/LeechCore" target="_blank">leechcore.dll</a></code>
+</p>
+
+<br>
+
 
 </div>
