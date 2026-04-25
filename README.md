@@ -151,8 +151,7 @@ The card is configured with <b>No-Show M2 SSD Disk (Stealth Firmware)</b>, which
 <code> Captain DMA 75T v3.0 is used as the external PCIe-based memory access device in this research setup. 
  It provides the hardware layer required for DMA interaction and external memory reading experiments. </code>
 
-<code> The setup also uses several runtime DLL components; updates and documentation can be reviewed through the official project pages: 
-<a href="https://ftdichip.com/drivers/d3xx-drivers/" target="_blank">FTD3XX.dll</a>, <a href="https://github.com/ufrisk/MemProcFS" target="_blank">vmm.dll </a>, and <a href="https://github.com/ufrisk/LeechCore" target="_blank">leechcore.dll</a></code>
+<code> The setup also uses several runtime DLL components; updates and documentation can be reviewed through the official project pages: <a href="https://ftdichip.com/drivers/d3xx-drivers/" target="_blank">FTD3XX.dll</a>, <a href="https://github.com/ufrisk/MemProcFS" target="_blank">vmm.dll </a>, and <a href="https://github.com/ufrisk/LeechCore" target="_blank">leechcore.dll</a></code>
 </p>
 
 <br>
