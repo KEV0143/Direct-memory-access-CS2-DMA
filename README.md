@@ -138,11 +138,11 @@ The card is configured with <b>No-Show M2 SSD Disk (Stealth Firmware)</b>, which
   <tr>
     <td align="center" valign="top" width="390">
       <b>Captain DMA 75T v3.0</b><br>
-      <img src="https://github.com/user-attachments/assets/1094dc7c-8008-4dc3-8815-0c960d838050" width="380" style="border-radius: 8px;"/>
+      <img src="https://github.com/user-attachments/assets/1094dc7c-8008-4dc3-8815-0c960d838050" width="380" height="502" style="border-radius: 8px;"/>
     </td>
     <td align="center" valign="top" width="390">
-      <b>No-show m2 ssd disk Firmware</b><br>
-      <img src="" width="380" style="border-radius: 8px;"/>
+      <b>No-Show M2 SSD Disk Firmware</b><br>
+      <img src="https://github.com/user-attachments/assets/9695af49-b48c-47b2-ad4a-46c79e760d63" width="380" height="502" style="border-radius: 8px;"/>
     </td>
   </tr>
 </table>
