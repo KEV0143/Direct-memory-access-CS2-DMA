@@ -8,7 +8,7 @@ on:
         required: false
         default: "false"
   schedule:
-    - cron: "0 * * * *"
+    - cron: "17,47 * * * *"
 
 permissions:
   contents: write
@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - name: Checkout KevqDMA repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -147,7 +147,7 @@ jobs:
 
       - name: Checkout newest cs2-dumper output
         if: steps.resolve.outputs.should_sync == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: a2x/cs2-dumper
           ref: ${{ steps.resolve.outputs.best_ref }}
@@ -156,14 +156,21 @@ jobs:
             output
           sparse-checkout-cone-mode: true
 
-      - name: Copy output to x64/Release/output
+      - name: Copy only json and hpp to x64/Release/output
         if: steps.resolve.outputs.should_sync == 'true'
         shell: bash
         run: |
           set -euo pipefail
 
+          rm -rf "$TARGET_DIR"
           mkdir -p "$TARGET_DIR"
-          rsync -a --delete cs2-dumper/output/ "$TARGET_DIR/"
+
+          rsync -a \
+            --include='*/' \
+            --include='*.json' \
+            --include='*.hpp' \
+            --exclude='*' \
+            cs2-dumper/output/ "$TARGET_DIR/"
 
       - name: Commit and push release offset update
         if: steps.resolve.outputs.should_sync == 'true'
@@ -176,7 +183,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add -f "$TARGET_DIR"
+          git add -A -f "$TARGET_DIR"
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
