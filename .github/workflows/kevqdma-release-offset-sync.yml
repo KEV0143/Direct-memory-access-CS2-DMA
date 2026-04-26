@@ -66,27 +66,24 @@ jobs:
             echo "$response" | jq -r '.content // empty' | base64 -d
           }
 
+          ts_to_epoch() {
+            python3 -c 'import sys, datetime; v=sys.argv[1]; print(int(datetime.datetime.fromisoformat(v.replace("Z", "+00:00")).timestamp()) if v else 0)' "$1"
+          }
+
           is_newer_timestamp() {
-            python3 - "$1" "$2" <<'PY'
-import sys
-from datetime import datetime
+            local left="$1"
+            local right="$2"
+            local left_epoch
+            local right_epoch
 
-left = sys.argv[1]
-right = sys.argv[2]
+            left_epoch=$(ts_to_epoch "$left")
+            right_epoch=$(ts_to_epoch "$right")
 
-def parse_ts(value):
-    if not value:
-        return None
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
-
-left_dt = parse_ts(left)
-right_dt = parse_ts(right)
-
-if left_dt and (not right_dt or left_dt > right_dt):
-    print("true")
-else:
-    print("false")
-PY
+            if [ "$left_epoch" -gt "$right_epoch" ]; then
+              echo "true"
+            else
+              echo "false"
+            fi
           }
 
           LOCAL_TS=""
@@ -186,19 +183,7 @@ PY
             exit 0
           fi
 
-          UPDATE_TIME=$(python3 - <<'PY'
-import os
-from datetime import datetime
-
-ts = os.environ.get("BEST_TS", "")
-
-try:
-    dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-    print(dt.strftime("%d.%m.%Y %H:%M"))
-except Exception:
-    print(datetime.utcnow().strftime("%d.%m.%Y %H:%M"))
-PY
-          )
+          UPDATE_TIME=$(python3 -c 'import os, datetime; ts=os.environ.get("BEST_TS", ""); dt=datetime.datetime.fromisoformat(ts.replace("Z", "+00:00")); print(dt.strftime("%d.%m.%Y %H:%M"))')
 
           git commit \
             -m "Release Offset Update ${UPDATE_TIME}" \
