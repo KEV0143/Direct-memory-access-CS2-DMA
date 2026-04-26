@@ -80,27 +80,27 @@ Sequence: main PC → DMA data → second PC software → display overlay via Di
   <tr>
     <td align="center" valign="top" width="390">
       <b>Radar UI</b><br>
-      <img src="https://github.com/user-attachments/assets/f5a3ee48-d392-424f-a2bb-0642a5acbaaa" height="300"/>
+      <img src="https://github.com/user-attachments/assets/266260c7-e557-4b62-9587-13abf2e73a4d" height="300"/> 
     </td>
     <td align="center" valign="top" width="390">
       <b>WebRadar UI</b><br>
-      <img src="https://github.com/user-attachments/assets/47b94f3d-2976-4f96-84d7-7df5f4fce9af" height="300"/>
+      <img src="https://github.com/user-attachments/assets/159f598b-dac3-4a42-91c2-74662270b300" height="300"/>
     </td>
   </tr>
   <tr>
     <td align="center" valign="top" width="390">
       <b>Settings / Debug UI</b><br>
-      <img src="https://github.com/user-attachments/assets/af59f7a1-8f2e-4875-804d-2fd577f263ef" height="190"/>
+      <img src="https://github.com/user-attachments/assets/79d44413-48a2-48ad-830c-ba584d787469" height="190"/>
     </td>
     <td align="center" valign="top" width="390">
       <b>Main Start UI</b><br>
-      <img src="https://github.com/user-attachments/assets/d00d9a54-3e93-4fcb-9475-9d7e680599a7" height="190"/>
+      <img src="https://github.com/user-attachments/assets/1f17e499-6607-4462-ad41-b1e36342bd25" height="190"/>
     </td>
   </tr>
   <tr>
     <td align="center" colspan="2">
       <b>ESP UI</b><br>
-      <img src="https://github.com/user-attachments/assets/d21e3351-e655-488c-903c-133879c4f45e" width="790"/>
+      <img src="https://github.com/user-attachments/assets/3600910b-ef57-4f21-91d2-903986f3c949" width="790"/>
     </td>
   </tr>
 </table>
