@@ -1,0 +1,212 @@
+name: KevqDMA Release Offset Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Force update x64/Release/output"
+        required: false
+        default: "false"
+  schedule:
+    - cron: "0 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: kevqdma-release-offset-sync
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    env:
+      UPSTREAM_OWNER: a2x
+      UPSTREAM_REPO: cs2-dumper
+      TARGET_DIR: x64/Release/output
+      LOCAL_INFO: x64/Release/output/info.json
+
+    steps:
+      - name: Checkout KevqDMA repository
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Resolve newest cs2-dumper output
+        id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FORCE: ${{ github.event.inputs.force || 'false' }}
+        run: |
+          set -euo pipefail
+
+          api_get() {
+            curl -fsSL \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$1"
+          }
+
+          urlencode() {
+            python3 -c 'import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
+          }
+
+          fetch_info_json_by_ref() {
+            local ref="$1"
+            local encoded_ref
+            encoded_ref=$(urlencode "$ref")
+
+            local response
+            response=$(api_get "https://api.github.com/repos/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/contents/output/info.json?ref=${encoded_ref}") || return 1
+
+            echo "$response" | jq -r '.content // empty' | base64 -d
+          }
+
+          is_newer_timestamp() {
+            python3 - "$1" "$2" <<'PY'
+          import sys
+          from datetime import datetime
+
+          left = sys.argv[1]
+          right = sys.argv[2]
+
+          def parse_ts(value):
+              if not value:
+                  return None
+              return datetime.fromisoformat(value.replace("Z", "+00:00"))
+
+          left_dt = parse_ts(left)
+          right_dt = parse_ts(right)
+
+          if left_dt and (not right_dt or left_dt > right_dt):
+              print("true")
+          else:
+              print("false")
+          PY
+          }
+
+          LOCAL_TS=""
+          if [ -f "$LOCAL_INFO" ]; then
+            LOCAL_TS=$(jq -r '.timestamp // ""' "$LOCAL_INFO")
+          fi
+
+          echo "Local timestamp: ${LOCAL_TS:-none}"
+
+          MAIN_INFO=$(fetch_info_json_by_ref "main" || echo "")
+          MAIN_TS=$(echo "$MAIN_INFO" | jq -r '.timestamp // ""' 2>/dev/null || echo "")
+
+          BEST_REF="main"
+          BEST_LABEL="main"
+          BEST_TS="$MAIN_TS"
+
+          echo "main timestamp: ${MAIN_TS:-none}"
+
+          PRS=$(api_get "https://api.github.com/repos/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/pulls?state=open&per_page=100")
+
+          while IFS= read -r pr; do
+            PR_NUMBER=$(echo "$pr" | jq -r '.number')
+            PR_REF="refs/pull/${PR_NUMBER}/head"
+            PR_LABEL="PR #${PR_NUMBER}"
+
+            PR_INFO=$(fetch_info_json_by_ref "$PR_REF" || echo "")
+            PR_TS=$(echo "$PR_INFO" | jq -r '.timestamp // ""' 2>/dev/null || echo "")
+
+            if [ -z "$PR_TS" ]; then
+              echo "${PR_LABEL}: no output/info.json found"
+              continue
+            fi
+
+            echo "${PR_LABEL} timestamp: ${PR_TS}"
+
+            if [ "$(is_newer_timestamp "$PR_TS" "$BEST_TS")" = "true" ]; then
+              BEST_TS="$PR_TS"
+              BEST_REF="$PR_REF"
+              BEST_LABEL="$PR_LABEL"
+            fi
+          done < <(echo "$PRS" | jq -c '.[]')
+
+          echo "Best source: ${BEST_LABEL}"
+          echo "Best ref: ${BEST_REF}"
+          echo "Best timestamp: ${BEST_TS:-none}"
+
+          SHOULD_SYNC="false"
+
+          if [ "$FORCE" = "true" ]; then
+            SHOULD_SYNC="true"
+          elif [ ! -d "$TARGET_DIR" ] || [ ! -f "$LOCAL_INFO" ]; then
+            SHOULD_SYNC="true"
+          elif [ "$(is_newer_timestamp "$BEST_TS" "$LOCAL_TS")" = "true" ]; then
+            SHOULD_SYNC="true"
+          fi
+
+          echo "should_sync=${SHOULD_SYNC}" >> "$GITHUB_OUTPUT"
+          echo "best_ref=${BEST_REF}" >> "$GITHUB_OUTPUT"
+          echo "best_label=${BEST_LABEL}" >> "$GITHUB_OUTPUT"
+          echo "best_ts=${BEST_TS}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout newest cs2-dumper output
+        if: steps.resolve.outputs.should_sync == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: a2x/cs2-dumper
+          ref: ${{ steps.resolve.outputs.best_ref }}
+          path: cs2-dumper
+          sparse-checkout: |
+            output
+          sparse-checkout-cone-mode: true
+
+      - name: Copy output to x64/Release/output
+        if: steps.resolve.outputs.should_sync == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p "$TARGET_DIR"
+          rsync -a --delete cs2-dumper/output/ "$TARGET_DIR/"
+
+      - name: Commit and push release offset update
+        if: steps.resolve.outputs.should_sync == 'true'
+        shell: bash
+        env:
+          BEST_TS: ${{ steps.resolve.outputs.best_ts }}
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add "$TARGET_DIR"
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          UPDATE_TIME=$(python3 - <<'PY'
+          import os
+          from datetime import datetime
+
+          ts = os.environ.get("BEST_TS", "")
+
+          try:
+              dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+              print(dt.strftime("%d.%m.%Y %H:%M"))
+          except Exception:
+              print(datetime.utcnow().strftime("%d.%m.%Y %H:%M"))
+          PY
+          )
+
+          git commit \
+            -m "Release Offset Update ${UPDATE_TIME}" \
+            -m "Source: ${{ steps.resolve.outputs.best_label }}" \
+            -m "Timestamp: ${{ steps.resolve.outputs.best_ts }}"
+
+          git push
+
+      - name: No update
+        if: steps.resolve.outputs.should_sync != 'true'
+        run: echo "No newer cs2-dumper output found."
