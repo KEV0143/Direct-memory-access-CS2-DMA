@@ -68,25 +68,25 @@ jobs:
 
           is_newer_timestamp() {
             python3 - "$1" "$2" <<'PY'
-          import sys
-          from datetime import datetime
+import sys
+from datetime import datetime
 
-          left = sys.argv[1]
-          right = sys.argv[2]
+left = sys.argv[1]
+right = sys.argv[2]
 
-          def parse_ts(value):
-              if not value:
-                  return None
-              return datetime.fromisoformat(value.replace("Z", "+00:00"))
+def parse_ts(value):
+    if not value:
+        return None
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
-          left_dt = parse_ts(left)
-          right_dt = parse_ts(right)
+left_dt = parse_ts(left)
+right_dt = parse_ts(right)
 
-          if left_dt and (not right_dt or left_dt > right_dt):
-              print("true")
-          else:
-              print("false")
-          PY
+if left_dt and (not right_dt or left_dt > right_dt):
+    print("true")
+else:
+    print("false")
+PY
           }
 
           LOCAL_TS=""
@@ -179,7 +179,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add "$TARGET_DIR"
+          git add -f "$TARGET_DIR"
 
           if git diff --cached --quiet; then
             echo "No changes to commit."
@@ -187,17 +187,17 @@ jobs:
           fi
 
           UPDATE_TIME=$(python3 - <<'PY'
-          import os
-          from datetime import datetime
+import os
+from datetime import datetime
 
-          ts = os.environ.get("BEST_TS", "")
+ts = os.environ.get("BEST_TS", "")
 
-          try:
-              dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-              print(dt.strftime("%d.%m.%Y %H:%M"))
-          except Exception:
-              print(datetime.utcnow().strftime("%d.%m.%Y %H:%M"))
-          PY
+try:
+    dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+    print(dt.strftime("%d.%m.%Y %H:%M"))
+except Exception:
+    print(datetime.utcnow().strftime("%d.%m.%Y %H:%M"))
+PY
           )
 
           git commit \
