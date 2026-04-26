@@ -20,6 +20,7 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     env:
       UPSTREAM_OWNER: a2x
@@ -31,9 +32,6 @@ jobs:
       - name: Checkout KevqDMA repository
         uses: actions/checkout@v5
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
       - name: Resolve newest cs2-dumper output
         id: resolve
         shell: bash
@@ -43,140 +41,258 @@ jobs:
         run: |
           set -euo pipefail
 
-          api_get() {
-            curl -fsSL \
-              -H "Accept: application/vnd.github+json" \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "$1"
-          }
+          python3 <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+          from datetime import datetime, timezone
+          from pathlib import Path
 
-          urlencode() {
-            python3 -c 'import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"
-          }
+          upstream_owner = os.environ["UPSTREAM_OWNER"]
+          upstream_repo = os.environ["UPSTREAM_REPO"]
+          target_dir = Path(os.environ["TARGET_DIR"])
+          local_info = Path(os.environ["LOCAL_INFO"])
+          github_output = Path(os.environ["GITHUB_OUTPUT"])
+          token = os.environ.get("GH_TOKEN", "")
+          force = os.environ.get("FORCE", "false").lower() == "true"
 
-          fetch_info_json_by_ref() {
-            local ref="$1"
-            local encoded_ref
-            encoded_ref=$(urlencode "$ref")
+          def api_get_json(url):
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "Accept": "application/vnd.github+json",
+                      "Authorization": f"Bearer {token}",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                      "User-Agent": "KevqDMA-Release-Offset-Sync",
+                  },
+              )
 
-            local response
-            response=$(api_get "https://api.github.com/repos/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/contents/output/info.json?ref=${encoded_ref}") || return 1
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  return json.loads(response.read().decode("utf-8"))
 
-            echo "$response" | jq -r '.content // empty' | base64 -d
-          }
+          def raw_url(repo_full_name, ref, path):
+              repo_full_name = repo_full_name.strip("/")
+              encoded_ref = urllib.parse.quote(ref, safe="")
+              encoded_path = urllib.parse.quote(path, safe="/")
+              return f"https://raw.githubusercontent.com/{repo_full_name}/{encoded_ref}/{encoded_path}"
 
-          ts_to_epoch() {
-            python3 -c 'import sys, datetime; v=sys.argv[1]; print(int(datetime.datetime.fromisoformat(v.replace("Z", "+00:00")).timestamp()) if v else 0)' "$1"
-          }
+          def fetch_raw(repo_full_name, ref, path):
+              url = raw_url(repo_full_name, ref, path)
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "User-Agent": "KevqDMA-Release-Offset-Sync",
+                  },
+              )
 
-          is_newer_timestamp() {
-            local left="$1"
-            local right="$2"
-            local left_epoch
-            local right_epoch
+              try:
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      return response.read()
+              except urllib.error.HTTPError as error:
+                  if error.code == 404:
+                      return None
+                  raise
 
-            left_epoch=$(ts_to_epoch "$left")
-            right_epoch=$(ts_to_epoch "$right")
+          def fetch_info(repo_full_name, ref):
+              data = fetch_raw(repo_full_name, ref, "output/info.json")
 
-            if [ "$left_epoch" -gt "$right_epoch" ]; then
-              echo "true"
-            else
-              echo "false"
-            fi
-          }
+              if not data:
+                  return None
 
-          LOCAL_TS=""
-          if [ -f "$LOCAL_INFO" ]; then
-            LOCAL_TS=$(jq -r '.timestamp // ""' "$LOCAL_INFO")
-          fi
+              try:
+                  return json.loads(data.decode("utf-8"))
+              except Exception:
+                  return None
 
-          echo "Local timestamp: ${LOCAL_TS:-none}"
+          def parse_timestamp(value):
+              if not value:
+                  return None
 
-          MAIN_INFO=$(fetch_info_json_by_ref "main" || echo "")
-          MAIN_TS=$(echo "$MAIN_INFO" | jq -r '.timestamp // ""' 2>/dev/null || echo "")
+              value = value.replace("Z", "+00:00")
+              dt = datetime.fromisoformat(value)
 
-          BEST_REF="main"
-          BEST_LABEL="main"
-          BEST_TS="$MAIN_TS"
+              if dt.tzinfo is None:
+                  dt = dt.replace(tzinfo=timezone.utc)
 
-          echo "main timestamp: ${MAIN_TS:-none}"
+              return dt
 
-          PRS=$(api_get "https://api.github.com/repos/${UPSTREAM_OWNER}/${UPSTREAM_REPO}/pulls?state=open&per_page=100")
+          def is_newer(left, right):
+              left_dt = parse_timestamp(left)
+              right_dt = parse_timestamp(right)
 
-          while IFS= read -r pr; do
-            PR_NUMBER=$(echo "$pr" | jq -r '.number')
-            PR_REF="refs/pull/${PR_NUMBER}/head"
-            PR_LABEL="PR #${PR_NUMBER}"
+              if left_dt is None:
+                  return False
 
-            PR_INFO=$(fetch_info_json_by_ref "$PR_REF" || echo "")
-            PR_TS=$(echo "$PR_INFO" | jq -r '.timestamp // ""' 2>/dev/null || echo "")
+              if right_dt is None:
+                  return True
 
-            if [ -z "$PR_TS" ]; then
-              echo "${PR_LABEL}: no output/info.json found"
-              continue
-            fi
+              return left_dt > right_dt
 
-            echo "${PR_LABEL} timestamp: ${PR_TS}"
+          def format_update_time(timestamp):
+              dt = parse_timestamp(timestamp)
 
-            if [ "$(is_newer_timestamp "$PR_TS" "$BEST_TS")" = "true" ]; then
-              BEST_TS="$PR_TS"
-              BEST_REF="$PR_REF"
-              BEST_LABEL="$PR_LABEL"
-            fi
-          done < <(echo "$PRS" | jq -c '.[]')
+              if dt is None:
+                  dt = datetime.now(timezone.utc)
 
-          echo "Best source: ${BEST_LABEL}"
-          echo "Best ref: ${BEST_REF}"
-          echo "Best timestamp: ${BEST_TS:-none}"
+              return dt.strftime("%d.%m.%Y %H:%M")
 
-          SHOULD_SYNC="false"
+          def write_output(name, value):
+              with github_output.open("a", encoding="utf-8") as file:
+                  file.write(f"{name}={value}\n")
 
-          if [ "$FORCE" = "true" ]; then
-            SHOULD_SYNC="true"
-          elif [ ! -d "$TARGET_DIR" ] || [ ! -f "$LOCAL_INFO" ]; then
-            SHOULD_SYNC="true"
-          elif [ "$(is_newer_timestamp "$BEST_TS" "$LOCAL_TS")" = "true" ]; then
-            SHOULD_SYNC="true"
-          fi
+          local_ts = ""
 
-          echo "should_sync=${SHOULD_SYNC}" >> "$GITHUB_OUTPUT"
-          echo "best_ref=${BEST_REF}" >> "$GITHUB_OUTPUT"
-          echo "best_label=${BEST_LABEL}" >> "$GITHUB_OUTPUT"
-          echo "best_ts=${BEST_TS}" >> "$GITHUB_OUTPUT"
+          if local_info.exists():
+              try:
+                  local_ts = json.loads(local_info.read_text(encoding="utf-8")).get("timestamp", "")
+              except Exception:
+                  local_ts = ""
 
-      - name: Checkout newest cs2-dumper output
-        if: steps.resolve.outputs.should_sync == 'true'
-        uses: actions/checkout@v5
-        with:
-          repository: a2x/cs2-dumper
-          ref: ${{ steps.resolve.outputs.best_ref }}
-          path: cs2-dumper
-          sparse-checkout: |
-            output
-          sparse-checkout-cone-mode: true
+          print(f"Local timestamp: {local_ts or 'none'}")
 
-      - name: Copy only json and hpp to x64/Release/output
+          main_repo = f"{upstream_owner}/{upstream_repo}"
+          main_info = fetch_info(main_repo, "main")
+
+          if not main_info:
+              raise RuntimeError("Cannot read output/info.json from a2x/cs2-dumper main")
+
+          best_repo = main_repo
+          best_ref = "main"
+          best_label = "main"
+          best_ts = main_info.get("timestamp", "")
+
+          print(f"main timestamp: {best_ts or 'none'}")
+
+          pulls_url = f"https://api.github.com/repos/{main_repo}/pulls?state=open&per_page=100"
+          page = 1
+
+          while True:
+              pulls = api_get_json(f"{pulls_url}&page={page}")
+
+              if not pulls:
+                  break
+
+              for pr in pulls:
+                  pr_number = pr.get("number")
+                  head = pr.get("head") or {}
+                  head_repo = head.get("repo") or {}
+                  head_repo_full_name = head_repo.get("full_name")
+                  head_sha = head.get("sha")
+
+                  if not pr_number or not head_repo_full_name or not head_sha:
+                      continue
+
+                  pr_label = f"PR #{pr_number}"
+                  pr_info = fetch_info(head_repo_full_name, head_sha)
+
+                  if not pr_info:
+                      print(f"{pr_label}: no output/info.json found")
+                      continue
+
+                  pr_ts = pr_info.get("timestamp", "")
+
+                  if not pr_ts:
+                      print(f"{pr_label}: empty timestamp")
+                      continue
+
+                  print(f"{pr_label} timestamp: {pr_ts}")
+
+                  if is_newer(pr_ts, best_ts):
+                      best_repo = head_repo_full_name
+                      best_ref = head_sha
+                      best_label = pr_label
+                      best_ts = pr_ts
+
+              if len(pulls) < 100:
+                  break
+
+              page += 1
+
+          should_sync = False
+
+          if force:
+              should_sync = True
+          elif not target_dir.exists() or not local_info.exists():
+              should_sync = True
+          elif is_newer(best_ts, local_ts):
+              should_sync = True
+
+          update_time = format_update_time(best_ts)
+
+          print(f"Best source: {best_label}")
+          print(f"Best repository: {best_repo}")
+          print(f"Best ref: {best_ref}")
+          print(f"Best timestamp: {best_ts or 'none'}")
+          print(f"Should sync: {str(should_sync).lower()}")
+
+          write_output("should_sync", str(should_sync).lower())
+          write_output("best_repo", best_repo)
+          write_output("best_ref", best_ref)
+          write_output("best_label", best_label)
+          write_output("best_ts", best_ts)
+          write_output("update_time", update_time)
+          PY
+
+      - name: Download selected offset files
         if: steps.resolve.outputs.should_sync == 'true'
         shell: bash
+        env:
+          BEST_REPO: ${{ steps.resolve.outputs.best_repo }}
+          BEST_REF: ${{ steps.resolve.outputs.best_ref }}
         run: |
           set -euo pipefail
 
-          rm -rf "$TARGET_DIR"
-          mkdir -p "$TARGET_DIR"
+          python3 <<'PY'
+          import os
+          import shutil
+          import urllib.parse
+          import urllib.request
+          from pathlib import Path
 
-          rsync -a \
-            --include='*/' \
-            --include='*.json' \
-            --include='*.hpp' \
-            --exclude='*' \
-            cs2-dumper/output/ "$TARGET_DIR/"
+          target_dir = Path(os.environ["TARGET_DIR"])
+          best_repo = os.environ["BEST_REPO"].strip("/")
+          best_ref = os.environ["BEST_REF"]
+
+          files = [
+              "client_dll.hpp",
+              "offsets.hpp",
+              "info.json",
+          ]
+
+          def raw_url(repo_full_name, ref, path):
+              encoded_ref = urllib.parse.quote(ref, safe="")
+              encoded_path = urllib.parse.quote(path, safe="/")
+              return f"https://raw.githubusercontent.com/{repo_full_name}/{encoded_ref}/{encoded_path}"
+
+          def download(path):
+              url = raw_url(best_repo, best_ref, f"output/{path}")
+              request = urllib.request.Request(
+                  url,
+                  headers={
+                      "User-Agent": "KevqDMA-Release-Offset-Sync",
+                  },
+              )
+
+              with urllib.request.urlopen(request, timeout=20) as response:
+                  return response.read()
+
+          if target_dir.exists():
+              shutil.rmtree(target_dir)
+
+          target_dir.mkdir(parents=True, exist_ok=True)
+
+          for name in files:
+              data = download(name)
+              destination = target_dir / name
+              destination.write_bytes(data)
+              print(f"Downloaded {name} -> {destination}")
+          PY
 
       - name: Commit and push release offset update
         if: steps.resolve.outputs.should_sync == 'true'
         shell: bash
-        env:
-          BEST_TS: ${{ steps.resolve.outputs.best_ts }}
         run: |
           set -euo pipefail
 
@@ -190,11 +306,10 @@ jobs:
             exit 0
           fi
 
-          UPDATE_TIME=$(python3 -c 'import os, datetime; ts=os.environ.get("BEST_TS", ""); dt=datetime.datetime.fromisoformat(ts.replace("Z", "+00:00")); print(dt.strftime("%d.%m.%Y %H:%M"))')
-
           git commit \
-            -m "Release Offset Update ${UPDATE_TIME}" \
+            -m "Release Offset Update ${{ steps.resolve.outputs.update_time }}" \
             -m "Source: ${{ steps.resolve.outputs.best_label }}" \
+            -m "Repository: ${{ steps.resolve.outputs.best_repo }}" \
             -m "Timestamp: ${{ steps.resolve.outputs.best_ts }}"
 
           git push
