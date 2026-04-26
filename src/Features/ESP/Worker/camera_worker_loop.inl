@@ -9,6 +9,7 @@ namespace {
         uintptr_t cachedLocalPawn = 0;
         uintptr_t cachedLocalSceneNode = 0;
         VMMDLL_SCATTER_HANDLE cameraHandle = mem.CreateScatterHandle();
+        bool cameraHandleInvalidatedByRecovery = false;
         s_cameraWorkerRunning.store(true, std::memory_order_relaxed);
 
         while (!s_dataWorkerStopRequested.load(std::memory_order_relaxed)) {
@@ -17,8 +18,23 @@ namespace {
                 const auto& ofs = runtime_offsets::Get();
                 const uintptr_t clientBase = g::clientBase;
                 const uint64_t nowUs = TickNowUs();
+                const bool dmaRecoveringNow = s_dmaRecovering.load(std::memory_order_relaxed);
+                const bool dmaRecoveryRequestedNow = IsDmaRecoveryRequested();
 
-                if (clientBase) {
+                if (dmaRecoveringNow || dmaRecoveryRequestedNow) {
+                    consecutiveViewMisses = 0;
+                    consecutiveLocalPosMisses = 0;
+                    cachedLocalPawn = 0;
+                    cachedLocalSceneNode = 0;
+                    cameraHandle = nullptr;
+                    cameraHandleInvalidatedByRecovery = true;
+                    SetSubsystemUnknown(RuntimeSubsystem::CameraView);
+                    ResetCameraSnapshot();
+                } else if (clientBase) {
+                    if (cameraHandleInvalidatedByRecovery) {
+                        cameraHandle = mem.CreateScatterHandle();
+                        cameraHandleInvalidatedByRecovery = false;
+                    }
                     view_matrix_t liveViewMatrix = {};
                     Vector3 liveViewAngles = {};
                     uintptr_t liveLocalPawn = 0;
@@ -209,6 +225,18 @@ namespace {
                     const bool cameraRecoveryAllowed =
                         sceneWarmupState == esp::SceneWarmupState::Stable &&
                         s_engineInGame.load(std::memory_order_relaxed);
+                    if (!cameraRecoveryAllowed) {
+                        SetSubsystemUnknown(RuntimeSubsystem::CameraView);
+                    } else if (gotMatrix && gotLocalPos) {
+                        MarkSubsystemHealthy(RuntimeSubsystem::CameraView, nowUs);
+                    } else if (gotMatrix || gotLocalPos) {
+                        MarkSubsystemDegraded(RuntimeSubsystem::CameraView, nowUs);
+                    } else if (consecutiveViewMisses >= kCameraInvalidateMissThreshold ||
+                               consecutiveLocalPosMisses >= kCameraInvalidateMissThreshold) {
+                        MarkSubsystemFailed(RuntimeSubsystem::CameraView, nowUs);
+                    } else {
+                        MarkSubsystemDegraded(RuntimeSubsystem::CameraView, nowUs);
+                    }
                     const uint64_t lastPublishUs = s_lastPublishUs.load(std::memory_order_relaxed);
                     const bool snapshotFresh =
                         lastPublishUs > 0 &&
@@ -236,6 +264,7 @@ namespace {
                     consecutiveLocalPosMisses = 0;
                     cachedLocalPawn = 0;
                     cachedLocalSceneNode = 0;
+                    SetSubsystemUnknown(RuntimeSubsystem::CameraView);
                     ResetCameraSnapshot();
                 }
 
@@ -269,6 +298,7 @@ namespace {
                     sceneWarmupState == esp::SceneWarmupState::Stable &&
                     !snapshotFresh)
                     RequestDmaRecovery("camera_worker_exception_persistent");
+                MarkSubsystemFailed(RuntimeSubsystem::CameraView, nowUs);
             }
 
             nextTick += JitterDuration(tickInterval, kCameraWorkerJitterPercent);

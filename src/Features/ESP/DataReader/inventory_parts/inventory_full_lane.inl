@@ -46,6 +46,21 @@
                     if (!isLikelyGamePointer(handleArray))
                         handleArray = 0;
                 }
+                for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
+                    const int i = inventoryPlayerSlots[inventorySlotIdx];
+                    if (!inventoryWeaponHandleArrays[i] ||
+                        inventoryWeaponCounts[i] < 0 ||
+                        inventoryWeaponCounts[i] > kMaxInventoryWeapons) {
+                        inventoryWeaponCounts[i] = 0;
+                        inventoryWeaponHandleArrays[i] = 0;
+                        memset(inventoryWeaponHandles[i], 0, sizeof(inventoryWeaponHandles[i]));
+                        continue;
+                    }
+                    for (int slot = 0; slot < kMaxInventoryWeapons; ++slot) {
+                        if (!isValidEntityHandle(inventoryWeaponHandles[i][slot]))
+                            inventoryWeaponHandles[i][slot] = 0;
+                    }
+                }
 
                 bool arraysChanged = false;
                 for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
@@ -96,6 +111,12 @@
                         }
                     }
                 }
+                const bool inventoryMetaRefreshDue =
+                    (g::espBombInfo || g::radarShowBomb || webRadarDemandActive) &&
+                    (s_lastInventoryMetaRefreshUs == 0 ||
+                     (inventoryNowUs - s_lastInventoryMetaRefreshUs) >= 32000u);
+                if (inventoryMetaRefreshDue)
+                    inventoryHandlesChanged = true;
 
                 for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
                     const int i = inventoryPlayerSlots[inventorySlotIdx];
@@ -112,7 +133,7 @@
                     const int inventorySlotCount = getInventorySlotCount(i);
                     for (int slot = 0; slot < inventorySlotCount; ++slot) {
                         const uint32_t weaponHandle = inventoryWeaponHandles[i][slot];
-                        if (!weaponHandle || weaponHandle == 0xFFFFFFFFu)
+                        if (!isValidEntityHandle(weaponHandle))
                             continue;
                         const uint32_t block = (weaponHandle & kEntityHandleMask) >> 9;
                         mem.AddScatterReadRequest(
@@ -129,7 +150,7 @@
                     const int inventorySlotCount = getInventorySlotCount(i);
                     for (int slot = 0; slot < inventorySlotCount; ++slot) {
                         const uint32_t weaponHandle = inventoryWeaponHandles[i][slot];
-                        if (!weaponHandle || weaponHandle == 0xFFFFFFFFu || !s_cachedInventoryWeaponEntries[i][slot])
+                        if (!isValidEntityHandle(weaponHandle) || !s_cachedInventoryWeaponEntries[i][slot])
                             continue;
                         const uint32_t handleSlot = weaponHandle & kEntitySlotMask;
                         mem.AddScatterReadRequest(
@@ -192,7 +213,7 @@
                                 const int inventorySlotCount = getInventorySlotCount(i);
                                 for (int slot = 0; slot < inventorySlotCount; ++slot) {
                                     const uint32_t weaponHandle = inventoryWeaponHandles[i][slot];
-                                    if (!weaponHandle || weaponHandle == 0xFFFFFFFFu || !inventoryWeaponEntries[i][slot])
+                                    if (!isValidEntityHandle(weaponHandle) || !inventoryWeaponEntries[i][slot])
                                         continue;
                                     const uint32_t handleSlot = weaponHandle & kEntitySlotMask;
                                     mem.AddScatterReadRequest(
@@ -209,6 +230,16 @@
                                 memcpy(inventoryWeaponIds, s_cachedInventoryWeaponIdsResolved, sizeof(inventoryWeaponIds));
                                 memcpy(inventoryHasBombBySlot, s_cachedInventoryHasBombResolved, sizeof(inventoryHasBombBySlot));
                                 logUpdateDataIssue("scatter_14_inv_refresh", "inventory_entity_refresh_failed_using_cached");
+                            }
+                        }
+                        for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
+                            const int i = inventoryPlayerSlots[inventorySlotIdx];
+                            const int inventorySlotCount = getInventorySlotCount(i);
+                            for (int slot = 0; slot < inventorySlotCount; ++slot) {
+                                if (inventoryWeaponEntries[i][slot] && !isLikelyGamePointer(inventoryWeaponEntries[i][slot]))
+                                    inventoryWeaponEntries[i][slot] = 0;
+                                if (inventoryWeapons[i][slot] && !isLikelyGamePointer(inventoryWeapons[i][slot]))
+                                    inventoryWeapons[i][slot] = 0;
                             }
                         }
 
@@ -269,7 +300,7 @@
                             const int i = inventoryPlayerSlots[inventorySlotIdx];
                             const int inventorySlotCount = getInventorySlotCount(i);
                             for (int slot = 0; slot < inventorySlotCount; ++slot) {
-                                if (inventoryWeaponIds[i][slot] == 49u || inventoryWeapons[i][slot] == weaponC4Entity) {
+                if (inventoryWeaponIds[i][slot] == kWeaponC4Id || inventoryWeapons[i][slot] == weaponC4Entity) {
                                     inventoryHasBombBySlot[i] = true;
                                     break;
                                 }
@@ -278,6 +309,8 @@
 
                         for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx)
                             storeInventoryFullSlotToCache(inventoryPlayerSlots[inventorySlotIdx]);
+                        if (inventoryMetaRefreshDue)
+                            s_lastInventoryMetaRefreshUs = inventoryNowUs;
                     }
                 }
                 }

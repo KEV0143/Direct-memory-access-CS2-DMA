@@ -10,7 +10,25 @@
         plantedC4Entity = 0;
     }
 
-    if (!bombPlantedByRules) {
+    static uint64_t s_lastWeaponC4ProbeUs = 0;
+    const bool cachedCarryEvidence =
+        s_cachedBombCarryOwnerSlot >= 0 &&
+        s_cachedBombCarryOwnerUs > 0 &&
+        nowUs >= s_cachedBombCarryOwnerUs &&
+        (nowUs - s_cachedBombCarryOwnerUs) <= 300000u;
+    const bool canDeferWeaponC4Probe =
+        !bombPlantedByRules &&
+        !bombDroppedByRules &&
+        (inventoryC4CarrierEvidence || cachedCarryEvidence) &&
+        !s_bombState.planted &&
+        !s_bombState.dropped;
+    const bool weaponC4ProbeDue =
+        !canDeferWeaponC4Probe ||
+        s_lastWeaponC4ProbeUs == 0 ||
+        (nowUs - s_lastWeaponC4ProbeUs) >= 100000u;
+
+    if (!bombPlantedByRules && weaponC4ProbeDue) {
+        s_lastWeaponC4ProbeUs = nowUs;
         uintptr_t resolvedWeaponC4 = sanitizePointer(weaponC4Entity);
         if (!resolvedWeaponC4 && ofs.dwWeaponC4 > 0) {
             uintptr_t weaponRoot = 0;
@@ -24,8 +42,17 @@
 
     const bool plantedNodeCached =
         plantedC4Entity && plantedC4Entity == s_mergedPlantedEntity && s_mergedBombSceneNode;
-    const bool weaponNodeCached =
+    bool weaponNodeCached =
         weaponC4Entity && weaponC4Entity == s_mergedWeaponEntity && s_mergedWeaponC4SceneNode;
+    if (weaponNodeCached &&
+        !bombDroppedByRules &&
+        !bombPlantedByRules &&
+        (weaponC4OwnerHandle == 0u || weaponC4OwnerHandle == 0xFFFFFFFFu) &&
+        !weaponC4PosValid) {
+        s_mergedWeaponEntity = 0;
+        s_mergedWeaponC4SceneNode = 0;
+        weaponNodeCached = false;
+    }
     const bool plantedMetaEntityStable =
         plantedC4Entity && plantedC4Entity == s_cachedPlantedMetaEntity;
     const bool plantedPosEntityStable =
@@ -36,7 +63,9 @@
         bombTicking = s_cachedPlantedTicking;
         bombBeingDefused = s_cachedPlantedBeingDefused;
         bombBlowTime = s_cachedPlantedBlowTime;
+        bombTimerLength = s_cachedPlantedTimerLength;
         bombDefuseEndTime = s_cachedPlantedDefuseEndTime;
+        bombDefuseLength = s_cachedPlantedDefuseLength;
     }
     if (plantedPosEntityStable)
         bombWorldPos = s_cachedPlantedWorldPos;
@@ -80,8 +109,16 @@
                 mem.AddScatterReadRequest(handle, plantedC4Entity + ofs.C_PlantedC4_m_flC4Blow, &bombBlowTime, sizeof(bombBlowTime));
                 queuedBatch1 = true;
             }
+            if (plantedMetaDue && ofs.C_PlantedC4_m_flTimerLength > 0) {
+                mem.AddScatterReadRequest(handle, plantedC4Entity + ofs.C_PlantedC4_m_flTimerLength, &bombTimerLength, sizeof(bombTimerLength));
+                queuedBatch1 = true;
+            }
             if (plantedMetaDue && ofs.C_PlantedC4_m_flDefuseCountDown > 0) {
                 mem.AddScatterReadRequest(handle, plantedC4Entity + ofs.C_PlantedC4_m_flDefuseCountDown, &bombDefuseEndTime, sizeof(bombDefuseEndTime));
+                queuedBatch1 = true;
+            }
+            if (plantedMetaDue && ofs.C_PlantedC4_m_flDefuseLength > 0) {
+                mem.AddScatterReadRequest(handle, plantedC4Entity + ofs.C_PlantedC4_m_flDefuseLength, &bombDefuseLength, sizeof(bombDefuseLength));
                 queuedBatch1 = true;
             }
             if (mergeScatters && s_mergedBombSceneNode && plantedPosDue && ofs.CGameSceneNode_m_vecAbsOrigin > 0) {
@@ -127,11 +164,7 @@
     }
 
     if (weaponC4SceneNode) {
-        weaponC4PosValid =
-            std::isfinite(weaponC4WorldPos.x) &&
-            std::isfinite(weaponC4WorldPos.y) &&
-            std::isfinite(weaponC4WorldPos.z) &&
-            ((std::fabs(weaponC4WorldPos.x) + std::fabs(weaponC4WorldPos.y) + std::fabs(weaponC4WorldPos.z)) > 1.0f);
+        weaponC4PosValid = isDroppedC4PositionPlausible(weaponC4WorldPos);
     }
 
     if (bombPlantedByRules &&
@@ -161,11 +194,7 @@
         !weaponC4PosValid &&
         ofs.CGameSceneNode_m_vecAbsOrigin > 0 &&
         readValue(weaponC4SceneNode + ofs.CGameSceneNode_m_vecAbsOrigin, &weaponC4WorldPos, sizeof(weaponC4WorldPos))) {
-        weaponC4PosValid =
-            std::isfinite(weaponC4WorldPos.x) &&
-            std::isfinite(weaponC4WorldPos.y) &&
-            std::isfinite(weaponC4WorldPos.z) &&
-            ((std::fabs(weaponC4WorldPos.x) + std::fabs(weaponC4WorldPos.y) + std::fabs(weaponC4WorldPos.z)) > 1.0f);
+        weaponC4PosValid = isDroppedC4PositionPlausible(weaponC4WorldPos);
     }
 
     s_mergedPlantedEntity = plantedC4Entity;
@@ -179,7 +208,9 @@
             s_cachedPlantedTicking = bombTicking;
             s_cachedPlantedBeingDefused = bombBeingDefused;
             s_cachedPlantedBlowTime = bombBlowTime;
+            s_cachedPlantedTimerLength = bombTimerLength;
             s_cachedPlantedDefuseEndTime = bombDefuseEndTime;
+            s_cachedPlantedDefuseLength = bombDefuseLength;
         }
         if (isValidWorldPos(bombWorldPos)) {
             s_cachedPlantedPosEntity = plantedC4Entity;
@@ -191,7 +222,9 @@
         s_cachedPlantedTicking = 0;
         s_cachedPlantedBeingDefused = 0;
         s_cachedPlantedBlowTime = 0.0f;
+        s_cachedPlantedTimerLength = 0.0f;
         s_cachedPlantedDefuseEndTime = 0.0f;
+        s_cachedPlantedDefuseLength = 0.0f;
         s_cachedPlantedPosEntity = 0;
         s_cachedPlantedWorldPos = { NAN, NAN, NAN };
     }

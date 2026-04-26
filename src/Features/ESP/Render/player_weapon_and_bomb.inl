@@ -17,7 +17,7 @@ if (g::espWeapon) {
         }
     }
     if (g::espWeaponText)
-        drawBottomLabel(weaponName, ColorToImU32(g::espWeaponTextColor), false, true, nullptr, g::espWeaponTextSize);
+        drawBottomLabel(weaponName, ColorToImU32(g::espWeaponTextColor), false, true, g::fontComicSans, g::espWeaponTextSize);
     if (g::espBombInfo && g::espBombText && p.hasBomb && !bombState.dropped && !bombState.planted)
         drawBottomLabel("Bomb", bombCol, false, true, nullptr, g::espBombTextSize);
 }

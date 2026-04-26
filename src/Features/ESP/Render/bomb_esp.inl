@@ -19,7 +19,7 @@ if (g::espEnabled && g::espBombInfo && (bombState.planted || bombState.dropped))
     char defText[32] = {};
     char blowText[24] = {};
 
-    if (g::espBombText && plantedBomb && bombState.beingDefused && defuseLeft > 0.0f) {
+    if (g::espBombText && !g::espBombTime && plantedBomb && bombState.beingDefused && defuseLeft > 0.0f) {
         std::snprintf(defText, sizeof(defText), "Defuse %.1fs", static_cast<double>(defuseLeft));
         const ImVec2 defSize = bombFont->CalcTextSizeA(bombFsUse, FLT_MAX, 0.0f, defText);
         DrawTextShadow(
@@ -48,13 +48,20 @@ if (g::espEnabled && g::espBombInfo && (bombState.planted || bombState.dropped))
             &boxMax);
     }
 
+    if (hasScreenBox && !plantedBomb) {
+        const float boxW = boxMax.x - boxMin.x;
+        const float boxH = boxMax.y - boxMin.y;
+        if (boxW < 14.0f || boxH < 10.0f)
+            hasScreenBox = false;
+    }
+
     if (!hasScreenBox && hasBombPos) {
         Vector3 bombPos = bombState.position;
-        bombPos.z += plantedBomb ? 10.0f : 5.0f;
+        bombPos.z += plantedBomb ? 10.0f : 8.0f;
         const ScreenPos bombScreen = WorldToScreen(bombPos, viewMatrix, screenW, screenH);
         if (bombScreen.onScreen) {
-            const float halfW = plantedBomb ? 14.0f : 13.0f;
-            const float halfH = plantedBomb ? 12.0f : 10.0f;
+            const float halfW = plantedBomb ? 14.0f : 15.0f;
+            const float halfH = plantedBomb ? 12.0f : 11.0f;
             boxMin = ImVec2(bombScreen.x - halfW, bombScreen.y - halfH);
             boxMax = ImVec2(bombScreen.x + halfW, bombScreen.y + halfH);
             hasScreenBox = true;
@@ -73,8 +80,23 @@ if (g::espEnabled && g::espBombInfo && (bombState.planted || bombState.dropped))
 
         const float centerX = (boxMin.x + boxMax.x) * 0.5f;
 
-        if (g::espBombText) {
-            const char* bombLabel = plantedBomb ? "Bomb" : "Bomb Drop";
+        if (g::espBombText && !plantedBomb) {
+            const char* c4Icon = WeaponIconFromItemId(kWeaponC4Id);
+            if (c4Icon && g::fontWeaponIcons) {
+                constexpr float c4IconSize = 17.0f;
+                const ImVec2 c4SizePx = g::fontWeaponIcons->CalcTextSizeA(c4IconSize, FLT_MAX, 0.0f, c4Icon, nullptr);
+                DrawTextShadow(
+                    drawList,
+                    g::fontWeaponIcons,
+                    c4IconSize,
+                    ImVec2(centerX - c4SizePx.x * 0.5f, boxMin.y - c4SizePx.y - 5.0f),
+                    bombCol,
+                    c4Icon);
+            }
+        }
+
+        if (g::espBombText && plantedBomb) {
+            const char* bombLabel = "Bomb";
             const ImVec2 bombLabelSize = bombFont->CalcTextSizeA(bombFsUse, FLT_MAX, 0.0f, bombLabel);
             const float labelY = boxMin.y - bombLabelSize.y - 4.0f;
             DrawTextShadow(
@@ -85,7 +107,7 @@ if (g::espEnabled && g::espBombInfo && (bombState.planted || bombState.dropped))
                 bombCol,
                 bombLabel);
 
-            if (plantedBomb && bombState.ticking && blowLeft > 0.0f) {
+            if (!g::espBombTime && plantedBomb && bombState.ticking && blowLeft > 0.0f) {
                 std::snprintf(blowText, sizeof(blowText), "%.1fs", static_cast<double>(blowLeft));
                 const ImVec2 blowSize = bombFont->CalcTextSizeA(bombFsUse, FLT_MAX, 0.0f, blowText);
                 DrawTextShadow(

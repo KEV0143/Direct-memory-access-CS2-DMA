@@ -6,6 +6,7 @@
 #include "app/UI/MenuShell/ui_style.h"
 #include "Features/WebRadar/webradar.h"
 #include "fonts/weapons.hpp"
+#include "icons/esp_ui_icons.hpp"
 #include <DMALibrary/Memory/Memory.h>
 
 #include <Windows.h>
@@ -20,6 +21,7 @@ using Microsoft::WRL::ComPtr;
 #include <chrono>
 #include <thread>
 #include <atomic>
+#include <array>
 #include <vector>
 #include <ShlObj.h>
 
@@ -46,6 +48,24 @@ static std::atomic<uint64_t>   s_overlaySyncUs = 0;
 static std::atomic<uint64_t>   s_overlayDrawUs = 0;
 static std::atomic<uint64_t>   s_overlayPresentUs = 0;
 static std::atomic<uint64_t>   s_overlayPacingWaitUs = 0;
+
+enum class EspUiIconSlot : size_t {
+    EnableEsp,
+    EspPreview,
+    CornerBox,
+    HealthBar,
+    ArmorBar,
+    VisibilityColors,
+    WeaponLabel,
+    Skeleton,
+    SnapLines,
+    PlayerFlags,
+    WorldEsp,
+    BombEsp,
+    Count
+};
+
+static std::array<ComPtr<ID3D11ShaderResourceView>, static_cast<size_t>(EspUiIconSlot::Count)> s_espUiIconViews;
 
 static void RecreateRenderTarget(UINT width, UINT height)
 {
@@ -382,6 +402,82 @@ static bool CheckTearingSupport()
     return SUCCEEDED(hr) && allowTearing;
 }
 
+static void ClearEspUiIconTextures()
+{
+    g::espUiIcons = {};
+    for (auto& view : s_espUiIconViews)
+        view.Reset();
+}
+
+static bool CreateEspUiIconTexture(const uint8_t* rleData, size_t rleBytes, ComPtr<ID3D11ShaderResourceView>& outView)
+{
+    if (!s_device || !rleData || (rleBytes % 2u) != 0u)
+        return false;
+
+    constexpr int iconSize = resources::icons::esp_ui::kIconSize;
+    constexpr size_t iconPixels = resources::icons::esp_ui::kIconPixels;
+    std::array<uint32_t, iconPixels> pixels = {};
+    size_t pixelIndex = 0;
+
+    for (size_t i = 0; i < rleBytes && pixelIndex < iconPixels; i += 2) {
+        const uint8_t count = rleData[i];
+        const uint32_t alpha = rleData[i + 1];
+        const uint32_t rgba = 0x00FFFFFFu | (alpha << 24);
+        for (uint8_t n = 0; n < count && pixelIndex < iconPixels; ++n)
+            pixels[pixelIndex++] = rgba;
+    }
+    if (pixelIndex != iconPixels)
+        return false;
+
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width = iconSize;
+    desc.Height = iconSize;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    D3D11_SUBRESOURCE_DATA initData = {};
+    initData.pSysMem = pixels.data();
+    initData.SysMemPitch = iconSize * static_cast<UINT>(sizeof(uint32_t));
+
+    ComPtr<ID3D11Texture2D> texture;
+    HRESULT hr = s_device->CreateTexture2D(&desc, &initData, &texture);
+    if (FAILED(hr) || !texture)
+        return false;
+
+    outView.Reset();
+    hr = s_device->CreateShaderResourceView(texture.Get(), nullptr, &outView);
+    return SUCCEEDED(hr) && outView;
+}
+
+static void LoadEspUiIconTextures()
+{
+    ClearEspUiIconTextures();
+
+    const auto loadIcon = [](EspUiIconSlot slot, const uint8_t* data, size_t bytes, uintptr_t& target) {
+        auto& view = s_espUiIconViews[static_cast<size_t>(slot)];
+        if (CreateEspUiIconTexture(data, bytes, view))
+            target = reinterpret_cast<uintptr_t>(view.Get());
+    };
+
+    using namespace resources::icons::esp_ui;
+    loadIcon(EspUiIconSlot::EnableEsp, enable_esp_rle, sizeof(enable_esp_rle), g::espUiIcons.enableEsp);
+    loadIcon(EspUiIconSlot::EspPreview, esp_preview_rle, sizeof(esp_preview_rle), g::espUiIcons.espPreview);
+    loadIcon(EspUiIconSlot::CornerBox, corner_box_rle, sizeof(corner_box_rle), g::espUiIcons.cornerBox);
+    loadIcon(EspUiIconSlot::HealthBar, health_bar_rle, sizeof(health_bar_rle), g::espUiIcons.healthBar);
+    loadIcon(EspUiIconSlot::ArmorBar, armor_bar_rle, sizeof(armor_bar_rle), g::espUiIcons.armorBar);
+    loadIcon(EspUiIconSlot::VisibilityColors, visibility_colors_rle, sizeof(visibility_colors_rle), g::espUiIcons.visibilityColors);
+    loadIcon(EspUiIconSlot::WeaponLabel, weapon_label_rle, sizeof(weapon_label_rle), g::espUiIcons.weaponLabel);
+    loadIcon(EspUiIconSlot::Skeleton, skeleton_rle, sizeof(skeleton_rle), g::espUiIcons.skeleton);
+    loadIcon(EspUiIconSlot::SnapLines, snap_lines_rle, sizeof(snap_lines_rle), g::espUiIcons.snapLines);
+    loadIcon(EspUiIconSlot::PlayerFlags, player_flags_rle, sizeof(player_flags_rle), g::espUiIcons.playerFlags);
+    loadIcon(EspUiIconSlot::WorldEsp, world_esp_rle, sizeof(world_esp_rle), g::espUiIcons.worldEsp);
+    loadIcon(EspUiIconSlot::BombEsp, bomb_esp_rle, sizeof(bomb_esp_rle), g::espUiIcons.bombEsp);
+}
+
 static LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
@@ -428,6 +524,8 @@ void overlay::Destroy()
         CloseHandle(s_frameLatencyWaitableObject);
         s_frameLatencyWaitableObject = nullptr;
     }
+
+    ClearEspUiIconTextures();
 
     s_rtv.Reset();
     s_swapChain.Reset();

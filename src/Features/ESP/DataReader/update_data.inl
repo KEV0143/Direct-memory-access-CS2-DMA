@@ -2,6 +2,20 @@
 
 bool esp::UpdateData()
 {
+    struct ScopedDirectReadWarningSuppression {
+        Memory& memory;
+
+        explicit ScopedDirectReadWarningSuppression(Memory& memRef) : memory(memRef)
+        {
+            memory.SetDirectReadWarningSuppressed(true);
+        }
+
+        ~ScopedDirectReadWarningSuppression()
+        {
+            memory.SetDirectReadWarningSuppressed(false);
+        }
+    } directReadWarningScope(mem);
+
 #include "update_parts/update_bootstrap.inl"
 #include "update_parts/update_engine_state.inl"
 
@@ -15,6 +29,7 @@ bool esp::UpdateData()
     uintptr_t sensPtr = 0;
     uintptr_t listEntry = 0;
     int highestEntityIndex = 0;
+    std::string liveMapKey;
     view_matrix_t viewMatrix = {};
     Vector3 viewAngles = {};
     auto handle = mem.CreateScatterHandle();

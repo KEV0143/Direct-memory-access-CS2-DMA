@@ -51,7 +51,10 @@
         LoadBool(root, "ESP", "WorldExplosiveTimer", g::espWorldExplosiveTimer);
         LoadBool(root, "ESP", "BombInfo", g::espBombInfo);
         LoadBool(root, "ESP", "BombText", g::espBombText);
+        LoadBool(root, "ESP", "BombTime", g::espBombTime);
         LoadFloat(root, "ESP", "BombTextSize", g::espBombTextSize);
+        LoadFloat(root, "ESP", "BombTimerX", g::espBombTimerX);
+        LoadFloat(root, "ESP", "BombTimerY", g::espBombTimerY);
         LoadDisabledItemIds(root, "ESP", "ItemHiddenIds", g::espItemEnabledMask);
         LoadFloat(root, "ESP", "OffscreenSize", g::espOffscreenSize);
         LoadColor(root, "ESP", "BoxColor", g::espBoxColor);
@@ -87,6 +90,9 @@
         LoadColor(root, "Radar", "DotColor", g::radarDotColor);
         LoadColor(root, "Radar", "BombColor", g::radarBombColor);
         LoadColor(root, "Radar", "AngleColor", g::radarAngleColor);
+        LoadBool(root, "Radar", "SpectatorList", g::radarSpectatorList);
+        LoadFloat(root, "Radar", "SpectatorListX", g::radarSpectatorListX);
+        LoadFloat(root, "Radar", "SpectatorListY", g::radarSpectatorListY);
 
         LoadBool(root, "WEBRadar", "Enabled", g::webRadarEnabled);
         LoadInt(root, "WEBRadar", "Port", g::webRadarPort);

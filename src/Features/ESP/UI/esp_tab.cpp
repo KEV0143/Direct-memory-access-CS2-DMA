@@ -22,34 +22,15 @@ void ui::tabs::EspTab::Render(MenuState& state, IStatusSink& statusSink)
     (void)statusSink;
 
     ImGui::BeginChild("##espchild", ImVec2(0, 0), ImGuiChildFlags_Borders);
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10.0f, 0.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, ImVec2(8.0f, 0.0f));
 
-    
-    const float indent = 8.0f;
-    ImGui::Indent(indent);
+    esp_sections::RenderCoreSection();
 
-    ImGui::Checkbox("Enable ESP", &g::espEnabled);
-    ImGui::SameLine();
-    ImGui::Checkbox("ESP Preview", &g::espPreviewOpen);
-    ImGui::Spacing();
+    if (g::espEnabled)
+        esp_sections::RenderOptionsGrid();
 
-    if (g::espEnabled) {
-        esp_sections::RenderGeneralSection();
-        esp_sections::RenderWeaponSection();
-        esp_sections::RenderPlayerVisualsSection();
-        esp_sections::RenderFlagsSection();
-
-        
-        
-        
-        
-        constexpr bool kShowWorldItemSections = false;
-        if (kShowWorldItemSections) {
-            esp_sections::RenderItemSection();
-            esp_sections::RenderWorldSection();
-        }
-    }
-
-    ImGui::Unindent(indent);
+    ImGui::PopStyleVar(2);
     ImGui::EndChild();
 
     ui::RenderEspPreview();

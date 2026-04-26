@@ -68,7 +68,7 @@
             const bool likelyCarryCandidate =
                 bombCarrierBySlot[i] ||
                 inventoryHasBombBySlot[i] ||
-                weaponIds[i] == 49u ||
+                weaponIds[i] == kWeaponC4Id ||
                 i == weaponC4OwnerPlayerIndex ||
                 (i == s_cachedBombCarryOwnerSlot &&
                  s_cachedBombCarryOwnerUs > 0 &&
@@ -92,8 +92,37 @@
     
     
     
+    constexpr int kDroppedC4AcceptScore = 80;
+
     const bool inDropResetGrace =
         s_bombDropResetGraceUntilUs > 0 && s_bombDropResetGraceUntilUs > nowUs;
+    const bool recentWeaponC4CarryEvidence =
+        anyBombCarrierNow ||
+        treatWeaponC4OwnerAsCarrier ||
+        weaponC4StrongCarrySignal ||
+        weaponC4SpatialCarryVeto ||
+        (s_cachedBombCarryOwnerSlot >= 0 &&
+         s_cachedBombCarryOwnerUs > 0 &&
+         (nowUs - s_cachedBombCarryOwnerUs) <= kBombOwnerCarryStickyUs) ||
+        (s_cachedBombAttachedOwnerSlot >= 0 &&
+         s_cachedBombAttachedOwnerUs > 0 &&
+         (nowUs - s_cachedBombAttachedOwnerUs) <= kBombOwnerAttachGraceUs);
+    const bool worldScanC4DetachedFromLiveOwner =
+        bombDroppedByRules ||
+        worldScanC4NoOwner ||
+        worldScanC4OwnerIdx < 0 ||
+        !worldScanC4OwnerAlive;
+    const bool worldC4DropEvidence =
+        worldScanFoundC4 &&
+        (bombDroppedByRules ? isDroppedC4PositionPlausible(worldScanC4Pos)
+                            : isDroppedC4WeakPositionPlausible(worldScanC4Pos)) &&
+        worldScanC4Score >= kDroppedC4AcceptScore &&
+        worldScanC4DetachedFromLiveOwner;
+    const bool weakWeaponDropAllowed =
+        bombDroppedByRules ||
+        (worldC4DropEvidence &&
+         !recentWeaponC4CarryEvidence &&
+         !bombPositionInsideAlivePlayer(worldScanC4Pos));
 
     const bool weaponC4DroppedByRulesNow =
         weaponC4PosValid &&
@@ -102,21 +131,25 @@
     const bool weaponC4DroppedByOwnerLoss =
         !inDropResetGrace &&
         weaponC4PosValid &&
+        weakWeaponDropAllowed &&
         (!weaponC4OwnerValid ||
          weaponC4OwnerPlayerIndex < 0 ||
          !weaponC4OwnerAlive);
     const bool weaponC4DroppedByDistance =
         !inDropResetGrace &&
         weaponC4PosValid &&
+        weakWeaponDropAllowed &&
         weaponC4OwnerAlive &&
         weaponC4OwnerDist2D > 160.0f;
     const bool weaponC4LooksDropped =
         !bombPlantedNow &&
+        (bombDroppedByRules ? isDroppedC4PositionPlausible(weaponC4WorldPos)
+                            : isDroppedC4WeakPositionPlausible(weaponC4WorldPos)) &&
         !weaponC4StrongCarrySignal &&
         (weaponC4DroppedByRulesNow ||
          weaponC4DroppedByOwnerLoss ||
          weaponC4DroppedByDistance ||
-         weaponC4LooksDroppedNearOwner);
+         (bombDroppedByRules && weaponC4LooksDroppedNearOwner));
     const bool weaponC4DefinitelyNotCarried =
         !anyBombCarrierNow &&
         !treatWeaponC4OwnerAsCarrier &&
@@ -131,15 +164,18 @@
         droppedBombBoundsMins = weaponC4CollisionMins;
         droppedBombBoundsMaxs = weaponC4CollisionMaxs;
         droppedBombBoundsValid = isValidBombBounds(droppedBombBoundsMins, droppedBombBoundsMaxs);
-        droppedBombScore = 140;
+        droppedBombScore = bombDroppedByRules ? 120 : 140;
         droppedBombSourceFlags = BombResolveSourceWeaponEntity;
         if (bombDroppedByRules)
             droppedBombSourceFlags |= BombResolveSourceRules;
     }
 
-    constexpr int kDroppedC4AcceptScore = 80;
-
-    if (worldScanFoundC4 && isValidWorldPos(worldScanC4Pos) && worldScanC4Score >= kDroppedC4AcceptScore) {
+    const uint64_t worldC4StickyUs = bombDroppedByRules ? 1200000u : 220000u;
+    if (worldScanFoundC4 &&
+        (bombDroppedByRules ? isDroppedC4PositionPlausible(worldScanC4Pos)
+                            : isDroppedC4WeakPositionPlausible(worldScanC4Pos)) &&
+        worldScanC4Score >= kDroppedC4AcceptScore &&
+        worldScanC4DetachedFromLiveOwner) {
         s_lastWorldC4Pos = worldScanC4Pos;
         s_lastWorldC4PosUs = nowUs;
         s_lastWorldC4NoOwner = worldScanC4NoOwner;
@@ -147,8 +183,9 @@
         s_lastWorldC4OwnerAlive = worldScanC4OwnerAlive;
         s_lastWorldC4OwnerNearby = worldScanC4OwnerNearby;
     } else if (s_lastWorldC4PosUs > 0 &&
-               (nowUs - s_lastWorldC4PosUs) <= 220000 &&
-               isValidWorldPos(s_lastWorldC4Pos)) {
+               (nowUs - s_lastWorldC4PosUs) <= worldC4StickyUs &&
+               (bombDroppedByRules ? isDroppedC4PositionPlausible(s_lastWorldC4Pos)
+                                   : isDroppedC4WeakPositionPlausible(s_lastWorldC4Pos))) {
         worldScanFoundC4 = true;
         worldScanC4Pos = s_lastWorldC4Pos;
         worldScanC4NoOwner = s_lastWorldC4NoOwner;
@@ -165,7 +202,8 @@
                                        bool ownerCarrySignal,
                                        const Vector3& pos) -> int {
         int score = 0;
-        if (isValidWorldPos(pos))
+        if (bombDroppedByRules ? isDroppedC4PositionPlausible(pos)
+                               : isDroppedC4WeakPositionPlausible(pos))
             score += 40;
         if (bombDroppedByRules)
             score += 180;
@@ -178,8 +216,8 @@
         if (!ownerNearby)
             score += 80;
         if (ownerCarrySignal)
-            score -= 220;
-        if (ownerAlive && ownerNearby)
+            score -= bombDroppedByRules ? 80 : 220;
+        if (!bombDroppedByRules && ownerAlive && ownerNearby)
             score -= 120;
         if (s_bombState.dropped && isFiniteVec(s_bombState.position)) {
             const float dx = pos.x - s_bombState.position.x;
@@ -206,7 +244,7 @@
             worldScanC4OwnerIdx < 64) {
             worldOwnerCarrySignal =
                 (activeWeapons[worldScanC4OwnerIdx] != 0 && activeWeapons[worldScanC4OwnerIdx] == worldScanC4Entity) ||
-                (weaponIds[worldScanC4OwnerIdx] == 49u) ||
+            (weaponIds[worldScanC4OwnerIdx] == kWeaponC4Id) ||
                 inventoryHasBombBySlot[worldScanC4OwnerIdx] ||
                 (worldScanC4OwnerIdx == s_cachedBombCarryOwnerSlot &&
                  s_cachedBombCarryOwnerUs > 0 &&
@@ -229,10 +267,17 @@
                 worldScanC4OwnerIdx,
                 worldScanC4OwnerAlive,
                 worldScanC4OwnerNearby,
-                worldOwnerCarrySignal,
-                worldScanC4Pos);
-            const bool c4LooksDropped = worldCandidateScore >= kDroppedC4AcceptScore;
+            worldOwnerCarrySignal,
+            worldScanC4Pos);
+            const bool c4LooksDropped =
+                worldCandidateScore >= kDroppedC4AcceptScore &&
+                (bombDroppedByRules ||
+                 worldScanC4NoOwner ||
+                 worldScanC4OwnerIdx < 0 ||
+                 !worldScanC4OwnerAlive);
             if (c4LooksDropped && worldCandidateScore > droppedBombScore &&
+                (bombDroppedByRules ? isDroppedC4PositionPlausible(worldScanC4Pos)
+                                    : isDroppedC4WeakPositionPlausible(worldScanC4Pos)) &&
                 !bombPositionInsideAlivePlayer(worldScanC4Pos)) {
                 droppedBombPos = worldScanC4Pos;
                 droppedBombPosValid = true;
@@ -247,6 +292,10 @@
         }
     }
 
+    const uint64_t droppedStickyUs =
+        bombDroppedByRules ? esp::intervals::kBombStickyDroppedUs : 220000u;
+    const uint64_t confirmedDroppedStickyUs =
+        bombDroppedByRules ? 1200000u : 300000u;
     BombResolveResult bombResolve = {};
     if (bombPlantedNow && isValidWorldPos(bombWorldPos)) {
         bombResolve.kind = BombResolveKind::Planted;
@@ -284,15 +333,19 @@
             bombResolve.kind = BombResolveKind::Carried;
             bombResolve.sourceFlags = carrySourceFlags;
             bombResolve.confidence = 200;
-        } else if (s_lastDroppedBombPosUs > 0 &&
-                   (nowUs - s_lastDroppedBombPosUs) <= 220000u &&
+        } else if (!inDropResetGrace &&
+                   !recentWeaponC4CarryEvidence &&
+                   s_lastDroppedBombPosUs > 0 &&
+                   (nowUs - s_lastDroppedBombPosUs) <= droppedStickyUs &&
                    isValidWorldPos(s_lastDroppedBombPos)) {
             bombResolve.kind = BombResolveKind::DroppedProbable;
             bombResolve.sourceFlags = BombResolveSourceStickyDrop;
             bombResolve.confidence = 96;
             bombResolve.position = s_lastDroppedBombPos;
-        } else if (s_lastConfirmedBombStateUs > 0 &&
-                   (nowUs - s_lastConfirmedBombStateUs) <= 300000u &&
+        } else if (!inDropResetGrace &&
+                   !recentWeaponC4CarryEvidence &&
+                   s_lastConfirmedBombStateUs > 0 &&
+                   (nowUs - s_lastConfirmedBombStateUs) <= confirmedDroppedStickyUs &&
                    isValidWorldPos(s_lastConfirmedBombState.position) &&
                    s_lastConfirmedBombState.dropped) {
             bombResolve.kind = BombResolveKind::DroppedProbable;

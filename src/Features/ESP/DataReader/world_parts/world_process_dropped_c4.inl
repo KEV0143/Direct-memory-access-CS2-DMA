@@ -19,8 +19,8 @@
                 if (!ownerHoldingNearby)
                     c4CandidateScore += 80;
                 if (ownerActiveWeaponMatches)
-                    c4CandidateScore -= 220;
-                if (c4OwnerAlive && ownerHoldingNearby)
+                    c4CandidateScore -= bombDroppedByRules ? 80 : 220;
+                if (!bombDroppedByRules && c4OwnerAlive && ownerHoldingNearby)
                     c4CandidateScore -= 120;
                 if (s_bombState.dropped && isFiniteVec(s_bombState.position)) {
                     const float c4Dx = pos.x - s_bombState.position.x;

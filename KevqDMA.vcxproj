@@ -193,6 +193,7 @@
     <ClCompile Include="src\Features\ESP\UI\esp_preview.cpp" />
     <ClCompile Include="src\Features\ESP\UI\esp_sections.cpp" />
     <ClCompile Include="src\Features\ESP\UI\esp_tab.cpp" />
+    <ClCompile Include="src\Features\Radar\map_registry.cpp" />
     <ClCompile Include="src\Features\Radar\UI\radar_sections.cpp" />
     <ClCompile Include="src\Features\Radar\UI\radar_tab.cpp" />
     <ClCompile Include="src\Features\Settings\UI\settings_sections.cpp" />
@@ -229,9 +230,11 @@
     <ClInclude Include="include\app\UI\MenuShell\menu_utils.h" />
     <ClInclude Include="include\app\UI\MenuShell\tab_page.h" />
     <ClInclude Include="include\app\UI\MenuShell\ui_style.h" />
+    <ClInclude Include="include\app\UI\MenuShell\ui_widgets.h" />
     <ClInclude Include="include\Features\ESP\esp.h" />
     <ClInclude Include="include\Features\ESP\UI\esp_sections.h" />
     <ClInclude Include="include\Features\ESP\UI\esp_tab.h" />
+    <ClInclude Include="include\Features\Radar\map_registry.h" />
     <ClInclude Include="include\Features\Radar\UI\radar_sections.h" />
     <ClInclude Include="include\Features\Radar\UI\radar_tab.h" />
     <ClInclude Include="include\Features\Settings\UI\settings_sections.h" />
@@ -242,6 +245,7 @@
     <ClInclude Include="include\Features\WebRadar\webradar.h" />
     <ClInclude Include="include\Game\Offsets\runtime_offsets.h" />
     <ClInclude Include="include\Game\Schema\structs.h" />
+    <ClInclude Include="src\assets\icons\esp_ui_icons.hpp" />
     <ClInclude Include="src\assets\fonts\weapons.hpp" />
     <ClInclude Include="src\Features\ESP\Core\draw.inl" />
     <ClInclude Include="src\Features\ESP\Core\get_web_radar_snapshot.inl" />
@@ -263,7 +267,6 @@
     <ClInclude Include="src\Features\ESP\Helpers\weapon_lookup.inl" />
     <ClInclude Include="src\Features\ESP\Render\bomb_esp.inl" />
     <ClInclude Include="src\Features\ESP\Render\player_box.inl" />
-    <ClInclude Include="src\Features\ESP\Render\player_distance.inl" />
     <ClInclude Include="src\Features\ESP\Render\player_flags.inl" />
     <ClInclude Include="src\Features\ESP\Render\player_health_armor.inl" />
     <ClInclude Include="src\Features\ESP\Render\player_name.inl" />
@@ -287,5 +290,4 @@
     <ClInclude Include="src\Features\Radar\Calibration\save_radar_calibration_for_map.inl" />
     <ClInclude Include="src\Features\Radar\Render\radar_overlay.inl" />
   </ItemGroup>
-
 </Project>

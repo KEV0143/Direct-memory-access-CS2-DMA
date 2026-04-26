@@ -86,7 +86,6 @@
         }
         error.clear();
 
-        bool useLocalDump = hasLocalDump;
         const bool currentPatchKnown = hasCurrentPatch && currentPatch.patchBuildNumber > 0;
         const bool localMatchesCurrentPatch =
             currentPatchKnown &&
@@ -96,17 +95,45 @@
             currentPatchKnown &&
             remoteBuildNumber > 0 &&
             remoteBuildNumber == currentPatch.patchBuildNumber;
-
-        if (localMatchesCurrentPatch != remoteMatchesCurrentPatch)
+        bool useLocalDump = hasLocalDump;
+        if (!hasLocalDump)
         {
-            useLocalDump = localMatchesCurrentPatch;
+            useLocalDump = false;
         }
-        else if (hasLocalDump && !localTimestamp.empty() && !remoteTimestamp.empty())
-            useLocalDump = localTimestamp >= remoteTimestamp;
-        else if (!hasLocalDump)
+        else if (localMatchesCurrentPatch)
+        {
+            useLocalDump = true;
+        }
+        else if (remoteMatchesCurrentPatch)
+        {
             useLocalDump = false;
-        else if (localTimestamp.empty() && !remoteTimestamp.empty())
-            useLocalDump = false;
+        }
+        else
+        {
+            useLocalDump = true;
+        }
+
+        auto tryLoadRemoteOutput = [&](std::unordered_map<std::string, std::ptrdiff_t>& outParsedMap,
+                                       std::string& outSourceDescription,
+                                       std::string& outSelectedTimestamp,
+                                       int& outSelectedBuildNumber,
+                                       std::string& outError) -> bool {
+            const auto remoteOutputDir = tempRoot / "remote_output";
+            {
+                std::error_code ec;
+                std::filesystem::remove_all(remoteOutputDir, ec);
+            }
+            if (!DownloadOutputDirectoryFiles(remoteOutputDir, true, &outError))
+                return false;
+            if (!ParseOutputDirectory(remoteOutputDir, outParsedMap, &outError))
+                return false;
+
+            outSourceDescription = "GitHub output";
+            outSelectedTimestamp = remoteTimestamp;
+            outSelectedBuildNumber = remoteBuildNumber;
+            outError.clear();
+            return true;
+        };
 
         std::string sourceDescription = "local dump";
         std::string selectedSourceTimestamp = localTimestamp;
@@ -115,27 +142,31 @@
         {
             if (!ParseOutputDirectory(preferredLocalCandidate->directory, parsedMap, &error))
             {
-                if (message)
+                const std::string localError = error;
+                if (!tryLoadRemoteOutput(parsedMap, sourceDescription, selectedSourceTimestamp, selectedSourceBuildNumber, error))
                 {
-                    std::ostringstream oss;
-                    oss << "Offset sync failed from "
-                        << DescribeOutputDirectoryCandidate(*preferredLocalCandidate)
-                        << ": " << error << ". Using local offsets.";
-                    *message = oss.str();
+                    if (message)
+                    {
+                        std::ostringstream oss;
+                        oss << "Offset sync failed from "
+                            << DescribeOutputDirectoryCandidate(*preferredLocalCandidate)
+                            << ": " << localError;
+                        if (!error.empty())
+                            oss << ". Remote fallback failed: " << error;
+                        oss << ". Using local offsets.";
+                        *message = oss.str();
+                    }
+                    return false;
                 }
-                return false;
             }
-
-            sourceDescription = DescribeOutputDirectoryCandidate(*preferredLocalCandidate);
+            else
+            {
+                sourceDescription = DescribeOutputDirectoryCandidate(*preferredLocalCandidate);
+            }
         }
         else
         {
-            const auto remoteOutputDir = tempRoot / "remote_output";
-            {
-                std::error_code ec;
-                std::filesystem::remove_all(remoteOutputDir, ec);
-            }
-            if (!DownloadOutputDirectoryFiles(remoteOutputDir, true, &error))
+            if (!tryLoadRemoteOutput(parsedMap, sourceDescription, selectedSourceTimestamp, selectedSourceBuildNumber, error))
             {
                 if (hasLocalDump && ParseOutputDirectory(preferredLocalCandidate->directory, parsedMap, &error))
                 {
@@ -151,21 +182,6 @@
                             : ("Offset sync failed: " + error + ". Using local offsets.");
                     return false;
                 }
-            }
-            else
-            {
-                if (!ParseOutputDirectory(remoteOutputDir, parsedMap, &error))
-                {
-                    if (message)
-                        *message = error.empty()
-                            ? "Offset sync failed. Using local offsets."
-                            : ("Offset sync failed: " + error + ". Using local offsets.");
-                    return false;
-                }
-
-                sourceDescription = "GitHub output";
-                selectedSourceTimestamp = remoteTimestamp;
-                selectedSourceBuildNumber = remoteBuildNumber;
             }
         }
 

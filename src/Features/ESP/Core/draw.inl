@@ -2,7 +2,7 @@
 
 void esp::Draw()
 {
-    if (!g::espEnabled && !g::radarEnabled) return;
+    if (!g::espEnabled && !g::radarEnabled && !g::radarSpectatorList && !g::espBombTime) return;
 
     const float screenW = static_cast<float>(g::screenWidth);
     const float screenH = static_cast<float>(g::screenHeight);
@@ -33,6 +33,29 @@ void esp::Draw()
 
     memcpy(&viewMatrix, &snap.viewMatrix, sizeof(view_matrix_t));
     bool usingLiveLocalPos = false;
+    auto isLikelyViewMatrix = [](const view_matrix_t& matrix) -> bool {
+        float absSum = 0.0f;
+        int nonZeroCount = 0;
+        for (int row = 0; row < 4; ++row) {
+            for (int col = 0; col < 4; ++col) {
+                const float value = matrix[row][col];
+                if (!std::isfinite(value))
+                    return false;
+                absSum += std::fabs(value);
+                if (std::fabs(value) > 0.0001f)
+                    ++nonZeroCount;
+            }
+        }
+        return nonZeroCount >= 6 && absSum > 1.0f;
+    };
+    static view_matrix_t s_lastGoodDrawViewMatrix = {};
+    static bool s_lastGoodDrawViewMatrixValid = false;
+    if (isLikelyViewMatrix(viewMatrix)) {
+        memcpy(&s_lastGoodDrawViewMatrix, &viewMatrix, sizeof(view_matrix_t));
+        s_lastGoodDrawViewMatrixValid = true;
+    } else if (s_lastGoodDrawViewMatrixValid) {
+        memcpy(&viewMatrix, &s_lastGoodDrawViewMatrix, sizeof(view_matrix_t));
+    }
 
     
     {
@@ -42,9 +65,13 @@ void esp::Draw()
             s_liveViewUpdatedUs > 0 &&
             nowUs >= s_liveViewUpdatedUs &&
             (nowUs - s_liveViewUpdatedUs) <= kLiveCameraFreshnessUs;
-        if (liveViewFresh) {
+        if (liveViewFresh && isLikelyViewMatrix(s_liveViewMatrix)) {
             memcpy(&viewMatrix, &s_liveViewMatrix, sizeof(view_matrix_t));
             viewAngles = s_liveViewAngles;
+            memcpy(&s_lastGoodDrawViewMatrix, &viewMatrix, sizeof(view_matrix_t));
+            s_lastGoodDrawViewMatrixValid = true;
+        } else if (!isLikelyViewMatrix(viewMatrix) && s_lastGoodDrawViewMatrixValid) {
+            memcpy(&viewMatrix, &s_lastGoodDrawViewMatrix, sizeof(view_matrix_t));
         }
 
         const bool liveLocalPosFresh =
@@ -61,6 +88,8 @@ void esp::Draw()
     ImDrawList* drawList = ImGui::GetBackgroundDrawList();
     if (!drawList)
         return;
+
+    const bool usableViewMatrix = isLikelyViewMatrix(viewMatrix);
 
     
     const uint64_t nowMs = nowUs / 1000u;
@@ -152,10 +181,12 @@ void esp::Draw()
         return -1;
     };
 
-    if (g::espEnabled) {
+    if (g::espEnabled && usableViewMatrix) {
         for (int i = 0; i < 64; i++) {
             const esp::PlayerData& p = players[i];
             if (!p.valid)
+                continue;
+            if (p.health <= 0)
                 continue;
             if (snap.localPlayerIndex >= 0 && i == snap.localPlayerIndex)
                 continue;
@@ -225,7 +256,7 @@ void esp::Draw()
             const bool hasCoreBoneChain =
                 hasHeadBone &&
                 hasPelvisBone &&
-                hasChestBone &&
+                (hasChestBone || hasUsableBone(p, esp::SPINE2)) &&
                 (hasLeftFootBone || hasRightFootBone);
             int validStoredBoneCount = 0;
             for (int bIdx = 0; bIdx < esp::kPlayerStoredBoneCount; ++bIdx) {
@@ -271,7 +302,7 @@ void esp::Draw()
             const bool renderHasReliableBones =
                 p.hasBones &&
                 hasCoreBoneChain &&
-                validStoredBoneCount >= 8 &&
+                validStoredBoneCount >= 6 &&
                 plausibleBoneAnchor &&
                 plausibleBoneHeight;
             int validBoneSegmentCount = 0;
@@ -451,9 +482,13 @@ void esp::Draw()
         }
     }
 
+    if (usableViewMatrix) {
 #include "../Render/world_esp.inl"
 
 #include "../Render/bomb_esp.inl"
+    }
 
 #include "Features/Radar/Render/radar_overlay.inl"
+#include "../Render/bomb_timer_overlay.inl"
+#include "../Render/spectator_list_overlay.inl"
 }

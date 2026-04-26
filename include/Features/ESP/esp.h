@@ -119,7 +119,27 @@ namespace esp {
         Recovery,
     };
 
+    enum class SubsystemHealthState : uint8_t {
+        Unknown = 0,
+        Healthy,
+        Degraded,
+        Failed,
+    };
+
+    struct SubsystemHealthInfo {
+        SubsystemHealthState state = SubsystemHealthState::Unknown;
+        uint32_t failureStreak = 0;
+        uint64_t lastGoodAgeUs = 0;
+    };
+
     struct DmaHealthStats {
+        struct Event {
+            char action[24] = {};
+            char reason[96] = {};
+            uint64_t ageMs = 0;
+        };
+        static constexpr int kMaxEvents = 8;
+
         bool     workerRunning = false;
         bool     cameraWorkerRunning = false;
         bool     dataWorkerInFlight = false;
@@ -135,6 +155,8 @@ namespace esp {
         uint64_t dataWorkerLoopAgeMs = 0;
         uint64_t dataWorkerInFlightAgeMs = 0;
         GameStatus gameStatus = GameStatus::WaitCs2;
+        Event events[kMaxEvents] = {};
+        int eventCount = 0;
     };
 
     
@@ -204,6 +226,11 @@ namespace esp {
         uint64_t bombEpoch = 0;
         uint64_t warmupAgeUs = 0;
         SceneWarmupState warmupState = SceneWarmupState::ColdAttach;
+        SubsystemHealthInfo playersCore = {};
+        SubsystemHealthInfo cameraView = {};
+        SubsystemHealthInfo gamerulesMap = {};
+        SubsystemHealthInfo bones = {};
+        SubsystemHealthInfo world = {};
         bool     bombPlanted = false;
         bool     bombTicking = false;
         bool     bombBeingDefused = false;
@@ -256,7 +283,9 @@ namespace esp {
         bool     dropped = false;
         Vector3  position = {};
         float    blowTime = 0.0f;
+        float    timerLength = 0.0f;
         float    defuseEndTime = 0.0f;
+        float    defuseLength = 0.0f;
         float    currentGameTime = 0.0f;
     };
 

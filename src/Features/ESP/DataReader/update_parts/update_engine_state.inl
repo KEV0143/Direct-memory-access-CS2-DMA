@@ -1,6 +1,8 @@
     const auto& ofs = runtime_offsets::Get();
     auto isLikelyGamePointer = [](uintptr_t ptr) -> bool {
-        return ptr >= 0x10000ULL && ptr < 0x00007FF000000000ULL;
+        if (ptr < 0x10000ULL || ptr >= 0x00007FF000000000ULL)
+            return false;
+        return (ptr & (sizeof(uintptr_t) - 1u)) == 0u;
     };
     bool engineSignonResolved = false;
     bool engineSignonInGame = false;
@@ -22,6 +24,8 @@
 
     static uintptr_t s_cachedNetworkGameClient = 0;
     static uint32_t s_zeroNetworkGameClientConfirmCount = 0;
+    static constexpr uint32_t kZeroNetworkGameClientConfirmations = 3;
+    static constexpr uint32_t kEngineResolveMissThreshold = 24;
 
     auto tryResolveEngineState = [&]() -> bool {
         if (!engine2Base)
@@ -53,7 +57,8 @@
             const bool requireZeroConfirmation =
                 s_cachedEngineResolved &&
                 (s_cachedEngineInGame || s_cachedEngineSignOnState == 6);
-            if (requireZeroConfirmation && s_zeroNetworkGameClientConfirmCount < 1u) {
+            if (requireZeroConfirmation &&
+                s_zeroNetworkGameClientConfirmCount < kZeroNetworkGameClientConfirmations) {
                 ++s_zeroNetworkGameClientConfirmCount;
                 return false;
             }
@@ -75,7 +80,6 @@
         s_zeroNetworkGameClientConfirmCount = 0;
         s_cachedNetworkGameClient = networkGameClient;
 
-        static constexpr std::ptrdiff_t kSignOnCandidates[] = { 0, 0, 0 };
         const std::ptrdiff_t signOffsets[3] = {
             ofs.dwNetworkGameClient_signOnState,
             static_cast<std::ptrdiff_t>(0x230),
@@ -151,7 +155,10 @@
                 engineMaxClients = s_cachedEngineMaxClients;
             }
 
-            if (engineMaxClients >= 2) {
+            if (engineMaxClients <= 1 && engineBackgroundMap == 0)
+                engineMaxClients = 64;
+
+            if (engineBackgroundMap == 0 && engineMaxClients >= 2) {
                 engineSignonInGame = true;
                 engineSignonMenu = false;
             } else if (engineMaxClients == 1 && !s_cachedEngineInGame) {
@@ -204,7 +211,7 @@
         s_cachedEngineBackgroundMap = engineBackgroundMap;
         s_engineResolveMissCount = 0;
         s_lastEngineResolveUs = engineNowUs;
-    } else if (s_cachedEngineResolved && s_engineResolveMissCount < 6) {
+    } else if (s_cachedEngineResolved && s_engineResolveMissCount < kEngineResolveMissThreshold) {
         ++s_engineResolveMissCount;
         engineDebugSource = "cached";
         engineSignonResolved = true;
@@ -217,7 +224,7 @@
     } else {
         engineDebugSource = "none";
         s_engineResolveMissCount = std::min(s_engineResolveMissCount + 1, 255u);
-        if (s_engineResolveMissCount >= 6) {
+        if (s_engineResolveMissCount >= kEngineResolveMissThreshold) {
             s_cachedEngineResolved = false;
             s_cachedEngineMenu = false;
             s_cachedEngineInGame = false;

@@ -106,10 +106,20 @@
     io.IniFilename = s_imguiIniPath.empty() ? nullptr : s_imguiIniPath.c_str();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-    const ImWchar* glyphRanges = io.Fonts->GetGlyphRangesCyrillic();
+    static const ImWchar glyphRanges[] = {
+        0x0020, 0x00FF,
+        0x0400, 0x052F,
+        0x2000, 0x206F,
+        0x2190, 0x21FF,
+        0x2500, 0x257F,
+        0x25A0, 0x25FF,
+        0x2600, 0x26FF,
+        0x2700, 0x27BF,
+        0
+    };
     const float baseFontSize = 16.0f;
 
-    std::string segoeRegularPath, segoeBoldPath;
+    std::string segoeRegularPath, segoeBoldPath, comicRegularPath, comicBoldPath;
     {
         PWSTR fontsDir = nullptr;
         if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Fonts, 0, nullptr, &fontsDir))) {
@@ -117,20 +127,36 @@
             CoTaskMemFree(fontsDir);
             segoeRegularPath = (fontsPath / "segoeui.ttf").string();
             segoeBoldPath = (fontsPath / "segoeuib.ttf").string();
+            comicRegularPath = (fontsPath / "comic.ttf").string();
+            comicBoldPath = (fontsPath / "comicbd.ttf").string();
         } else {
             segoeRegularPath = "C:\\Windows\\Fonts\\segoeui.ttf";
             segoeBoldPath = "C:\\Windows\\Fonts\\segoeuib.ttf";
+            comicRegularPath = "C:\\Windows\\Fonts\\comic.ttf";
+            comicBoldPath = "C:\\Windows\\Fonts\\comicbd.ttf";
         }
     }
 
     g::fontDefault = nullptr;
     g::fontSegoeBold = nullptr;
+    g::fontComicSans = nullptr;
     g::fontWeaponIcons = nullptr;
 
-    if (std::filesystem::exists(segoeRegularPath))
+    if (std::filesystem::exists(comicRegularPath))
+        g::fontDefault = io.Fonts->AddFontFromFileTTF(comicRegularPath.c_str(), baseFontSize, nullptr, glyphRanges);
+    else if (std::filesystem::exists(segoeRegularPath))
         g::fontDefault = io.Fonts->AddFontFromFileTTF(segoeRegularPath.c_str(), baseFontSize, nullptr, glyphRanges);
-    if (std::filesystem::exists(segoeBoldPath))
+
+    if (std::filesystem::exists(comicBoldPath))
+        g::fontSegoeBold = io.Fonts->AddFontFromFileTTF(comicBoldPath.c_str(), g::espNameFontSize, nullptr, glyphRanges);
+    else if (std::filesystem::exists(segoeBoldPath))
         g::fontSegoeBold = io.Fonts->AddFontFromFileTTF(segoeBoldPath.c_str(), g::espNameFontSize, nullptr, glyphRanges);
+    if (std::filesystem::exists(comicRegularPath)) {
+        ImFontConfig comicCfg = {};
+        comicCfg.OversampleH = 2;
+        comicCfg.OversampleV = 2;
+        g::fontComicSans = io.Fonts->AddFontFromFileTTF(comicRegularPath.c_str(), 18.0f, &comicCfg, glyphRanges);
+    }
 
     if (io.Fonts->Fonts.empty()) {
         g::fontDefault = io.Fonts->AddFontDefault();
@@ -151,6 +177,8 @@
         17.0f,
         &weaponCfg,
         weaponRanges);
+
+    LoadEspUiIconTextures();
 
     ui::ApplyStyle();
 

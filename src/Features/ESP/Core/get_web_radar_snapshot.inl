@@ -62,13 +62,19 @@ bool esp::GetWebRadarSnapshot(WebRadarSnapshot* outSnapshot)
     snapshot.bomb.dropped = snap.bombState.dropped;
     snapshot.bomb.position = snap.bombState.position;
     snapshot.bomb.blowTime = snap.bombState.blowTime;
+    snapshot.bomb.timerLength = snap.bombState.timerLength;
     snapshot.bomb.defuseEndTime = snap.bombState.defuseEndTime;
+    snapshot.bomb.defuseLength = snap.bombState.defuseLength;
     snapshot.bomb.currentGameTime = snap.bombState.currentGameTime;
 
     
     {
         const uint64_t nowUs = TickNowUs();
         snapshot.worldMarkerCount = 0;
+        if (!g::espWorld) {
+            *outSnapshot = snapshot;
+            return true;
+        }
         for (int i = 0; i < snap.worldMarkerCount && snapshot.worldMarkerCount < WebRadarSnapshot::kMaxWorldMarkers; ++i) {
             const auto& wm = snap.worldMarkers[i];
             if (!wm.valid)

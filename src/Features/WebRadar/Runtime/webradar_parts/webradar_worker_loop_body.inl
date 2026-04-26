@@ -50,7 +50,11 @@
             stickyMapName = mapName;
             stickyMapStampMs = nowMs;
         }
+        const bool stickyMapEligible =
+            hasSnapshot &&
+            (snapshot.hasMinimapBounds || IsValidWorldVec(snapshot.localPos));
         if ((mapName.empty() || mapName == "unknown") &&
+            stickyMapEligible &&
             !stickyMapName.empty() &&
             (nowMs - stickyMapStampMs) <= 2500) {
             mapName = stickyMapName;
@@ -120,7 +124,9 @@
             {"m_is_defusing", false},
             {"m_is_defused", false},
             {"m_blow_time", 0.0f},
+            {"m_timer_length", 40.0f},
             {"m_defuse_time", 0.0f},
+            {"m_defuse_length", 10.0f},
             {"m_seq", frameSeq},
             {"m_ts", captureTimeMs},
             {"m_position", {{"x", 0.0f}, {"y", 0.0f}, {"z", 0.0f}}}
@@ -139,7 +145,9 @@
                 {"m_is_defusing", snapshot.bomb.beingDefused},
                 {"m_is_defused", isDefused},
                 {"m_blow_time", blowLeft},
+                {"m_timer_length", snapshot.bomb.timerLength > 1.0f ? snapshot.bomb.timerLength : 40.0f},
                 {"m_defuse_time", defuseLeft},
+                {"m_defuse_length", snapshot.bomb.defuseLength > 1.0f ? snapshot.bomb.defuseLength : 10.0f},
                 {"m_seq", frameSeq},
                 {"m_ts", captureTimeMs},
                 {"m_position", {
@@ -157,7 +165,9 @@
                 {"m_is_defusing", false},
                 {"m_is_defused", false},
                 {"m_blow_time", 0.0f},
+                {"m_timer_length", 40.0f},
                 {"m_defuse_time", 0.0f},
+                {"m_defuse_length", 10.0f},
                 {"m_seq", frameSeq},
                 {"m_ts", captureTimeMs},
                 {"m_position", {

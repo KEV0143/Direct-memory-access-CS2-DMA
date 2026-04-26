@@ -133,6 +133,13 @@
 
         static uint64_t s_pendingMapFingerprint = 0;
         static uint32_t s_pendingMapFingerprintCount = 0;
+        static uint64_t s_pendingMapFingerprintResetSerial = 0;
+        const uint64_t pendingMapFingerprintResetSerial = s_sceneResetSerial.load(std::memory_order_relaxed);
+        if (s_pendingMapFingerprintResetSerial != pendingMapFingerprintResetSerial) {
+            s_pendingMapFingerprintResetSerial = pendingMapFingerprintResetSerial;
+            s_pendingMapFingerprint = 0;
+            s_pendingMapFingerprintCount = 0;
+        }
         const uint64_t currentMapFingerprint = hashMapBounds(minimapMins, minimapMaxs);
         const uint64_t sceneResetAgeUs = nowUs - s_lastSceneResetUs.load(std::memory_order_relaxed);
         const bool recentSceneReset = sceneResetAgeUs < 3000000u;
@@ -161,11 +168,12 @@
                 if (s_pendingMapFingerprintCount >= 2u &&
                     (boundsDiffX > 100.0f || boundsDiffY > 100.0f)) {
                     DmaLogPrintf(
-                        "[INFO] Map fingerprint changed (bounds shifted by %.0f/%.0f)",
+                        "[INFO] Map fingerprint changed (bounds shifted by %.0f/%.0f) -> recalibrating map state",
                         static_cast<double>(boundsDiffX),
                         static_cast<double>(boundsDiffY));
-                    handleSceneTransition("map_fingerprint_changed", true, true);
+                    s_mapEpoch.fetch_add(1, std::memory_order_relaxed);
                     s_mapFingerprint = currentMapFingerprint;
+                    ResetActiveMapState();
                     s_pendingMapFingerprint = 0;
                     s_pendingMapFingerprintCount = 0;
                 }

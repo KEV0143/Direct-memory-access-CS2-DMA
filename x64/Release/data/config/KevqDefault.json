@@ -17,6 +17,9 @@
         "BombInfo": true,
         "BombText": false,
         "BombTextSize": 0.0,
+        "BombTime": true,
+        "BombTimerX": 306.0,
+        "BombTimerY": 166.0,
         "Box": true,
         "BoxColor": [
             1.0,
@@ -188,7 +191,7 @@
             1.0,
             1.0
         ],
-        "WeaponIconNoKnife": false,
+        "WeaponIconNoKnife": true,
         "WeaponIconSize": 10.0,
         "WeaponText": false,
         "WeaponTextColor": [
@@ -205,11 +208,11 @@
             1.0,
             1.0
         ],
-        "WorldDecoyTimer": true,
+        "WorldDecoyTimer": false,
         "WorldExplosiveTimer": true,
-        "WorldInfernoTimer": true,
+        "WorldInfernoTimer": false,
         "WorldProjectiles": false,
-        "WorldSmokeTimer": true
+        "WorldSmokeTimer": false
     },
     "Radar": {
         "AngleColor": [
@@ -250,6 +253,9 @@
         "ShowCrosshair": false,
         "ShowLocalDot": false,
         "Size": 290.0,
+        "SpectatorList": false,
+        "SpectatorListX": 311.0,
+        "SpectatorListY": 10.0,
         "StaticFlipX": false,
         "WorldOffsetX": 0.0,
         "WorldOffsetY": 0.0,

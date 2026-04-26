@@ -139,11 +139,10 @@ std::filesystem::path app::paths::ResolveWebRadarAssetDirectory()
         const auto exeDir = GetExecutableDirectory();
         const auto projectRoot = FindProjectRoot();
 
-        const std::array<std::filesystem::path, 5> candidates = {
+        const std::array<std::filesystem::path, 4> candidates = {
             exeDir / "assets" / "webradar",
             exeDir / ".." / "assets" / "webradar",
             exeDir / ".." / ".." / "assets" / "webradar",
-            projectRoot / "src" / "Features" / "WebRadar" / "Assets",
             projectRoot / "src" / "Features" / "WebRadar" / "Assets",
         };
 

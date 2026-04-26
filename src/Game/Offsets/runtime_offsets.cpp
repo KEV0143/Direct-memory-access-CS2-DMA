@@ -135,13 +135,22 @@ namespace
         OffsetField{"offsets", "dwNetworkGameClient_localPlayer", &runtime_offsets::Values::dwNetworkGameClient_localPlayer},
         OffsetField{"offsets", "dwNetworkGameClient_maxClients", &runtime_offsets::Values::dwNetworkGameClient_maxClients},
         OffsetField{"offsets", "dwNetworkGameClient_isBackgroundMap", &runtime_offsets::Values::dwNetworkGameClient_isBackgroundMap},
+        OffsetField{"offsets", "dwGameTypes", &runtime_offsets::Values::dwGameTypes},
+        OffsetField{"offsets", "dwGameTypes_mapName", &runtime_offsets::Values::dwGameTypes_mapName},
         OffsetField{"schemas", "CBasePlayerController.m_iPing", &runtime_offsets::Values::CBasePlayerController_m_iPing},
         OffsetField{"schemas", "CCSPlayerController.m_pInGameMoneyServices", &runtime_offsets::Values::CCSPlayerController_m_pInGameMoneyServices},
         OffsetField{"schemas", "CCSPlayerController_InGameMoneyServices.m_iAccount", &runtime_offsets::Values::CCSPlayerController_InGameMoneyServices_m_iAccount},
         OffsetField{"schemas", "C_BaseEntity.m_iTeamNum", &runtime_offsets::Values::C_BaseEntity_m_iTeamNum},
         OffsetField{"schemas", "C_BasePlayerPawn.m_vOldOrigin", &runtime_offsets::Values::C_BasePlayerPawn_m_vOldOrigin},
         OffsetField{"schemas", "C_BasePlayerPawn.m_pWeaponServices", &runtime_offsets::Values::C_BasePlayerPawn_m_pWeaponServices},
+        OffsetField{"schemas", "C_BasePlayerPawn.m_pObserverServices", &runtime_offsets::Values::C_BasePlayerPawn_m_pObserverServices},
+        OffsetField{"schemas", "C_BasePlayerPawn.m_hController", &runtime_offsets::Values::C_BasePlayerPawn_m_hController},
+        OffsetField{"schemas", "CBasePlayerController.m_hPawn", &runtime_offsets::Values::CBasePlayerController_m_hPawn},
+        OffsetField{"schemas", "CCSPlayerController.m_hObserverPawn", &runtime_offsets::Values::CCSPlayerController_m_hObserverPawn},
         OffsetField{"schemas", "CCSPlayerController.m_hPlayerPawn", &runtime_offsets::Values::CCSPlayerController_m_hPlayerPawn},
+        OffsetField{"schemas", "CCSPlayerController.m_bPawnIsAlive", &runtime_offsets::Values::CCSPlayerController_m_bPawnIsAlive},
+        OffsetField{"schemas", "CCSPlayerController.m_iPawnHealth", &runtime_offsets::Values::CCSPlayerController_m_iPawnHealth},
+        OffsetField{"schemas", "CCSPlayerController.m_iPawnArmor", &runtime_offsets::Values::CCSPlayerController_m_iPawnArmor},
         OffsetField{"schemas", "CBasePlayerController.m_iszPlayerName", &runtime_offsets::Values::CBasePlayerController_m_iszPlayerName},
         OffsetField{"schemas", "CPlayer_WeaponServices.m_hActiveWeapon", &runtime_offsets::Values::CPlayer_WeaponServices_m_hActiveWeapon},
         OffsetField{"schemas", "CPlayer_WeaponServices.m_hMyWeapons", &runtime_offsets::Values::CPlayer_WeaponServices_m_hMyWeapons},
@@ -157,7 +166,6 @@ namespace
         OffsetField{"schemas", "C_BaseEntity.m_nSubclassID", &runtime_offsets::Values::C_BaseEntity_m_nSubclassID},
         OffsetField{"schemas", "C_BaseEntity.m_vecVelocity", &runtime_offsets::Values::C_BaseEntity_m_vecVelocity},
         OffsetField{"schemas", "C_BasePlayerWeapon.m_iClip1", &runtime_offsets::Values::C_BasePlayerWeapon_m_iClip1},
-        OffsetField{"schemas", "C_CSPlayerPawn.m_pClippingWeapon", &runtime_offsets::Values::C_CSPlayerPawn_m_pClippingWeapon},
         OffsetField{"schemas", "C_CSPlayerPawn.m_bIsScoped", &runtime_offsets::Values::C_CSPlayerPawn_m_bIsScoped},
         OffsetField{"schemas", "C_CSPlayerPawn.m_bIsDefusing", &runtime_offsets::Values::C_CSPlayerPawn_m_bIsDefusing},
         OffsetField{"schemas", "C_CSPlayerPawn.m_angEyeAngles", &runtime_offsets::Values::C_CSPlayerPawn_m_angEyeAngles},
@@ -172,12 +180,16 @@ namespace
         OffsetField{"schemas", "C_CSGameRules.m_vMinimapMaxs", &runtime_offsets::Values::C_CSGameRules_m_vMinimapMaxs},
         OffsetField{"schemas", "C_CSGameRules.m_bBombPlanted", &runtime_offsets::Values::C_CSGameRules_m_bBombPlanted},
         OffsetField{"schemas", "C_CSGameRules.m_bBombDropped", &runtime_offsets::Values::C_CSGameRules_m_bBombDropped},
+        OffsetField{"schemas", "CPlayer_ObserverServices.m_iObserverMode", &runtime_offsets::Values::CPlayer_ObserverServices_m_iObserverMode},
+        OffsetField{"schemas", "CPlayer_ObserverServices.m_hObserverTarget", &runtime_offsets::Values::CPlayer_ObserverServices_m_hObserverTarget},
         OffsetField{"schemas", "CGameSceneNode.m_vecAbsOrigin", &runtime_offsets::Values::CGameSceneNode_m_vecAbsOrigin},
         OffsetField{"schemas", "EntitySpottedState_t.m_bSpotted", &runtime_offsets::Values::EntitySpottedState_t_m_bSpotted},
         OffsetField{"schemas", "EntitySpottedState_t.m_bSpottedByMask", &runtime_offsets::Values::EntitySpottedState_t_m_bSpottedByMask},
         OffsetField{"schemas", "C_PlantedC4.m_bBombTicking", &runtime_offsets::Values::C_PlantedC4_m_bBombTicking},
         OffsetField{"schemas", "C_PlantedC4.m_flC4Blow", &runtime_offsets::Values::C_PlantedC4_m_flC4Blow},
+        OffsetField{"schemas", "C_PlantedC4.m_flTimerLength", &runtime_offsets::Values::C_PlantedC4_m_flTimerLength},
         OffsetField{"schemas", "C_PlantedC4.m_bBeingDefused", &runtime_offsets::Values::C_PlantedC4_m_bBeingDefused},
+        OffsetField{"schemas", "C_PlantedC4.m_flDefuseLength", &runtime_offsets::Values::C_PlantedC4_m_flDefuseLength},
         OffsetField{"schemas", "C_PlantedC4.m_flDefuseCountDown", &runtime_offsets::Values::C_PlantedC4_m_flDefuseCountDown},
         OffsetField{"schemas", "C_Inferno.m_nFireEffectTickBegin", &runtime_offsets::Values::C_Inferno_m_nFireEffectTickBegin},
         OffsetField{"schemas", "C_Inferno.m_nFireLifetime", &runtime_offsets::Values::C_Inferno_m_nFireLifetime},
@@ -496,30 +508,59 @@ namespace
                               const char* key,
                               std::ptrdiff_t& outValue)
     {
-        const auto secIt = root.find(section);
-        if (secIt == root.end() || !secIt->is_object())
-            return ReadResult::Missing;
+        auto parseValue = [&](const json& value) -> ReadResult {
+            if (value.is_number_integer())
+            {
+                outValue = static_cast<std::ptrdiff_t>(value.get<long long>());
+                return ReadResult::Parsed;
+            }
 
-        const auto keyIt = secIt->find(key);
-        if (keyIt == secIt->end())
-            return ReadResult::Missing;
+            if (value.is_number_unsigned())
+            {
+                outValue = static_cast<std::ptrdiff_t>(value.get<unsigned long long>());
+                return ReadResult::Parsed;
+            }
 
-        if (keyIt->is_number_integer())
+            if (value.is_string() && TryParseOffset(value.get_ref<const std::string&>(), outValue))
+                return ReadResult::Parsed;
+
+            return ReadResult::Invalid;
+        };
+
+        auto readFromSection = [&](const char* sectionName) -> ReadResult {
+            const auto secIt = root.find(sectionName);
+            if (secIt == root.end() || !secIt->is_object())
+                return ReadResult::Missing;
+
+            const auto keyIt = secIt->find(key);
+            if (keyIt == secIt->end())
+                return ReadResult::Missing;
+
+            return parseValue(*keyIt);
+        };
+
+        const ReadResult directResult = readFromSection(section);
+        if (directResult != ReadResult::Missing)
+            return directResult;
+
+        if (std::string_view(section) == "offsets")
         {
-            outValue = static_cast<std::ptrdiff_t>(keyIt->get<long long>());
-            return ReadResult::Parsed;
+            static constexpr const char* kModuleSections[] = {
+                "client.dll",
+                "engine2.dll",
+                "matchmaking.dll",
+                "inputsystem.dll",
+                "soundsystem.dll"
+            };
+            for (const char* moduleSection : kModuleSections)
+            {
+                const ReadResult moduleResult = readFromSection(moduleSection);
+                if (moduleResult != ReadResult::Missing)
+                    return moduleResult;
+            }
         }
 
-        if (keyIt->is_number_unsigned())
-        {
-            outValue = static_cast<std::ptrdiff_t>(keyIt->get<unsigned long long>());
-            return ReadResult::Parsed;
-        }
-
-        if (keyIt->is_string() && TryParseOffset(keyIt->get_ref<const std::string&>(), outValue))
-            return ReadResult::Parsed;
-
-        return ReadResult::Invalid;
+        return ReadResult::Missing;
     }
 
     bool IsRequiredOffsetMember(std::ptrdiff_t runtime_offsets::Values::*member)

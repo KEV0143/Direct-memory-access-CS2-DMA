@@ -12,8 +12,9 @@ if (g::radarEnabled) {
     const float calibrationCos = cosf(calibrationRad);
     const float calibrationSin = sinf(calibrationRad);
     const float scaleAdjust = std::clamp(g::radarWorldScale, 0.5f, 1.5f);
-    const float offsetAdjustX = std::clamp(s_activeMapBaseOffsetX + g::radarWorldOffsetX, -0.25f, 0.25f);
-    const float offsetAdjustY = std::clamp(s_activeMapBaseOffsetY + g::radarWorldOffsetY, -0.25f, 0.25f);
+    const ActiveMapStateSnapshot activeMapState = CopyActiveMapState();
+    const float offsetAdjustX = std::clamp(activeMapState.baseOffsetX + g::radarWorldOffsetX, -0.25f, 0.25f);
+    const float offsetAdjustY = std::clamp(activeMapState.baseOffsetY + g::radarWorldOffsetY, -0.25f, 0.25f);
 
     static bool s_legacyAnchoredSizeMigrated = false;
     const float legacyAnchoredSize = 234.0f * hudScale;
@@ -68,131 +69,17 @@ if (g::radarEnabled) {
         localDirRight /= localDirLen;
         localDirForward /= localDirLen;
     }
-    struct KnownRadarMap
-    {
-        std::string name;
-        float runtimeMinX;
-        float runtimeMaxX;
-        float runtimeMinY;
-        float runtimeMaxY;
-        float originX;
-        float originY;
-        float scale;
-    };
-    auto loadKnownRadarMaps = []() -> std::vector<KnownRadarMap> {
-        auto fallbackMaps = []() -> std::vector<KnownRadarMap> {
-            return {
-                { "de_mirage",   -3230.0f, 1890.0f,  -3407.0f, 1713.0f,  -3230.0f, 1713.0f, 5.00f },
-                { "de_inferno",  -2087.0f, 2930.6f,  -1147.6f, 3870.0f,  -2087.0f, 3870.0f, 4.90f },
-                { "de_dust2",    -2476.0f, 2029.6f,  -1266.6f, 3239.0f,  -2476.0f, 3239.0f, 4.40f },
-                { "de_nuke",     -3453.0f, 3715.0f,  -4281.0f, 2887.0f,  -3453.0f, 2887.0f, 7.00f },
-                { "de_overpass", -4831.0f, 493.8f,   -3543.8f, 1781.0f,  -4831.0f, 1781.0f, 5.20f },
-                { "de_ancient",  -2953.0f, 2167.0f,  -2956.0f, 2164.0f,  -2953.0f, 2164.0f, 5.00f },
-                { "de_anubis",   -2796.0f, 2549.28f, -2017.28f, 3328.0f, -2796.0f, 3328.0f, 5.22f },
-                { "de_vertigo",  -3168.0f, 928.0f,   -2334.0f, 1762.0f,  -3168.0f, 1762.0f, 4.00f },
-            };
-        };
-
-        const auto rawPath = app::paths::ResolveWebRadarAssetPath("maps.json");
-        if (!rawPath.empty()) {
-            std::error_code ec;
-            const auto path = std::filesystem::weakly_canonical(rawPath, ec);
-            const auto& candidatePath = ec ? rawPath : path;
-            if (std::filesystem::exists(candidatePath)) {
-                try {
-                    std::ifstream file(candidatePath, std::ios::in | std::ios::binary);
-                    if (file.is_open()) {
-                        nlohmann::json root = nlohmann::json::parse(file, nullptr, false);
-                        if (!root.is_discarded() && root.contains("maps") && root["maps"].is_array()) {
-                            std::vector<KnownRadarMap> maps;
-                            for (const auto& item : root["maps"]) {
-                                if (!item.is_object() || item.value("dynamic", false))
-                                    continue;
-                                if (!item.contains("name") || !item["name"].is_string())
-                                    continue;
-                                if (!item.contains("origin") || !item["origin"].is_object())
-                                    continue;
-                                if (!item.contains("bounds") || !item["bounds"].is_object())
-                                    continue;
-                                if (!item.contains("scale") || !item["scale"].is_number())
-                                    continue;
-
-                                const auto& origin = item["origin"];
-                                const auto& bounds = item["bounds"];
-                                if (!origin.contains("x") || !origin["x"].is_number() ||
-                                    !origin.contains("y") || !origin["y"].is_number() ||
-                                    !bounds.contains("min_x") || !bounds["min_x"].is_number() ||
-                                    !bounds.contains("max_x") || !bounds["max_x"].is_number() ||
-                                    !bounds.contains("min_y") || !bounds["min_y"].is_number() ||
-                                    !bounds.contains("max_y") || !bounds["max_y"].is_number()) {
-                                    continue;
-                                }
-
-                                const float scale = item["scale"].get<float>();
-                                if (!std::isfinite(scale) || std::fabs(scale) <= 0.0001f)
-                                    continue;
-
-                                maps.push_back(KnownRadarMap{
-                                    item["name"].get<std::string>(),
-                                    bounds["min_x"].get<float>(),
-                                    bounds["max_x"].get<float>(),
-                                    bounds["min_y"].get<float>(),
-                                    bounds["max_y"].get<float>(),
-                                    origin["x"].get<float>(),
-                                    origin["y"].get<float>(),
-                                    scale,
-                                });
-                            }
-
-                            if (!maps.empty())
-                                return maps;
-                        }
-                    }
-                } catch (...) {
-                }
-            }
-        }
-
-        return fallbackMaps();
-    };
-    static const std::vector<KnownRadarMap> knownRadarMaps = loadKnownRadarMaps();
-    auto resolveKnownRadarMap = [&](const Vector3& mins, const Vector3& maxs) -> const KnownRadarMap* {
-        if (!s_activeMapKey.empty()) {
-            for (const auto& map : knownRadarMaps) {
-                if (_stricmp(map.name.c_str(), s_activeMapKey.c_str()) == 0)
-                    return &map;
-            }
-        }
-
-        if (!hasMinimapBounds)
-            return nullptr;
-
-        const float runtimeMinX = mins.x;
-        const float runtimeMaxX = maxs.x;
-        const float runtimeMinY = mins.y;
-        const float runtimeMaxY = maxs.y;
-        if (!std::isfinite(runtimeMinX) || !std::isfinite(runtimeMaxX) ||
-            !std::isfinite(runtimeMinY) || !std::isfinite(runtimeMaxY)) {
-            return nullptr;
-        }
-
-        const KnownRadarMap* best = nullptr;
-        float bestScore = FLT_MAX;
-        for (const auto& map : knownRadarMaps) {
-            const float score =
-                std::fabs(runtimeMinX - map.runtimeMinX) +
-                std::fabs(runtimeMaxX - map.runtimeMaxX) +
-                std::fabs(runtimeMinY - map.runtimeMinY) +
-                std::fabs(runtimeMaxY - map.runtimeMaxY);
-            if (score < bestScore) {
-                bestScore = score;
-                best = &map;
-            }
-        }
-
-        return (best != nullptr && bestScore <= 2200.0f) ? best : nullptr;
-    };
-    const KnownRadarMap* knownRadarMap = resolveKnownRadarMap(minimapMins, minimapMaxs);
+    const radar::MapDefinition* knownRadarMap = nullptr;
+    if (!activeMapState.key.empty())
+        knownRadarMap = radar::FindMapByName(activeMapState.key);
+    if (!knownRadarMap && hasMinimapBounds) {
+        knownRadarMap = radar::ResolveMapByBounds(
+            minimapMins.x,
+            minimapMins.y,
+            minimapMaxs.x,
+            minimapMaxs.y,
+            false);
+    }
     float mapCenterX = 0.0f;
     float mapCenterY = 0.0f;
     float mapUniformHalfSpan = 0.0f;
@@ -211,13 +98,13 @@ if (g::radarEnabled) {
             effectiveRange = halfSpan;
         }
     }
-    if (radarStaticMode && s_activeMapOverviewAvailable && s_activeMapOverviewScale > 0.01f) {
-        const float overviewWorldSpan = s_activeMapOverviewScale * kRadarOverviewTextureSize;
+    if (radarStaticMode && activeMapState.overviewAvailable && activeMapState.overviewScale > 0.01f) {
+        const float overviewWorldSpan = activeMapState.overviewScale * kRadarOverviewTextureSize;
         const float overviewHalfSpan = overviewWorldSpan * 0.5f;
         if (overviewHalfSpan > 100.0f) {
             hasUsableBounds = true;
-            mapCenterX = s_activeMapOverviewPosX + overviewHalfSpan;
-            mapCenterY = s_activeMapOverviewPosY - overviewHalfSpan;
+            mapCenterX = activeMapState.overviewPosX + overviewHalfSpan;
+            mapCenterY = activeMapState.overviewPosY - overviewHalfSpan;
             mapUniformHalfSpan = overviewHalfSpan;
             effectiveRange = overviewHalfSpan;
         }
@@ -231,8 +118,11 @@ if (g::radarEnabled) {
         float px = radarCenter.x;
         float py = radarCenter.y;
         if (useKnownMapProjection) {
-            const float normX = (worldX - knownRadarMap->originX) / knownRadarMap->scale / kRadarOverviewTextureSize;
-            const float normY = (((worldY - knownRadarMap->originY) / knownRadarMap->scale) * -1.0f) / kRadarOverviewTextureSize;
+            const float mapOriginX = static_cast<float>(knownRadarMap->originX);
+            const float mapOriginY = static_cast<float>(knownRadarMap->originY);
+            const float mapScale = static_cast<float>(knownRadarMap->scale);
+            const float normX = (worldX - mapOriginX) / mapScale / kRadarOverviewTextureSize;
+            const float normY = (((worldY - mapOriginY) / mapScale) * -1.0f) / kRadarOverviewTextureSize;
             const float baseRight = (normX - 0.5f) * 2.0f * staticFlipX;
             const float baseForward = (0.5f - normY) * 2.0f;
             const float calRight = baseRight * calibrationCos - baseForward * calibrationSin;

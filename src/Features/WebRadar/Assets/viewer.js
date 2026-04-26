@@ -100,6 +100,16 @@ const S = {
   lastKnownBombPositionAt: 0,
   lastKnownBombMode: "",
   lastKnownBombMap: "",
+  bombTimerSuppressUntil: 0,
+  bombUi: {
+    active: false,
+    defusing: false,
+    bombLeft: 0,
+    bombTotal: 40,
+    defuseLeft: 0,
+    defuseTotal: 10,
+    lastUpdateAt: 0
+  },
   bombMarker: null,
   settings: loadSettings(),
   reconnectDelay: 400,
@@ -133,6 +143,10 @@ const S = {
 const $ = id => document.getElementById(id);
 const VIEW_PARAMS = new URLSearchParams(window.location.search);
 const IS_ONLY_RADAR = VIEW_PARAMS.get("view") === "radar";
+const C4_ICON = new Image();
+C4_ICON.decoding = "async";
+C4_ICON.src = "./assets/icons/c4.svg";
+C4_ICON.addEventListener("load", () => drawOverlayCanvas());
 
 if (IS_ONLY_RADAR) {
   document.body.classList.add("only-radar");
@@ -177,7 +191,15 @@ const el = {
   radarStage: $("radar-stage"),
   radarMessage: $("radar-message"),
   bombStatus: $("bomb-status"),
-  bombStatusText: $("bomb-status-text")
+  bombCarrierRow: $("bomb-carrier-row"),
+  bombCarrierName: $("bomb-carrier-name"),
+  bombTimeRow: $("bomb-time-row"),
+  bombTimeBar: $("bomb-time-bar"),
+  bombTimeLeft: $("bomb-time-left"),
+  bombTimeProgress: $("bomb-time-progress"),
+  defuseTimerRow: $("defuse-timer-row"),
+  defuseTimeLeft: $("defuse-time-left"),
+  defuseTimeProgress: $("defuse-time-progress")
 };
 
 function loadSettings() {
@@ -525,13 +547,38 @@ async function ensureMapData(mapName) {
   return normalized;
 }
 
+function clearMapAssets(mapName = "unknown") {
+  const mapLabel = normalizeMapLabel(mapName);
+  S.currentMap = "";
+  S.lastKnownBombPosition = null;
+  S.lastKnownBombPositionAt = 0;
+  S.lastKnownBombMode = "";
+  S.lastKnownBombMap = mapLabel;
+  if (S.bombMarker) {
+    S.bombMarker.state.active = false;
+  }
+  el.mapShell.classList.add("is-map-unknown");
+  el.mapImage.removeAttribute("src");
+  el.mapImage.alt = "";
+  el.mapBackground.removeAttribute("src");
+  el.mapBackground.alt = "";
+  el.metaMap.textContent = mapLabel;
+  el.radarMapName.textContent = mapLabel;
+  S.cachedOverlay = null;
+  clearOverlay();
+}
+
 function updateMapAssets(mapName) {
-  if (!mapName || mapName === "unknown") return;
-  const radarPath = "./data/" + mapName + "/radar.png";
+  if (!mapName || mapName === "unknown") {
+    clearMapAssets("unknown");
+    return;
+  }
+  const radarPath = "./data/" + mapName + "/radar.webp";
   const mapLabel = normalizeMapLabel(mapName);
 
   if (S.currentMap !== mapName) {
     S.currentMap = mapName;
+    el.mapShell.classList.remove("is-map-unknown");
     S.lastKnownBombPosition = null;
     S.lastKnownBombPositionAt = 0;
     S.lastKnownBombMode = "";
@@ -539,7 +586,7 @@ function updateMapAssets(mapName) {
     if (S.bombMarker) {
       S.bombMarker.state.active = false;
     }
-    if (!el.mapImage.src.endsWith("/data/" + mapName + "/radar.png")) {
+    if (!el.mapImage.src.endsWith("/data/" + mapName + "/radar.webp")) {
       el.mapImage.src = radarPath;
     }
     el.mapBackground.removeAttribute("src");
@@ -658,6 +705,14 @@ function resetSnapshotTimeline() {
   S.lastKnownBombPositionAt = 0;
   S.lastKnownBombMode = "";
   S.lastKnownBombMap = "";
+  S.bombTimerSuppressUntil = 0;
+  S.bombUi.active = false;
+  S.bombUi.defusing = false;
+  S.bombUi.bombLeft = 0;
+  S.bombUi.bombTotal = 40;
+  S.bombUi.defuseLeft = 0;
+  S.bombUi.defuseTotal = 10;
+  S.bombUi.lastUpdateAt = 0;
   if (S.bombMarker) {
     S.bombMarker.state.active = false;
   }
@@ -747,6 +802,18 @@ function formatWeaponName(name) {
     .join(" ");
 }
 
+function normalizeDisplayText(value, fallback = "") {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  return text || fallback;
+}
+
+function truncateDisplayText(value, maxChars) {
+  const text = normalizeDisplayText(value);
+  const chars = Array.from(text);
+  if (chars.length <= maxChars) return text;
+  return chars.slice(0, Math.max(1, maxChars - 3)).join("").trimEnd() + "...";
+}
+
 function setMaskedIcon(element, iconName, color) {
   const path = "./assets/icons/" + iconName + ".svg";
   element.style.backgroundColor = color || "var(--radar-secondary)";
@@ -803,8 +870,8 @@ function updatePlayerCard(card, player, localTeam) {
   card.root.style.setProperty("--card-accent", getRosterAccent(player));
   card.root.classList.toggle("is-dead", !!player.m_is_dead);
 
-  const displayName = String(player.m_name || "Player");
-  card.name.textContent = displayName;
+  const displayName = normalizeDisplayText(player.m_name, "Player");
+  card.name.textContent = truncateDisplayText(displayName, 22);
   card.name.title = displayName;
   card.money.textContent = "$" + Math.max(0, Number(player.m_money || 0));
   card.healthValue.textContent = String(Math.max(0, Number(player.m_health || 0)));
@@ -1131,12 +1198,18 @@ function sampleBombState(prevBomb, nextBomb, alpha, dtMs, extrapolationMs) {
 
   const chosen = alpha >= 0.5 ? (nextBomb || prevBomb) : (prevBomb || nextBomb);
   if (!chosen) return null;
+  const elapsedSec = Math.max(0, Number(extrapolationMs || 0)) / 1000;
+  const adjustTimer = value => Math.max(0, Number(value || 0) - elapsedSec);
 
   const prevPos = hasFiniteVec3(prevBomb?.m_position) ? cloneVec3(prevBomb.m_position) : null;
   const nextPos = hasFiniteVec3(nextBomb?.m_position) ? cloneVec3(nextBomb.m_position) : prevPos;
   if (!prevBomb || !nextBomb || !prevPos || !nextPos) {
     return {
       ...chosen,
+      m_blow_time: adjustTimer(chosen.m_blow_time),
+      m_defuse_time: adjustTimer(chosen.m_defuse_time),
+      m_timer_length: Number(chosen.m_timer_length || 40),
+      m_defuse_length: Number(chosen.m_defuse_length || 10),
       m_position: nextPos || prevPos || { x: 0, y: 0, z: 0 }
     };
   }
@@ -1147,6 +1220,10 @@ function sampleBombState(prevBomb, nextBomb, alpha, dtMs, extrapolationMs) {
   if (!sameMode) {
     return {
       ...chosen,
+      m_blow_time: adjustTimer(chosen.m_blow_time),
+      m_defuse_time: adjustTimer(chosen.m_defuse_time),
+      m_timer_length: Number(chosen.m_timer_length || 40),
+      m_defuse_length: Number(chosen.m_defuse_length || 10),
       m_position: nextPos
     };
   }
@@ -1166,8 +1243,10 @@ function sampleBombState(prevBomb, nextBomb, alpha, dtMs, extrapolationMs) {
 
   return {
     ...chosen,
-    m_blow_time: lerp(Number(prevBomb.m_blow_time || 0), Number(nextBomb.m_blow_time || 0), t),
-    m_defuse_time: lerp(Number(prevBomb.m_defuse_time || 0), Number(nextBomb.m_defuse_time || 0), t),
+    m_blow_time: adjustTimer(lerp(Number(prevBomb.m_blow_time || 0), Number(nextBomb.m_blow_time || 0), t)),
+    m_defuse_time: adjustTimer(lerp(Number(prevBomb.m_defuse_time || 0), Number(nextBomb.m_defuse_time || 0), t)),
+    m_timer_length: Number(nextBomb.m_timer_length || prevBomb.m_timer_length || 40),
+    m_defuse_length: Number(nextBomb.m_defuse_length || prevBomb.m_defuse_length || 10),
     m_position: position
   };
 }
@@ -1205,7 +1284,6 @@ function buildSampledPayload(prevPayload, nextPayload, alpha, renderTime, dtMs, 
 
 function sampleRenderPayload(clientNow) {
   if (!S.snapshots.length) return S.payload;
-  if (S.snapshots.length === 1) return S.snapshots[0].payload;
 
   const estimatedServerNow = estimateServerNow(clientNow);
   if (!Number.isFinite(estimatedServerNow)) {
@@ -1213,6 +1291,11 @@ function sampleRenderPayload(clientNow) {
   }
 
   const renderTime = estimatedServerNow - S.renderDelayMs;
+  if (S.snapshots.length === 1) {
+    const only = S.snapshots[0];
+    const extrapolationMs = clamp(renderTime - only.sampleTime, 0, 1000);
+    return buildSampledPayload(only.payload, only.payload, 1, renderTime, S.frameGapMs, extrapolationMs);
+  }
   const snapshots = S.snapshots;
 
   if (renderTime <= snapshots[0].sampleTime) {
@@ -1447,6 +1530,22 @@ function fitLabelText(ctx, rawText, maxWidth) {
   return text.charAt(0);
 }
 
+function fitLabelTextSafe(ctx, rawText, maxWidth) {
+  const text = normalizeDisplayText(rawText);
+  if (!text) return "";
+  if (measureLabelText(ctx, text) <= maxWidth) return text;
+
+  const clipped = Array.from(text);
+  while (clipped.length > 1) {
+    const next = clipped.join("").trimEnd() + "...";
+    if (measureLabelText(ctx, next) <= maxWidth) {
+      return next;
+    }
+    clipped.pop();
+  }
+  return text.charAt(0);
+}
+
 function buildLabelLayout(ctx, markers, markerSize, overlayWidth, overlayHeight) {
   const fontSize = clamp(markerSize * 0.58, 8, 11);
   const fontStr = "600 " + fontSize + "px TASAOrbiter, Segoe UI, sans-serif";
@@ -1481,7 +1580,7 @@ function buildLabelLayout(ctx, markers, markerSize, overlayWidth, overlayHeight)
     const centerX = entry.state.renderX + markerSize * 0.5;
     const centerY = entry.state.renderY + markerSize * 0.5;
     const maxTextWidth = clamp(overlayWidth * 0.18, 54, 122);
-    const text = fitLabelText(ctx, entry.label, maxTextWidth);
+    const text = fitLabelTextSafe(ctx, entry.label, maxTextWidth);
     if (!text) continue;
 
     const textWidth = measureLabelText(ctx, text);
@@ -1583,6 +1682,44 @@ function drawLabels(ctx, labels) {
   ctx.restore();
 }
 
+function drawC4Icon(ctx, centerX, centerY, size) {
+  const iconSize = Math.max(8, size);
+  const x = centerX - iconSize * 0.5;
+  const y = centerY - iconSize * 0.5;
+
+  if (C4_ICON.complete && C4_ICON.naturalWidth > 0) {
+    ctx.drawImage(C4_ICON, x, y, iconSize, iconSize);
+    return;
+  }
+
+  ctx.save();
+  ctx.translate(centerX, centerY);
+  ctx.strokeStyle = "rgba(255, 242, 220, 0.95)";
+  ctx.fillStyle = "rgba(255, 242, 220, 0.95)";
+  ctx.lineWidth = Math.max(1, iconSize * 0.08);
+  const bodyW = iconSize * 0.46;
+  const bodyH = iconSize * 0.56;
+  drawRoundedRect(ctx, -bodyW * 0.5, -bodyH * 0.25, bodyW, bodyH, iconSize * 0.08);
+  ctx.stroke();
+  ctx.fillRect(-bodyW * 0.22, -bodyH * 0.45, bodyW * 0.44, iconSize * 0.07);
+  ctx.beginPath();
+  ctx.moveTo(bodyW * 0.16, -bodyH * 0.44);
+  ctx.lineTo(bodyW * 0.48, -bodyH * 0.68);
+  ctx.lineTo(bodyW * 0.62, -bodyH * 0.62);
+  ctx.stroke();
+  const cell = bodyW * 0.16;
+  for (let row = 0; row < 3; row += 1) {
+    for (let col = 0; col < 3; col += 1) {
+      ctx.fillRect(
+        -cell * 1.45 + col * cell * 1.45,
+        -cell * 0.45 + row * cell * 1.35,
+        cell,
+        cell);
+    }
+  }
+  ctx.restore();
+}
+
 function drawBombMarker(ctx, bombMarker) {
   if (!bombMarker || !bombMarker.state.active || bombMarker.state.renderX === null || bombMarker.state.renderY === null) return;
 
@@ -1622,11 +1759,7 @@ function drawBombMarker(ctx, bombMarker) {
     ctx.strokeStyle = "rgba(255, 189, 102, 0.22)";
     ctx.stroke();
 
-    ctx.fillStyle = "rgba(255, 232, 199, 0.96)";
-    ctx.font = "700 " + Math.max(6, size * 0.42) + "px TASAOrbiter, Segoe UI, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("C4", centerX, centerY + 0.5);
+    drawC4Icon(ctx, centerX, centerY, Math.max(10, size * 0.92));
   } else {
     ctx.beginPath();
     ctx.strokeStyle = bombMarker.isDefused ? "rgba(97, 215, 132, 0.65)" : "rgba(239, 115, 115, 0.55)";
@@ -1638,13 +1771,7 @@ function drawBombMarker(ctx, bombMarker) {
     ctx.fillStyle = bombMarker.isDefused ? "rgba(97, 215, 132, 0.92)" : "rgba(239, 115, 115, 0.96)";
     ctx.arc(centerX, centerY, size * 0.62, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "rgba(255,255,255,0.95)";
-  }
-  if (!bombMarker.isDropped) {
-    ctx.font = "700 " + Math.max(6, size * 0.42) + "px TASAOrbiter, Segoe UI, sans-serif";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("C4", centerX, centerY + 0.5);
+    drawC4Icon(ctx, centerX, centerY, Math.max(10, size * 0.86));
   }
   ctx.restore();
 }
@@ -1803,7 +1930,7 @@ function updateMarker(entry, player, mapData, localTeam, markerSize, overlayWidt
   const rotation = Number.isFinite(player?._wrRotation)
     ? Number(player._wrRotation)
     : (90 - Number(player.m_eye_angle || 0));
-  const label = String(player.m_name || "").trim();
+  const label = normalizeDisplayText(player.m_name);
 
   entry.label = label;
   entry.color = color;
@@ -1890,45 +2017,98 @@ function updateBombMarker(bomb, mapData, overlayWidth, overlayHeight, mapName) {
   marker.state.renderOpacity = marker.state.targetOpacity;
 }
 
-function updateBombStatus(bomb, players) {
-  if (!bomb || (!bomb.m_is_planted && !bomb.m_is_dropped)) {
+function updateBombStatus(bomb) {
+  const now = performance.now();
+  const isLiveTimer = !!bomb && !!bomb.m_is_planted && (!!bomb.m_is_ticking || !!bomb.m_is_defusing) && !bomb.m_is_defused;
+  const timerLength = clamp(Number(bomb?.m_timer_length || 40), 5, 90);
+  const defuseLength = clamp(Number(bomb?.m_defuse_length || 10), 1, 15);
+  const rawBlow = Number(bomb?.m_blow_time || 0);
+  const rawDefuse = Number(bomb?.m_defuse_time || 0);
+  const blowValid = Number.isFinite(rawBlow) && rawBlow > 0.05 && rawBlow <= timerLength + 2.0;
+  const defuseValid = Number.isFinite(rawDefuse) && rawDefuse > 0.05 && rawDefuse <= defuseLength + 2.0;
+  const dt = S.bombUi.lastUpdateAt > 0 ? clamp((now - S.bombUi.lastUpdateAt) / 1000, 0, 0.25) : 0;
+
+  if (isLiveTimer && blowValid && rawBlow > 5.0) {
+    S.bombTimerSuppressUntil = 0;
+  }
+
+  if (isLiveTimer && now >= S.bombTimerSuppressUntil) {
+    S.bombUi.bombTotal = timerLength;
+    if (!S.bombUi.active || S.bombUi.bombLeft <= 0) {
+      S.bombUi.bombLeft = blowValid ? rawBlow : timerLength;
+    } else if (blowValid) {
+      S.bombUi.bombLeft = rawBlow;
+    } else {
+      S.bombUi.bombLeft = Math.max(0, S.bombUi.bombLeft - dt);
+    }
+
+    if (bomb.m_is_defusing) {
+      S.bombUi.defuseTotal = defuseLength;
+      if (!S.bombUi.defusing || S.bombUi.defuseLeft <= 0) {
+        S.bombUi.defuseLeft = defuseValid ? rawDefuse : defuseLength;
+      } else if (defuseValid) {
+        S.bombUi.defuseLeft = rawDefuse;
+      } else {
+        S.bombUi.defuseLeft = Math.max(0, S.bombUi.defuseLeft - dt);
+      }
+      S.bombUi.defusing = true;
+    } else {
+      S.bombUi.defusing = false;
+      S.bombUi.defuseLeft = 0;
+    }
+
+    S.bombUi.active = true;
+    S.bombUi.lastUpdateAt = now;
+  } else if (!isLiveTimer) {
+    S.bombUi.active = false;
+    S.bombUi.defusing = false;
+    S.bombUi.bombLeft = 0;
+    S.bombUi.defuseLeft = 0;
+    S.bombUi.lastUpdateAt = now;
+  }
+
+  const blow = S.bombUi.active ? S.bombUi.bombLeft : 0;
+  const showTimer = isLiveTimer && blow > 0.05 && now >= S.bombTimerSuppressUntil;
+
+  if (isLiveTimer && S.bombUi.active && blow <= 0.05) {
+    S.bombTimerSuppressUntil = now + 1750;
+  }
+
+  el.bombCarrierRow.classList.add("hidden");
+  el.bombCarrierName.textContent = "---";
+  el.bombCarrierName.title = "";
+
+  if (!showTimer) {
     el.bombStatus.classList.add("hidden");
     return;
   }
 
-  const blow = Number(bomb.m_blow_time || 0);
-  const defuse = Number(bomb.m_defuse_time || 0);
-  const carrier = players.find(player => player.m_has_bomb && !player.m_is_dead);
+  el.bombStatus.classList.remove("hidden", "is-critical", "is-defuse-safe", "is-defuse-late", "is-carrier-only");
 
-  let text = "";
-  let cssClass = "";
+  const defuse = S.bombUi.defusing ? S.bombUi.defuseLeft : 0;
+  const bombFrac = clamp(blow / timerLength, 0, 1);
+  const showDefuse = !!bomb?.m_is_defusing && defuse > 0.05;
+  const defuseFrac = showDefuse ? clamp(defuse / defuseLength, 0, 1) : 0;
+  const defuseCanFinish = showDefuse && defuse <= blow;
 
-  if (bomb.m_is_defused) {
-    text = "Bomb defused";
-    cssClass = "is-green";
-  } else if (bomb.m_is_planted && blow > 0) {
-    text = "Bomb planted " + blow.toFixed(1) + "s" + (bomb.m_is_defusing && defuse > 0 ? " (" + defuse.toFixed(1) + "s)" : "");
-    cssClass = bomb.m_is_defusing && defuse > 0 && defuse <= blow ? "is-green" : "is-red";
-  } else if (bomb.m_is_planted) {
-    text = "Bomb planted";
-    cssClass = "is-red";
-  } else if (bomb.m_is_dropped) {
-    text = "Bomb dropped";
-  } else if (carrier) {
-    text = String(carrier.m_name || "Carrier") + " has C4";
+  el.bombTimeRow.classList.remove("hidden");
+  el.bombTimeBar.classList.remove("hidden");
+  if (blow <= 10) {
+    el.bombStatus.classList.add("is-critical");
   }
-
-  if (!text) {
-    el.bombStatus.classList.add("hidden");
-    return;
+  if (showDefuse) {
+    el.bombStatus.classList.add(defuseCanFinish ? "is-defuse-safe" : "is-defuse-late");
   }
-
-  el.bombStatus.classList.remove("hidden");
-  el.bombStatus.classList.remove("is-green", "is-red");
-  if (cssClass) {
-    el.bombStatus.classList.add(cssClass);
+  el.bombTimeLeft.textContent = blow.toFixed(1) + "s";
+  el.bombTimeProgress.style.width = (bombFrac * 100).toFixed(2) + "%";
+  if (showDefuse) {
+    el.defuseTimerRow.classList.remove("hidden");
+    el.defuseTimeLeft.textContent = defuse.toFixed(1) + "s";
+    el.defuseTimeProgress.style.width = (defuseFrac * 100).toFixed(2) + "%";
+  } else {
+    el.defuseTimerRow.classList.add("hidden");
+    el.defuseTimeProgress.style.width = "0%";
   }
-  el.bombStatusText.textContent = text;
 }
 
 function renderOverlay(payload = S.renderPayload || S.payload) {
@@ -1989,7 +2169,8 @@ function render() {
 
   renderRoster(el.terroristList, "t", players.filter(p => Number(p.m_team) === TEAM_T), localTeam, "No terrorists");
   renderRoster(el.counterTerroristList, "ct", players.filter(p => Number(p.m_team) === TEAM_CT), localTeam, "No counter-terrorists");
-  updateBombStatus(payload ? payload.m_bomb : null, players);
+  const timerPayload = S.renderPayload || payload;
+  updateBombStatus(timerPayload ? timerPayload.m_bomb : null);
 
   if (!payload || !players.length) {
     el.radarMessage.textContent = "Waiting for live entities";
@@ -2008,6 +2189,7 @@ function animateScene(timestamp) {
   }
   S.animationClock = timestamp;
   S.renderPayload = sampleRenderPayload(performance.now()) || S.payload;
+  updateBombStatus(S.renderPayload ? S.renderPayload.m_bomb : null, S.renderPayload ? S.renderPayload.m_players : []);
   renderOverlay(S.renderPayload);
   drawOverlayCanvas();
   S.animationHandle = window.requestAnimationFrame(animateScene);
@@ -2018,12 +2200,6 @@ function flushPendingPayload() {
   const payload = sanitizePayload(S.pendingPayload);
   S.pendingPayload = null;
   if (!payload || !payload.m_map || payload.m_map === "invalid") return;
-
-  
-  if (payload.m_map === "unknown" && S.payload && S.payload.m_map && S.payload.m_map !== "unknown") {
-    updateConnection("live");
-    return;
-  }
 
   const arrivalNow = performance.now();
   const hasMapData = S.mapDataCache.has(payload.m_map);
@@ -2043,7 +2219,7 @@ function flushPendingPayload() {
   }
 
   
-  if (!hasMapData) {
+  if (payload.m_map !== "unknown" && !hasMapData) {
     ensureMapData(payload.m_map).then(() => {
       render();
     });

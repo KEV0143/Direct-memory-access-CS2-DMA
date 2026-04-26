@@ -15,23 +15,13 @@
         return "unknown";
     }
 
-    const MapDefinition* best = nullptr;
-    double bestScore = 1e18;
-
-    for (const auto& map : GetMapDefinitions()) {
-        if (map.dynamic)
-            continue;
-
-        const double score =
-            std::fabs(runtimeMinX - map.minX) +
-            std::fabs(runtimeMaxX - map.maxX) +
-            std::fabs(runtimeMinY - map.minY) +
-            std::fabs(runtimeMaxY - map.maxY);
-
-        if (score < bestScore) {
-            bestScore = score;
-            best = &map;
-        }
+    if (const auto* map = radar::ResolveMapByBounds(
+            runtimeMinX,
+            runtimeMinY,
+            runtimeMaxX,
+            runtimeMaxY,
+            false)) {
+        return map->name;
     }
 
-    return (best != nullptr && bestScore <= 2200.0) ? best->name : "unknown";
+    return "unknown";

@@ -36,7 +36,7 @@
         if (weaponC4OwnerAlive) {
             weaponC4OwnerSelectedC4 =
                 (activeWeapons[weaponC4OwnerPlayerIndex] != 0 && activeWeapons[weaponC4OwnerPlayerIndex] == weaponC4Entity) ||
-                (weaponIds[weaponC4OwnerPlayerIndex] == 49u);
+            (weaponIds[weaponC4OwnerPlayerIndex] == kWeaponC4Id);
             weaponC4OwnerSlowInventoryBomb = inventoryHasBombBySlot[weaponC4OwnerPlayerIndex];
             weaponC4OwnerCarrySticky =
                 weaponC4OwnerPlayerIndex == s_cachedBombCarryOwnerSlot &&
@@ -158,7 +158,7 @@
             const bool hasCarryEvidence =
                 bombCarrierBySlot[i] ||
                 inventoryHasBombBySlot[i] ||
-                weaponIds[i] == 49u ||
+            weaponIds[i] == kWeaponC4Id ||
                 i == weaponC4OwnerPlayerIndex ||
                 (i == s_cachedBombCarryOwnerSlot &&
                  s_cachedBombCarryOwnerUs > 0 &&

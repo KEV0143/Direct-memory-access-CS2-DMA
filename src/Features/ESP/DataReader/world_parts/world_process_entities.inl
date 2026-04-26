@@ -80,12 +80,16 @@
             const bool needsOwnerResolution = needsOwnerPlayerMaps && ((rawItemId == kWeaponC4Id) || droppedItemCandidate);
             int ownerPlayerIndex = -1;
             if (needsOwnerResolution && !noOwner) {
-                const uint32_t ownerSlot = owner & kEntityHandleMask;
-                if (ownerSlot != 0u) {
-                    if (ownerSlot <= kMaxTrackedWorldEntities && s_worldPawnOwnerBySlot[ownerSlot] >= 0)
-                        ownerPlayerIndex = static_cast<int>(s_worldPawnOwnerBySlot[ownerSlot]);
-                    else if (ownerSlot <= 64u && s_worldControllerOwnerBySlot[ownerSlot] >= 0)
-                        ownerPlayerIndex = static_cast<int>(s_worldControllerOwnerBySlot[ownerSlot]);
+                if (rawItemId == kWeaponC4Id) {
+                    ownerPlayerIndex = findPlayerIndexByEntityHandle(owner);
+                } else {
+                    const uint32_t ownerSlot = owner & kEntityHandleMask;
+                    if (ownerSlot != 0u) {
+                        if (ownerSlot <= kMaxTrackedWorldEntities && s_worldPawnOwnerBySlot[ownerSlot] >= 0)
+                            ownerPlayerIndex = static_cast<int>(s_worldPawnOwnerBySlot[ownerSlot]);
+                        else if (ownerSlot <= 64u && s_worldControllerOwnerBySlot[ownerSlot] >= 0)
+                            ownerPlayerIndex = static_cast<int>(s_worldControllerOwnerBySlot[ownerSlot]);
+                    }
                 }
             }
             bool ownerHoldingNearby = false;

@@ -1,11 +1,11 @@
     const uint64_t worldSceneResetAge = nowUs - s_lastSceneResetUs.load(std::memory_order_relaxed);
-    const bool worldScanAllowed = worldSceneResetAge > 2000000;
+    const bool worldScanAllowed = liveWorldContext && worldSceneResetAge > 2000000;
     
     
     
     
     
-    const bool bombRescueScanAllowed = worldSceneResetAge > 300000;
+    const bool bombRescueScanAllowed = liveWorldContext && worldSceneResetAge > 300000;
     bool worldScanCommitted = false;
 
     const uint64_t worldScanIntervalUs = [&]() -> uint64_t {
@@ -36,6 +36,7 @@
     static uint64_t s_lastWorldDroppedItemsScanUs = 0;
     static uint64_t s_lastWorldActiveUtilityScanUs = 0;
     static uint64_t s_lastWorldSlowDiscoveryScanUs = 0;
+    static bool s_prevWorldLiveContext = false;
 
     const bool bombOnlyWorldMode =
         wantsBombConsumers &&
@@ -53,11 +54,16 @@
         weaponC4Entity != 0 &&
         weaponC4PosValid &&
         isValidWorldPos(weaponC4WorldPos);
+    const bool bombRulesDroppedWorldValidation =
+        wantsBombConsumers &&
+        bombDroppedByRules &&
+        !bombPlantedByRules;
     const bool bombFallbackRescueNeeded =
         wantsBombConsumers &&
         !bombPlantedByRules &&
-        !bombStateHasPosition &&
-        !bombEntityCandidatePosValid;
+        (!bombStateHasPosition ||
+         !bombEntityCandidatePosValid ||
+         bombRulesDroppedWorldValidation);
     const bool bombRescueDiscoveryNeeded =
         bombFallbackRescueNeeded &&
         !hasKnownBombCandidateSlots;
@@ -67,7 +73,10 @@
         wantsBombConsumers;
 
     const uint64_t worldCacheSceneResetSerial = s_sceneResetSerial.load(std::memory_order_relaxed);
-    if (s_worldCacheResetSerial != worldCacheSceneResetSerial) {
+    const bool worldContextReset =
+        (s_worldCacheResetSerial != worldCacheSceneResetSerial) ||
+        (!liveWorldContext && s_prevWorldLiveContext);
+    if (worldContextReset) {
         s_worldCacheResetSerial = worldCacheSceneResetSerial;
         s_prevWorldGameTime = 0.0f;
         s_worldWarmupScans = 0;
@@ -85,6 +94,7 @@
         std::memset(s_worldTrackedIndexPos, 0, sizeof(s_worldTrackedIndexPos));
         s_worldTrackedIndexCount = 0;
     }
+    s_prevWorldLiveContext = liveWorldContext;
 
     const bool wantsGeneralWorldScan = wantsDroppedItemMarkers || wantsWorldUtilityData;
     const bool worldIdleDiscovery =
@@ -142,7 +152,7 @@
         worldIdleDiscovery ? std::max<uint64_t>(worldScanIntervalUs * 2u, 120000u)
                            : worldScanIntervalUs;
     const uint64_t worldBombRescueIntervalUs =
-        forceBombWorldDiscovery ? std::min<uint64_t>(worldScanIntervalUs, 15000u)
+        forceBombWorldDiscovery ? std::min<uint64_t>(worldScanIntervalUs, 30000u)
                                 : worldScanIntervalUs;
 
     const bool worldDomainBombRescueDue =
@@ -161,7 +171,7 @@
         worldScanAllowed &&
         (wantsGeneralWorldScan || bombRescueDiscoveryNeeded) &&
         (nowUs - s_lastWorldSlowDiscoveryScanUs) >=
-            (forceBombWorldDiscovery ? std::min<uint64_t>(worldSlowDiscoveryIntervalUs, 15000u)
+            (forceBombWorldDiscovery ? std::min<uint64_t>(worldSlowDiscoveryIntervalUs, 30000u)
                                      : worldSlowDiscoveryIntervalUs);
 
     const bool shouldScanWorld =

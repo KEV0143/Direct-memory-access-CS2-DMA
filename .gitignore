@@ -2,4 +2,3 @@
 *.obj
 *.tlog
 x64/obj/
-output/

@@ -62,7 +62,7 @@
             ++stats_.servedRequests;
             stats_.lastRequestUnixMs = UnixNowMs();
         }
-        return SendHttpResponseEx(socketHandle, 200, "application/json; charset=utf-8", body, "public, max-age=60, stale-while-revalidate=30", false);
+        return SendHttpResponseEx(socketHandle, 200, "application/json; charset=utf-8", body, "no-store", false);
     }
 
     if (request.path == "/api/stream") {
@@ -119,15 +119,7 @@
     }
 
     if (request.path == "/maps.json") {
-        std::string body;
-        webradar::EmbeddedAsset asset{};
-        if (webradar::FindEmbeddedAsset("/maps.json", &asset)) {
-            body.assign(static_cast<const char*>(asset.data), asset.size);
-        } else {
-            const auto path = app::paths::ResolveWebRadarAssetPath("maps.json");
-            if (path.empty() || !ReadEntireFile(path, &body))
-                body = BuildFallbackMapsJson();
-        }
+        std::string body = BuildFallbackMapsJson();
 
         {
             std::lock_guard<std::mutex> lock(mutex_);

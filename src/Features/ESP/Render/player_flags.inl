@@ -40,7 +40,7 @@ if (g::espFlags || g::espDistance) {
         if (!flagList[f].text || flagList[f].text[0] == '\0')
             continue;
         float fontSize = flagList[f].size > 0.0f ? flagList[f].size : 0.0f;
-        DrawTextShadow(drawList, nullptr, fontSize, ImVec2(flagStartX, flagY), flagList[f].color, flagList[f].text);
+        DrawTextShadow(drawList, g::fontComicSans, fontSize, ImVec2(flagStartX, flagY), flagList[f].color, flagList[f].text);
         float lineH = fontSize > 0.0f ? fontSize : ImGui::GetFontSize();
         flagY += lineH + 1.0f;
     }

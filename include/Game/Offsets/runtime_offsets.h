@@ -59,6 +59,8 @@ namespace runtime_offsets
         std::ptrdiff_t dwNetworkGameClient_localPlayer = 0;
         std::ptrdiff_t dwNetworkGameClient_maxClients = 0;
         std::ptrdiff_t dwNetworkGameClient_isBackgroundMap = 0;
+        std::ptrdiff_t dwGameTypes = 0;
+        std::ptrdiff_t dwGameTypes_mapName = 0;
 
         
         std::ptrdiff_t CBasePlayerController_m_iPing = 0;
@@ -67,7 +69,14 @@ namespace runtime_offsets
         std::ptrdiff_t C_BaseEntity_m_iTeamNum = 0;
         std::ptrdiff_t C_BasePlayerPawn_m_vOldOrigin = 0;
         std::ptrdiff_t C_BasePlayerPawn_m_pWeaponServices = 0;
+        std::ptrdiff_t C_BasePlayerPawn_m_pObserverServices = 0;
+        std::ptrdiff_t C_BasePlayerPawn_m_hController = 0;
+        std::ptrdiff_t CBasePlayerController_m_hPawn = 0;
+        std::ptrdiff_t CCSPlayerController_m_hObserverPawn = 0;
         std::ptrdiff_t CCSPlayerController_m_hPlayerPawn = 0;
+        std::ptrdiff_t CCSPlayerController_m_bPawnIsAlive = 0;
+        std::ptrdiff_t CCSPlayerController_m_iPawnHealth = 0;
+        std::ptrdiff_t CCSPlayerController_m_iPawnArmor = 0;
         std::ptrdiff_t CBasePlayerController_m_iszPlayerName = 0;
         std::ptrdiff_t CPlayer_WeaponServices_m_hActiveWeapon = 0;
         std::ptrdiff_t CPlayer_WeaponServices_m_hMyWeapons = 0;
@@ -83,7 +92,6 @@ namespace runtime_offsets
         std::ptrdiff_t C_BaseEntity_m_nSubclassID = 0;
         std::ptrdiff_t C_BaseEntity_m_vecVelocity = 0;
         std::ptrdiff_t C_BasePlayerWeapon_m_iClip1 = 0;
-        std::ptrdiff_t C_CSPlayerPawn_m_pClippingWeapon = 0;
         std::ptrdiff_t C_CSPlayerPawn_m_bIsScoped = 0;
         std::ptrdiff_t C_CSPlayerPawn_m_bIsDefusing = 0;
         std::ptrdiff_t C_CSPlayerPawn_m_angEyeAngles = 0;
@@ -99,12 +107,16 @@ namespace runtime_offsets
         std::ptrdiff_t C_CSGameRules_m_vMinimapMaxs = 0;
         std::ptrdiff_t C_CSGameRules_m_bBombPlanted = 0;
         std::ptrdiff_t C_CSGameRules_m_bBombDropped = 0;
+        std::ptrdiff_t CPlayer_ObserverServices_m_iObserverMode = 0;
+        std::ptrdiff_t CPlayer_ObserverServices_m_hObserverTarget = 0;
         std::ptrdiff_t CGameSceneNode_m_vecAbsOrigin = 0;
         std::ptrdiff_t EntitySpottedState_t_m_bSpottedByMask = 0;
         std::ptrdiff_t EntitySpottedState_t_m_bSpotted = 0;
         std::ptrdiff_t C_PlantedC4_m_bBombTicking = 0;
         std::ptrdiff_t C_PlantedC4_m_flC4Blow = 0;
+        std::ptrdiff_t C_PlantedC4_m_flTimerLength = 0;
         std::ptrdiff_t C_PlantedC4_m_bBeingDefused = 0;
+        std::ptrdiff_t C_PlantedC4_m_flDefuseLength = 0;
         std::ptrdiff_t C_PlantedC4_m_flDefuseCountDown = 0;
         std::ptrdiff_t C_Inferno_m_nFireEffectTickBegin = 0;
         std::ptrdiff_t C_Inferno_m_nFireLifetime = 0;

@@ -65,6 +65,9 @@
     <Filter Include="Header Files\assets\fonts">
       <UniqueIdentifier>{1A46A6B6-B47F-4688-8B51-CF423847DE6A}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files\assets\icons">
+      <UniqueIdentifier>{D19833AE-1E34-4E96-AB56-1B0763C5A6A5}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Header Files\Features\ESP">
       <UniqueIdentifier>{3817D3B9-76C9-4AF1-9AB1-E31B28197A0F}</UniqueIdentifier>
     </Filter>
@@ -193,22 +196,13 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="src\app\Bootstrap\main.cpp">
       <Filter>Source Files\app\Bootstrap</Filter>
     </ClCompile>
     <ClCompile Include="src\app\Bootstrap\runtime_console.cpp">
+      <Filter>Source Files\app\Bootstrap</Filter>
+    </ClCompile>
+    <ClCompile Include="src\app\Bootstrap\version_update.cpp">
       <Filter>Source Files\app\Bootstrap</Filter>
     </ClCompile>
     <ClCompile Include="src\app\Config\config.cpp">
@@ -240,6 +234,9 @@
     </ClCompile>
     <ClCompile Include="src\Features\ESP\UI\esp_tab.cpp">
       <Filter>Source Files\Features\ESP\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Features\Radar\map_registry.cpp">
+      <Filter>Source Files\Features\Radar</Filter>
     </ClCompile>
     <ClCompile Include="src\Features\Radar\UI\radar_sections.cpp">
       <Filter>Source Files\Features\Radar\UI</Filter>
@@ -307,6 +304,9 @@
     <ClInclude Include="include\app\Bootstrap\runtime_console.h">
       <Filter>Header Files\app\Bootstrap</Filter>
     </ClInclude>
+    <ClInclude Include="include\app\Bootstrap\version_update.h">
+      <Filter>Header Files\app\Bootstrap</Filter>
+    </ClInclude>
     <ClInclude Include="include\app\Config\config.h">
       <Filter>Header Files\app\Config</Filter>
     </ClInclude>
@@ -340,6 +340,9 @@
     <ClInclude Include="include\app\UI\MenuShell\ui_style.h">
       <Filter>Header Files\app\UI\MenuShell</Filter>
     </ClInclude>
+    <ClInclude Include="include\app\UI\MenuShell\ui_widgets.h">
+      <Filter>Header Files\app\UI\MenuShell</Filter>
+    </ClInclude>
     <ClInclude Include="include\Features\ESP\esp.h">
       <Filter>Header Files\Features\ESP</Filter>
     </ClInclude>
@@ -348,6 +351,9 @@
     </ClInclude>
     <ClInclude Include="include\Features\ESP\UI\esp_tab.h">
       <Filter>Header Files\Features\ESP\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\Radar\map_registry.h">
+      <Filter>Header Files\Features\Radar</Filter>
     </ClInclude>
     <ClInclude Include="include\Features\Radar\UI\radar_sections.h">
       <Filter>Header Files\Features\Radar\UI</Filter>
@@ -378,6 +384,9 @@
     </ClInclude>
     <ClInclude Include="include\Game\Schema\structs.h">
       <Filter>Header Files\Game\Schema</Filter>
+    </ClInclude>
+    <ClInclude Include="src\assets\icons\esp_ui_icons.hpp">
+      <Filter>Header Files\assets\icons</Filter>
     </ClInclude>
     <ClInclude Include="src\assets\fonts\weapons.hpp">
       <Filter>Header Files\assets\fonts</Filter>
@@ -440,9 +449,6 @@
       <Filter>Inline Files\Features\ESP\Render</Filter>
     </ClInclude>
     <ClInclude Include="src\Features\ESP\Render\player_box.inl">
-      <Filter>Inline Files\Features\ESP\Render</Filter>
-    </ClInclude>
-    <ClInclude Include="src\Features\ESP\Render\player_distance.inl">
       <Filter>Inline Files\Features\ESP\Render</Filter>
     </ClInclude>
     <ClInclude Include="src\Features\ESP\Render\player_flags.inl">
@@ -515,5 +521,4 @@
       <Filter>Resource Files\Features\WebRadar\Assets</Filter>
     </ResourceCompile>
   </ItemGroup>
-
 </Project>

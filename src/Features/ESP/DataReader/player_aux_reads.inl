@@ -4,6 +4,7 @@
     static uint64_t s_lastPlayerDefuserAuxUs = 0;
     static uint64_t s_lastPlayerEyeAuxUs = 0;
     static uint64_t s_lastPlayerVisibilityAuxUs = 0;
+    static uint64_t s_lastPlayerSpectatorAuxUs = 0;
     static uint64_t s_playerAuxTickResetSerial = 0;
     {
         const uint64_t auxResetSerial = s_sceneResetSerial.load(std::memory_order_relaxed);
@@ -15,13 +16,38 @@
             s_lastPlayerDefuserAuxUs = 0;
             s_lastPlayerEyeAuxUs = 0;
             s_lastPlayerVisibilityAuxUs = 0;
+            s_lastPlayerSpectatorAuxUs = 0;
         }
     }
+
+    static uintptr_t s_cachedObserverPawns[64] = {};
+    static uintptr_t s_cachedObserverServices[64] = {};
+    static uint32_t s_cachedObserverTargets[64] = {};
+    static uint8_t s_cachedObserverModes[64] = {};
+    static uint64_t s_playerObserverCacheResetSerial = 0;
+    {
+        const uint64_t observerResetSerial = s_sceneResetSerial.load(std::memory_order_relaxed);
+        if (s_playerObserverCacheResetSerial != observerResetSerial) {
+            s_playerObserverCacheResetSerial = observerResetSerial;
+            memset(s_cachedObserverPawns, 0, sizeof(s_cachedObserverPawns));
+            memset(s_cachedObserverServices, 0, sizeof(s_cachedObserverServices));
+            memset(s_cachedObserverTargets, 0, sizeof(s_cachedObserverTargets));
+            memset(s_cachedObserverModes, 0, sizeof(s_cachedObserverModes));
+        }
+    }
+
+    uintptr_t observerServices[64] = {};
+    uint32_t observerTargets[64] = {};
+    uint8_t observerModes[64] = {};
+    memcpy(observerServices, s_cachedObserverServices, sizeof(observerServices));
+    memcpy(observerTargets, s_cachedObserverTargets, sizeof(observerTargets));
+    memcpy(observerModes, s_cachedObserverModes, sizeof(observerModes));
 
     const uint64_t playerAuxNowUs = TickNowUs();
     const bool wantsPlayerIdentityAux =
         webRadarDemandActive ||
-        g::espName;
+        g::espName ||
+        g::radarSpectatorList;
     const bool wantsPlayerMoneyAux =
         webRadarDemandActive ||
         (g::espFlags && g::espFlagMoney);
@@ -36,6 +62,13 @@
         (g::radarEnabled && g::radarShowAngles);
     const bool wantsPlayerVisibilityAux =
         g::espVisibilityColoring;
+    const bool hasObserverOffsets =
+        ofs.C_BasePlayerPawn_m_pObserverServices > 0 &&
+        ofs.CPlayer_ObserverServices_m_iObserverMode > 0 &&
+        ofs.CPlayer_ObserverServices_m_hObserverTarget > 0;
+    const bool wantsPlayerSpectatorAux =
+        g::radarSpectatorList &&
+        hasObserverOffsets;
 
     const bool playerIdentityAuxDue =
         wantsPlayerIdentityAux &&
@@ -62,6 +95,10 @@
         hasSpottedStateOffsets &&
         (s_lastPlayerVisibilityAuxUs == 0 ||
          (playerAuxNowUs - s_lastPlayerVisibilityAuxUs) >= esp::intervals::kPlayerVisibilityAuxUs);
+    const bool playerSpectatorAuxDue =
+        wantsPlayerSpectatorAux &&
+        (s_lastPlayerSpectatorAuxUs == 0 ||
+         (playerAuxNowUs - s_lastPlayerSpectatorAuxUs) >= esp::intervals::kPlayerSpectatorAuxUs);
 
     _playerAuxActiveTick =
         playerIdentityAuxDue ||
@@ -69,7 +106,8 @@
         playerStatusAuxDue ||
         playerDefuserAuxDue ||
         playerEyeAuxDue ||
-        playerVisibilityAuxDue;
+        playerVisibilityAuxDue ||
+        playerSpectatorAuxDue;
 
     auto markDynamicPawnsCached = [&]() {
         memcpy(s_cachedDynamicPawns, pawns, sizeof(s_cachedDynamicPawns));
@@ -85,6 +123,7 @@
         bool queuedPrimary = false;
         bool moneyServiceRefreshMask[64] = {};
         bool itemServiceRefreshMask[64] = {};
+        bool observerServiceRefreshMask[64] = {};
 
         for (int resolvedIdx = 0; resolvedIdx < playerResolvedSlotCount; ++resolvedIdx) {
             const int i = playerResolvedSlots[resolvedIdx];
@@ -207,6 +246,33 @@
                         sizeof(uint8_t));
                 }
             }
+
+            if (playerSpectatorAuxDue && pawns[i]) {
+                const bool observerServiceNeedsRefresh =
+                    pawns[i] != s_cachedObserverPawns[i] ||
+                    !s_cachedObserverServices[i];
+                if (observerServiceNeedsRefresh) {
+                    mem.AddScatterReadRequest(
+                        handle,
+                        pawns[i] + ofs.C_BasePlayerPawn_m_pObserverServices,
+                        &observerServices[i],
+                        sizeof(uintptr_t));
+                    observerServiceRefreshMask[i] = true;
+                    queuedPrimary = true;
+                } else {
+                    mem.AddScatterReadRequest(
+                        handle,
+                        s_cachedObserverServices[i] + ofs.CPlayer_ObserverServices_m_iObserverMode,
+                        &observerModes[i],
+                        sizeof(uint8_t));
+                    mem.AddScatterReadRequest(
+                        handle,
+                        s_cachedObserverServices[i] + ofs.CPlayer_ObserverServices_m_hObserverTarget,
+                        &observerTargets[i],
+                        sizeof(uint32_t));
+                    queuedPrimary = true;
+                }
+            }
         }
 
         
@@ -225,20 +291,25 @@
                 memcpy(moneys, s_cachedPlayerMoneys, sizeof(moneys));
             }
             if (playerStatusAuxDue) {
-                memcpy(scopedFlags, s_cachedScopedFlags, sizeof(scopedFlags));
-                memcpy(defusingFlags, s_cachedDefusingFlags, sizeof(defusingFlags));
-                memcpy(flashDurations, s_cachedFlashDurations, sizeof(flashDurations));
+                memset(scopedFlags, 0, sizeof(scopedFlags));
+                memset(defusingFlags, 0, sizeof(defusingFlags));
+                memset(flashDurations, 0, sizeof(flashDurations));
             }
             if (playerDefuserAuxDue) {
-                memcpy(itemServices, s_cachedItemServices, sizeof(itemServices));
-                memcpy(hasDefuserFlags, s_cachedHasDefuserFlags, sizeof(hasDefuserFlags));
+                memset(itemServices, 0, sizeof(itemServices));
+                memset(hasDefuserFlags, 0, sizeof(hasDefuserFlags));
             }
             if (playerEyeAuxDue) {
                 memcpy(eyeAnglesPerPlayer, s_cachedEyeAnglesPerPlayer, sizeof(eyeAnglesPerPlayer));
             }
             if (playerVisibilityAuxDue) {
-                memcpy(spottedFlags, s_cachedSpottedFlags, sizeof(spottedFlags));
-                memcpy(spottedMasks, s_cachedSpottedMasks, sizeof(spottedMasks));
+                memset(spottedFlags, 0, sizeof(spottedFlags));
+                memset(spottedMasks, 0, sizeof(spottedMasks));
+            }
+            if (playerSpectatorAuxDue) {
+                memcpy(observerServices, s_cachedObserverServices, sizeof(observerServices));
+                memcpy(observerTargets, s_cachedObserverTargets, sizeof(observerTargets));
+                memcpy(observerModes, s_cachedObserverModes, sizeof(observerModes));
             }
             logUpdateDataIssue("scatter_aux_primary", "player_aux_primary_scatter_failed");
         } else {
@@ -285,6 +356,31 @@
                 }
             }
 
+            if (playerSpectatorAuxDue) {
+                for (int resolvedIdx = 0; resolvedIdx < playerResolvedSlotCount; ++resolvedIdx) {
+                    const int i = playerResolvedSlots[resolvedIdx];
+                    if (!observerServiceRefreshMask[i])
+                        continue;
+                    if (!isLikelyGamePointer(observerServices[i])) {
+                        observerServices[i] = 0;
+                        observerTargets[i] = 0;
+                        observerModes[i] = 0;
+                        continue;
+                    }
+                    mem.AddScatterReadRequest(
+                        handle,
+                        observerServices[i] + ofs.CPlayer_ObserverServices_m_iObserverMode,
+                        &observerModes[i],
+                        sizeof(uint8_t));
+                    mem.AddScatterReadRequest(
+                        handle,
+                        observerServices[i] + ofs.CPlayer_ObserverServices_m_hObserverTarget,
+                        &observerTargets[i],
+                        sizeof(uint32_t));
+                    queuedChainedRefresh = true;
+                }
+            }
+
             
             if (queuedChainedRefresh) {
                 if (!mem.ExecuteReadScatter(handle)) {
@@ -295,6 +391,10 @@
                             moneys[i] = s_cachedPlayerMoneys[i];
                         if (itemServiceRefreshMask[i] && itemServices[i])
                             hasDefuserFlags[i] = s_cachedHasDefuserFlags[i];
+                        if (observerServiceRefreshMask[i] && observerServices[i]) {
+                            observerTargets[i] = s_cachedObserverTargets[i];
+                            observerModes[i] = s_cachedObserverModes[i];
+                        }
                     }
                     logUpdateDataIssue("scatter_aux_chain", "player_aux_chained_refresh_failed");
                 }
@@ -327,6 +427,12 @@
                 memcpy(s_cachedSpottedFlags, spottedFlags, sizeof(s_cachedSpottedFlags));
                 memcpy(s_cachedSpottedMasks, spottedMasks, sizeof(s_cachedSpottedMasks));
             }
+            if (playerSpectatorAuxDue) {
+                memcpy(s_cachedObserverPawns, pawns, sizeof(s_cachedObserverPawns));
+                memcpy(s_cachedObserverServices, observerServices, sizeof(s_cachedObserverServices));
+                memcpy(s_cachedObserverTargets, observerTargets, sizeof(s_cachedObserverTargets));
+                memcpy(s_cachedObserverModes, observerModes, sizeof(s_cachedObserverModes));
+            }
             
             if (playerStatusAuxDue || playerDefuserAuxDue || playerEyeAuxDue || playerVisibilityAuxDue)
                 markDynamicPawnsCached();
@@ -339,4 +445,207 @@
         if (playerDefuserAuxDue)    s_lastPlayerDefuserAuxUs    = playerAuxNowUs;
         if (playerEyeAuxDue)        s_lastPlayerEyeAuxUs        = playerAuxNowUs;
         if (playerVisibilityAuxDue) s_lastPlayerVisibilityAuxUs = playerAuxNowUs;
+        if (playerSpectatorAuxDue)  s_lastPlayerSpectatorAuxUs  = playerAuxNowUs;
+    }
+
+    if (!wantsPlayerSpectatorAux) {
+        if (s_spectatorCount != 0) {
+            s_spectatorCount = 0;
+            memset(s_spectators, 0, sizeof(s_spectators));
+        }
+    } else if (playerSpectatorAuxDue) {
+        SpectatorEntry resolvedSpectators[64] = {};
+        int resolvedSpectatorCount = 0;
+        auto resolveEntityFromHandlePreferredStride = [&](uint32_t handleValue, uint32_t preferredStride) -> uintptr_t {
+            if (!isValidEntityHandle(handleValue) || !entityList)
+                return 0;
+
+            const uint32_t entityIndex = handleValue & kEntityHandleMask;
+            const uint32_t block = entityIndex >> 9;
+            const uint32_t slot = entityIndex & kEntitySlotMask;
+            uintptr_t entry = 0;
+            if (!readPointer(entityList + 0x10 + 8ull * static_cast<uintptr_t>(block), &entry))
+                return 0;
+
+            auto readEntityAtStride = [&](uint32_t stride) -> uintptr_t {
+                if (stride == 0)
+                    return 0;
+                uintptr_t entity = 0;
+                readPointer(entry + static_cast<uintptr_t>(stride) * static_cast<uintptr_t>(slot), &entity);
+                return isLikelyGamePointer(entity) ? entity : 0;
+            };
+
+            uintptr_t entity = readEntityAtStride(preferredStride);
+            if (entity)
+                return entity;
+            entity = readEntityAtStride(kEntitySlotSize);
+            if (entity)
+                return entity;
+            if (kEntitySlotSizeFallback != kEntitySlotSize)
+                return readEntityAtStride(kEntitySlotSizeFallback);
+            return 0;
+        };
+
+        auto observerTargetIsLocal = [&](uint32_t targetHandle) -> bool {
+            if (!isValidEntityHandle(targetHandle))
+                return false;
+            if (localControllerPawnHandle != 0u &&
+                localControllerPawnHandle != 0xFFFFFFFFu &&
+                ((targetHandle & kEntityHandleMask) == (localControllerPawnHandle & kEntityHandleMask)))
+                return true;
+
+            const uintptr_t targetEntity =
+                resolveEntityFromHandlePreferredStride(targetHandle, kEntitySlotSizeFallback);
+            if (!targetEntity)
+                return false;
+            if (targetEntity == localPawn || (s_localPawn != 0 && targetEntity == s_localPawn))
+                return true;
+            return false;
+        };
+
+        auto readControllerObserverState = [&](int i,
+                                               uintptr_t& observerPawn,
+                                               uint8_t& observerMode,
+                                               uint32_t& observerTarget) -> bool {
+            observerPawn = 0;
+            observerMode = 0;
+            observerTarget = 0;
+            if (i < 0 || i >= 64 || !controllers[i])
+                return false;
+
+            bool pawnIsAlive = false;
+            if (ofs.CCSPlayerController_m_bPawnIsAlive > 0 &&
+                readValue(controllers[i] + ofs.CCSPlayerController_m_bPawnIsAlive, &pawnIsAlive, sizeof(pawnIsAlive)) &&
+                pawnIsAlive) {
+                return false;
+            }
+
+            uint32_t observerPawnHandles[2] = {};
+            int observerPawnHandleCount = 0;
+            if (ofs.CCSPlayerController_m_hObserverPawn > 0) {
+                readValue(
+                    controllers[i] + ofs.CCSPlayerController_m_hObserverPawn,
+                    &observerPawnHandles[observerPawnHandleCount],
+                    sizeof(uint32_t));
+                ++observerPawnHandleCount;
+            }
+            if (ofs.CBasePlayerController_m_hPawn > 0) {
+                readValue(
+                    controllers[i] + ofs.CBasePlayerController_m_hPawn,
+                    &observerPawnHandles[observerPawnHandleCount],
+                    sizeof(uint32_t));
+                ++observerPawnHandleCount;
+            }
+
+            for (int handleIdx = 0; handleIdx < observerPawnHandleCount; ++handleIdx) {
+                const uint32_t pawnHandle = observerPawnHandles[handleIdx];
+                if (!isValidEntityHandle(pawnHandle))
+                    continue;
+
+                const uintptr_t candidatePawn =
+                    resolveEntityFromHandlePreferredStride(pawnHandle, kEntitySlotSizeFallback);
+                if (!candidatePawn ||
+                    candidatePawn == localPawn ||
+                    (s_localPawn != 0 && candidatePawn == s_localPawn)) {
+                    continue;
+                }
+
+                uintptr_t candidateObserverServices = 0;
+                if (!readPointer(
+                        candidatePawn + ofs.C_BasePlayerPawn_m_pObserverServices,
+                        &candidateObserverServices)) {
+                    continue;
+                }
+
+                uint8_t candidateMode = 0;
+                uint32_t candidateTarget = 0;
+                if (!readValue(
+                        candidateObserverServices + ofs.CPlayer_ObserverServices_m_iObserverMode,
+                        &candidateMode,
+                        sizeof(candidateMode)) ||
+                    !readValue(
+                        candidateObserverServices + ofs.CPlayer_ObserverServices_m_hObserverTarget,
+                        &candidateTarget,
+                        sizeof(candidateTarget))) {
+                    continue;
+                }
+                if (candidateMode == 0 || !isValidEntityHandle(candidateTarget))
+                    continue;
+
+                observerPawn = candidatePawn;
+                observerMode = candidateMode;
+                observerTarget = candidateTarget;
+                return true;
+            }
+
+            return false;
+        };
+
+        for (int i = 0; i < 64; ++i) {
+            if (!controllers[i] && !pawns[i])
+                continue;
+            const bool isLocalByIndex =
+                localControllerMaskBit > 0 &&
+                localControllerMaskBit <= 64 &&
+                i == (localControllerMaskBit - 1);
+            const bool isLocalByPawn =
+                (localPawn != 0 && pawns[i] == localPawn) ||
+                (s_localPawn != 0 && pawns[i] == s_localPawn);
+            const bool isLocalByController =
+                localController != 0 && controllers[i] == localController;
+            if (isLocalByIndex || isLocalByPawn || isLocalByController)
+                continue;
+
+            uintptr_t liveObserverPawn = 0;
+            uint8_t liveObserverMode = 0;
+            uint32_t liveObserverTarget = 0;
+            const bool readLiveObserver =
+                readControllerObserverState(i, liveObserverPawn, liveObserverMode, liveObserverTarget);
+            if (!readLiveObserver) {
+                liveObserverPawn = pawns[i];
+                liveObserverMode = observerModes[i];
+                liveObserverTarget = observerTargets[i];
+            }
+            if (liveObserverMode == 0 || !observerTargetIsLocal(liveObserverTarget))
+                continue;
+
+            SpectatorEntry& out = resolvedSpectators[resolvedSpectatorCount++];
+            out.valid = true;
+            out.observerMode = liveObserverMode;
+            char liveName[128] = {};
+            if ((!names[i][0] && !s_cachedPlayerNames[i][0]) &&
+                controllers[i] &&
+                ofs.CBasePlayerController_m_iszPlayerName > 0) {
+                readValue(
+                    controllers[i] + ofs.CBasePlayerController_m_iszPlayerName,
+                    liveName,
+                    sizeof(liveName) - 1);
+                liveName[sizeof(liveName) - 1] = '\0';
+            }
+            const char* name =
+                names[i][0] ? names[i] :
+                s_cachedPlayerNames[i][0] ? s_cachedPlayerNames[i] :
+                liveName;
+            if (name && name[0]) {
+                bool duplicate = false;
+                for (int existingIdx = 0; existingIdx < resolvedSpectatorCount - 1; ++existingIdx) {
+                    if (std::strncmp(resolvedSpectators[existingIdx].name, name, sizeof(out.name)) == 0) {
+                        duplicate = true;
+                        break;
+                    }
+                }
+                if (duplicate) {
+                    --resolvedSpectatorCount;
+                    continue;
+                }
+                strncpy_s(out.name, sizeof(out.name), name, _TRUNCATE);
+            } else {
+                std::snprintf(out.name, sizeof(out.name), "Player %d", i + 1);
+            }
+            if (resolvedSpectatorCount >= 64)
+                break;
+        }
+
+        s_spectatorCount = resolvedSpectatorCount;
+        memcpy(s_spectators, resolvedSpectators, sizeof(s_spectators));
     }

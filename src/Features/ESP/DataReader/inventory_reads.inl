@@ -3,7 +3,6 @@
     static uintptr_t s_cachedWeaponServicesResolved[64] = {};
     static uint32_t s_cachedActiveWeaponHandles[64] = {};
     static uintptr_t s_cachedActiveWeaponsResolved[64] = {};
-    static uintptr_t s_cachedClippingWeaponsResolved[64] = {};
     static uint16_t s_cachedWeaponIdsResolved[64] = {};
     static int s_cachedAmmoClipsResolved[64] = {};
     static uintptr_t s_cachedInvHandleArrays[64] = {};
@@ -17,6 +16,7 @@
     static uint64_t s_lastActiveWeaponLaneUs = 0;
     static uint64_t s_lastFullInventoryLaneUs = 0;
     static uint64_t s_lastWeaponServicesRefreshUs = 0;
+    static uint64_t s_lastInventoryMetaRefreshUs = 0;
     {
         const uint64_t inventoryResetSerial = s_sceneResetSerial.load(std::memory_order_relaxed);
         if (s_inventoryCacheResetSerial != inventoryResetSerial) {
@@ -24,12 +24,12 @@
             s_lastActiveWeaponLaneUs = 0;
             s_lastFullInventoryLaneUs = 0;
             s_lastWeaponServicesRefreshUs = 0;
+            s_lastInventoryMetaRefreshUs = 0;
             memset(s_cachedActiveWeaponEntries, 0, sizeof(s_cachedActiveWeaponEntries));
             memset(s_cachedInventoryWeaponEntries, 0, sizeof(s_cachedInventoryWeaponEntries));
             memset(s_cachedWeaponServicesResolved, 0, sizeof(s_cachedWeaponServicesResolved));
             memset(s_cachedActiveWeaponHandles, 0, sizeof(s_cachedActiveWeaponHandles));
             memset(s_cachedActiveWeaponsResolved, 0, sizeof(s_cachedActiveWeaponsResolved));
-            memset(s_cachedClippingWeaponsResolved, 0, sizeof(s_cachedClippingWeaponsResolved));
             memset(s_cachedWeaponIdsResolved, 0, sizeof(s_cachedWeaponIdsResolved));
             memset(s_cachedAmmoClipsResolved, 0, sizeof(s_cachedAmmoClipsResolved));
             memset(s_cachedInvHandleArrays, 0, sizeof(s_cachedInvHandleArrays));
@@ -47,7 +47,6 @@
         activeWeaponHandles[i] = 0;
         activeWeaponEntries[i] = 0;
         activeWeapons[i] = 0;
-        clippingWeapons[i] = 0;
         weaponIds[i] = 0;
         ammoClips[i] = 0;
         inventoryWeaponCounts[i] = 0;
@@ -62,7 +61,6 @@
         s_cachedActiveWeaponHandles[i] = 0;
         s_cachedActiveWeaponEntries[i] = 0;
         s_cachedActiveWeaponsResolved[i] = 0;
-        s_cachedClippingWeaponsResolved[i] = 0;
         s_cachedWeaponIdsResolved[i] = 0;
         s_cachedAmmoClipsResolved[i] = 0;
         s_cachedInvCounts[i] = 0;
@@ -115,7 +113,6 @@
         activeWeaponHandles[i] = s_cachedActiveWeaponHandles[i];
         activeWeaponEntries[i] = s_cachedActiveWeaponEntries[i];
         activeWeapons[i] = s_cachedActiveWeaponsResolved[i];
-        clippingWeapons[i] = s_cachedClippingWeaponsResolved[i];
         weaponIds[i] = s_cachedWeaponIdsResolved[i];
         ammoClips[i] = s_cachedAmmoClipsResolved[i];
         inventoryWeaponCounts[i] = s_cachedInvCounts[i];
@@ -132,7 +129,6 @@
         s_cachedActiveWeaponHandles[i] = activeWeaponHandles[i];
         s_cachedActiveWeaponEntries[i] = activeWeaponEntries[i];
         s_cachedActiveWeaponsResolved[i] = activeWeapons[i];
-        s_cachedClippingWeaponsResolved[i] = clippingWeapons[i];
         s_cachedWeaponIdsResolved[i] = weaponIds[i];
         s_cachedAmmoClipsResolved[i] = ammoClips[i];
     };
@@ -149,14 +145,6 @@
 
     for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx)
         copyInventorySlotFromCache(inventoryPlayerSlots[inventorySlotIdx]);
-
-    if (ofs.C_CSPlayerPawn_m_pClippingWeapon <= 0) {
-        for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
-            const int i = inventoryPlayerSlots[inventorySlotIdx];
-            clippingWeapons[i] = 0;
-            s_cachedClippingWeaponsResolved[i] = 0;
-        }
-    }
 
     const uint64_t inventoryNowUs = TickNowUs();
     const bool wantsInventoryData =
@@ -239,7 +227,7 @@
                     ++weaponServiceCount;
                 if (activeWeaponHandles[i] && activeWeaponHandles[i] != 0xFFFFFFFFu)
                     ++activeHandleCount;
-                if (activeWeapons[i] || clippingWeapons[i])
+                if (activeWeapons[i])
                     ++activeEntityCount;
                 const int inventorySlotCount = getInventorySlotCount(i);
                 for (int slot = 0; slot < inventorySlotCount; ++slot) {
@@ -276,12 +264,11 @@
                     continue;
                 ++sampleCount;
                 DmaLogPrintf(
-                    "[DEBUG] WeaponChain sample: slot=%d pawn=0x%llX activeHandle=0x%X activeEnt=0x%llX clip=0x%llX weaponId=%u ammo=%d invCount=%d bomb(carrier/inv)=%d/%d",
+                    "[DEBUG] WeaponChain sample: slot=%d pawn=0x%llX activeHandle=0x%X activeEnt=0x%llX weaponId=%u ammo=%d invCount=%d bomb(carrier/inv)=%d/%d",
                     i,
                     static_cast<unsigned long long>(pawns[i]),
                     activeWeaponHandles[i],
                     static_cast<unsigned long long>(activeWeapons[i]),
-                    static_cast<unsigned long long>(clippingWeapons[i]),
                     static_cast<unsigned>(weaponIds[i]),
                     ammoClips[i],
                     invValid,

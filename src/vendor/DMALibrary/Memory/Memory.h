@@ -42,6 +42,7 @@ private:
 	static inline BOOLEAN DMA_INITIALIZED = FALSE;
 	static inline BOOLEAN PROCESS_INITIALIZED = FALSE;
 	static inline std::atomic<bool> SCATTER_WARN_SUPPRESSED = false;
+	static inline std::atomic<bool> DIRECT_WARN_SUPPRESSED = false;
 	static inline thread_local uint32_t SCATTER_PENDING_COUNT = 0;
 	static inline thread_local uint32_t SCATTER_PREPARE_FAIL_COUNT = 0;
 	static inline DmaInitStats LAST_DMA_INIT_STATS = {};
@@ -358,6 +359,7 @@ public:
 	bool ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid = 0);
 	void ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid = 0);
 	void SetScatterReadWarningSuppressed(bool suppressed);
+	void SetDirectReadWarningSuppressed(bool suppressed);
 
 	/*the FPGA handle*/
 	VMM_HANDLE vHandle;

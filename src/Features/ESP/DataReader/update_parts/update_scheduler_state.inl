@@ -24,13 +24,14 @@
         : 0;
     const int maxClientsHint = std::clamp(engineMaxClients, 0, 64);
     const int engineBudgetHint =
-        (maxClientsHint > 0 && maxClientsHint < 64)
-        ? maxClientsHint
-        : 0;
+        (maxClientsHint >= 32)
+        ? 64
+        : (maxClientsHint > 0 ? maxClientsHint : 0);
     bool forceFullPlayerDiscoverySweep = false;
     int playerSlotScanLimit = 64;
-    if (engineBudgetHint > 0 || lastTrackedPlayerSlotHint > 0 || activePlayerHint > 0 ||
-        localPlayerSlotHint > 0 || hierarchyHighWaterSlotHint > 0) {
+    if (engineBudgetHint >= 64) {
+        playerSlotScanLimit = 64;
+    } else if (engineBudgetHint > 0) {
         const int seed =
             std::max({
                 engineBudgetHint,

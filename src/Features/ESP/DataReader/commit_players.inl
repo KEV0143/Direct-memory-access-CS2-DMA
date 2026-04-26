@@ -1,9 +1,34 @@
+        static uint64_t s_commitPlayerResetSerial = 0;
+        static uint64_t s_zeroPawnSinceUs[64] = {};
+        static uint64_t s_coreInvalidSinceUs[64] = {};
+        static uint64_t s_deadReadSinceUs[64] = {};
+        static uintptr_t s_deadReadPawn[64] = {};
+        static uint64_t s_lastAliveCoreReadUs[64] = {};
+        const uint64_t commitPlayerResetSerial = s_sceneResetSerial.load(std::memory_order_relaxed);
+        if (s_commitPlayerResetSerial != commitPlayerResetSerial) {
+            s_commitPlayerResetSerial = commitPlayerResetSerial;
+            memset(s_zeroPawnSinceUs, 0, sizeof(s_zeroPawnSinceUs));
+            memset(s_coreInvalidSinceUs, 0, sizeof(s_coreInvalidSinceUs));
+            memset(s_deadReadSinceUs, 0, sizeof(s_deadReadSinceUs));
+            memset(s_deadReadPawn, 0, sizeof(s_deadReadPawn));
+            memset(s_lastAliveCoreReadUs, 0, sizeof(s_lastAliveCoreReadUs));
+        }
+
+        auto clearPendingPlayerState = [&](int idx) {
+            s_zeroPawnSinceUs[idx] = 0;
+            s_coreInvalidSinceUs[idx] = 0;
+            s_deadReadSinceUs[idx] = 0;
+            s_deadReadPawn[idx] = 0;
+        };
+
         auto invalidatePlayerSlot = [&](int idx) {
             const bool hadTrackedPlayer = s_players[idx].valid || s_players[idx].pawn != 0;
             s_playerInvalidReadStreak[idx] = 0;
             refreshed[idx] = false;
             s_players[idx] = {};
             s_prevRawPlayerPosReady[idx] = false;
+            clearPendingPlayerState(idx);
+            s_lastAliveCoreReadUs[idx] = 0;
             if (hadTrackedPlayer)
                 publishCoreImmediately = true;
         };
@@ -11,9 +36,10 @@
         
         
         
-        constexpr int kGracePeriodFrames = 24;
-        constexpr int kZeroPawnGraceFrames = 3;
-        constexpr int kDeathConfirmFrames = 3;
+        constexpr uint64_t kCoreStaleHoldUs = 1200000;
+        constexpr uint64_t kCoreStaleHoldAfterResetUs = 1800000;
+        constexpr uint64_t kZeroPawnGraceUs = 1400000;
+        constexpr uint64_t kDeathConfirmUs = 80000;
         constexpr float kRespawnTeleportDistance2D = 512.0f;
         const uint64_t recentResetUs = s_lastSceneResetUs.load(std::memory_order_relaxed);
         const bool recentStructuralReset =
@@ -46,6 +72,23 @@
                 (teams[i] == 2 || teams[i] == 3);
             const bool positionValid =
                 isValidWorldPos(positions[i]);
+            const bool coreFreshThisFrame =
+                coreReadFresh[i] &&
+                coreReadPlausible[i] &&
+                pawns[i] != 0;
+            const bool coreAliveThisFrame =
+                coreFreshThisFrame &&
+                coreReadAlive[i] &&
+                healths[i] > 0 &&
+                lifeStates[i] == 0;
+            const bool coreDeadThisFrame =
+                coreFreshThisFrame &&
+                !coreAliveThisFrame &&
+                (healths[i] <= 0 || lifeStates[i] != 0);
+            if (coreFreshThisFrame) {
+                if (coreAliveThisFrame)
+                    s_lastAliveCoreReadUs[i] = nowUs;
+            }
             const bool hadTrackedPlayer =
                 s_players[i].valid &&
                 s_players[i].pawn != 0;
@@ -53,10 +96,14 @@
                 hadTrackedPlayer &&
                 s_players[i].pawn != pawns[i];
             const bool coreLooksInvalid =
+                !coreAliveThisFrame ||
                 !teamValid ||
-                healths[i] <= 0 ||
-                lifeStates[i] != 0 ||
                 !positionValid;
+            const bool structuralLiveEvidence =
+                pawns[i] != 0 &&
+                coreFreshThisFrame &&
+                teamValid &&
+                positionValid;
 
             if (isLocalSlot || isLocalControllerSlot || isLocalPawn || isLocalHandle) {
                 invalidatePlayerSlot(i);
@@ -64,62 +111,103 @@
                 continue;
             }
             if (!pawns[i]) {
-                if (s_players[i].valid && s_players[i].pawn != 0 &&
-                    s_playerInvalidReadStreak[i] < kZeroPawnGraceFrames) {
-                    if (!sceneSettling || recentStructuralReset)
-                        ++s_playerInvalidReadStreak[i];
+                if (s_players[i].valid && s_players[i].pawn != 0) {
+                    if (s_zeroPawnSinceUs[i] == 0)
+                        s_zeroPawnSinceUs[i] = nowUs;
+                    if ((nowUs - s_zeroPawnSinceUs[i]) < kZeroPawnGraceUs) {
+                        if (!sceneSettling || recentStructuralReset)
+                            ++s_playerInvalidReadStreak[i];
+                        refreshed[i] = true;
+                        continue;
+                    }
+                }
+                clearPendingPlayerState(i);
+                invalidatePlayerSlot(i);
+                s_deathConfirmCount[i] = 0;
+                continue;
+            }
+            s_zeroPawnSinceUs[i] = 0;
+            if (localTeamLikelySwitched && !teamLiveResolved) {
+                if (s_players[i].valid && s_players[i].pawn == pawns[i]) {
+                    if (s_coreInvalidSinceUs[i] == 0)
+                        s_coreInvalidSinceUs[i] = nowUs;
+                    ++s_playerInvalidReadStreak[i];
                     refreshed[i] = true;
                     continue;
                 }
-                invalidatePlayerSlot(i);
-                s_deathConfirmCount[i] = 0;
-                continue;
-            }
-            if (localTeamLikelySwitched && !teamLiveResolved) {
-                invalidatePlayerSlot(i);
-                s_deathConfirmCount[i] = 0;
-                continue;
             }
             if (coreLooksInvalid) {
-                if (localTeamLikelySwitched && !teamValid) {
-                    invalidatePlayerSlot(i);
-                    s_deathConfirmCount[i] = 0;
+                const bool missingFreshCore = !coreFreshThisFrame;
+                const uint64_t coreStaleHoldUs =
+                    (sceneSettling || recentStructuralReset)
+                    ? kCoreStaleHoldAfterResetUs
+                    : kCoreStaleHoldUs;
+                const bool canTemporarilyHoldAliveCore =
+                    missingFreshCore &&
+                    !pawnChangedThisFrame &&
+                    s_players[i].valid &&
+                    s_players[i].pawn == pawns[i] &&
+                    s_lastAliveCoreReadUs[i] > 0 &&
+                    nowUs >= s_lastAliveCoreReadUs[i] &&
+                    (nowUs - s_lastAliveCoreReadUs[i]) <= coreStaleHoldUs;
+                if (canTemporarilyHoldAliveCore) {
+                    if (s_coreInvalidSinceUs[i] == 0)
+                        s_coreInvalidSinceUs[i] = nowUs;
+                    ++s_playerInvalidReadStreak[i];
+                    refreshed[i] = true;
                     continue;
                 }
-                
-                
+
                 const bool looksDeadThisFrame =
-                    teamValid && (healths[i] <= 0 || lifeStates[i] != 0);
+                    structuralLiveEvidence &&
+                    coreDeadThisFrame &&
+                    (healths[i] <= 0 || lifeStates[i] != 0);
                 if (looksDeadThisFrame) {
+                    if (s_deadReadPawn[i] != pawns[i]) {
+                        s_deadReadPawn[i] = pawns[i];
+                        s_deadReadSinceUs[i] = nowUs;
+                    } else if (s_deadReadSinceUs[i] == 0) {
+                        s_deadReadSinceUs[i] = nowUs;
+                    }
                     ++s_deathConfirmCount[i];
                 } else {
                     s_deathConfirmCount[i] = 0;
+                    s_deadReadSinceUs[i] = 0;
+                    s_deadReadPawn[i] = 0;
                 }
-                const bool confirmedDead = looksDeadThisFrame && s_deathConfirmCount[i] >= kDeathConfirmFrames;
-                const int invalidGraceFrames = kGracePeriodFrames;
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                const bool canGraceBadRead =
-                    !confirmedDead &&
+                const bool confirmedDead =
+                    looksDeadThisFrame &&
+                    s_deathConfirmCount[i] >= 2 &&
+                    s_deadReadSinceUs[i] > 0 &&
+                    nowUs > s_deadReadSinceUs[i] &&
+                    (nowUs - s_deadReadSinceUs[i]) >= kDeathConfirmUs;
+                if (confirmedDead && s_players[i].valid && s_players[i].pawn == pawns[i]) {
+                    s_players[i].health = 0;
+                    s_players[i].hasBones = false;
+                    memset(s_players[i].bones, 0, sizeof(s_players[i].bones));
+                }
+                if (!confirmedDead &&
                     !pawnChangedThisFrame &&
-                    s_playerInvalidReadStreak[i] < invalidGraceFrames;
-                if (canGraceBadRead) {
-                    if (!sceneSettling || recentStructuralReset)
-                        ++s_playerInvalidReadStreak[i];
-                    refreshed[i] = true;
-                    continue;
+                    s_players[i].valid &&
+                    s_players[i].pawn != 0) {
+                    if (s_coreInvalidSinceUs[i] == 0)
+                        s_coreInvalidSinceUs[i] = nowUs;
+                    const uint64_t invalidGraceUs = looksDeadThisFrame
+                        ? kDeathConfirmUs
+                        : coreStaleHoldUs;
+                    if ((nowUs - s_coreInvalidSinceUs[i]) < invalidGraceUs) {
+                        if (!sceneSettling || recentStructuralReset)
+                            ++s_playerInvalidReadStreak[i];
+                        refreshed[i] = true;
+                        continue;
+                    }
                 }
+                clearPendingPlayerState(i);
                 invalidatePlayerSlot(i);
                 s_deathConfirmCount[i] = 0;
                 continue;
             }
+            clearPendingPlayerState(i);
             s_deathConfirmCount[i] = 0;
             s_playerInvalidReadStreak[i] = 0;
             refreshed[i] = true;
@@ -173,9 +261,6 @@
                 lifeStates[i] == 0 &&
                 positionJump2D >= kRespawnTeleportDistance2D;
             if (respawnedThisFrame || likelyRoundRespawnTeleport) {
-                
-                
-                
                 s_prevRawPlayerPosReady[i] = false;
                 p.hasBones = false;
                 memset(p.bones, 0, sizeof(p.bones));

@@ -19,8 +19,12 @@
         static uint64_t s_lastHierarchyRefreshUs = 0;
         static int s_playerDiscoveryCursor = 0;
         static uint32_t s_zeroControllerStreak = 0;
+        static uint64_t s_lastZeroControllerRefreshUs = 0;
+        static uint64_t s_lastZeroControllerRecoveryUs = 0;
         static uint32_t s_partialHierarchyStreak = 0;
-        static uint64_t s_lastPartialHierarchyRecoveryUs = 0;
+        static uint64_t s_partialHierarchySinceUs = 0;
+        static uint16_t s_hierarchyMissingStreaks[64] = {};
+        static uint64_t s_hierarchyLastPresentUs[64] = {};
         const uint64_t controllerResetSerial = s_sceneResetSerial.load(std::memory_order_relaxed);
         if (s_hierarchyCacheResetSerial != controllerResetSerial) {
             s_hierarchyCacheResetSerial = controllerResetSerial;
@@ -28,12 +32,16 @@
             s_lastHierarchyRefreshUs = 0;
             s_playerDiscoveryCursor = 0;
             s_zeroControllerStreak = 0;
+            s_lastZeroControllerRefreshUs = 0;
+            s_lastZeroControllerRecoveryUs = 0;
             s_partialHierarchyStreak = 0;
-            s_lastPartialHierarchyRecoveryUs = 0;
+            s_partialHierarchySinceUs = 0;
             memset(s_cachedControllers, 0, sizeof(s_cachedControllers));
             memset(s_cachedPawnHandles, 0, sizeof(s_cachedPawnHandles));
             memset(s_cachedPawnEntries, 0, sizeof(s_cachedPawnEntries));
             memset(s_cachedPawns, 0, sizeof(s_cachedPawns));
+            memset(s_hierarchyMissingStreaks, 0, sizeof(s_hierarchyMissingStreaks));
+            memset(s_hierarchyLastPresentUs, 0, sizeof(s_hierarchyLastPresentUs));
         }
 
         for (int i = 0; i < 64; ++i) {
@@ -72,8 +80,12 @@
 
         uintptr_t prevCachedControllers[64] = {};
         uintptr_t prevCachedPawnEntries[64] = {};
+        uint32_t prevCachedPawnHandles[64] = {};
+        uintptr_t prevCachedPawns[64] = {};
         memcpy(prevCachedControllers, s_cachedControllers, sizeof(prevCachedControllers));
         memcpy(prevCachedPawnEntries, s_cachedPawnEntries, sizeof(prevCachedPawnEntries));
+        memcpy(prevCachedPawnHandles, s_cachedPawnHandles, sizeof(prevCachedPawnHandles));
+        memcpy(prevCachedPawns, s_cachedPawns, sizeof(prevCachedPawns));
         memcpy(controllers, s_cachedControllers, sizeof(controllers));
         memcpy(pawnHandles, s_cachedPawnHandles, sizeof(pawnHandles));
         memcpy(pawnEntries, s_cachedPawnEntries, sizeof(pawnEntries));
@@ -83,7 +95,7 @@
         int playerRefreshSlotCount = 0;
         bool playerRefreshSlotMask[64] = {};
         auto pushRefreshSlot = [&](int idx) {
-            if (idx < 0 || idx >= 64 || playerRefreshSlotMask[idx])
+            if (idx < 0 || idx >= 64 || playerRefreshSlotMask[idx] || playerRefreshSlotCount >= 64)
                 return;
             playerRefreshSlotMask[idx] = true;
             playerRefreshSlots[playerRefreshSlotCount++] = idx;
@@ -112,7 +124,7 @@
             
             
             const int discoveryBudget =
-                !s_controllerCacheWarmed
+                (!s_controllerCacheWarmed || hierarchyWarmupActive)
                 ? 64
                 : forceFullPlayerDiscoverySweep
                 ? std::clamp(std::max(12, activePlayerHint + 8), 12, 24)
@@ -151,7 +163,6 @@
                 if (!isLikelyGamePointer(controllers[i]))
                     controllers[i] = 0;
             }
-
             if (!s_controllerCacheWarmed || forceFullPlayerDiscoverySweep) {
                 bool anyDiscoveryRetry = false;
                 for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
@@ -195,46 +206,51 @@
 
             {
                 bool anyNew = false;
-                int cachedCount = 0;
                 for (int i = 0; i < 64; ++i) {
                     s_cachedControllers[i] = controllers[i];
                     if (controllers[i]) {
                         anyNew = true;
                     }
-                    if (s_cachedControllers[i])
-                        ++cachedCount;
-                }
-
-                if (!s_controllerCacheWarmed) {
-                    const int warmupTargetControllers = std::clamp(
-                        (maxClientsHint > 0)
-                            ? std::min(maxClientsHint, 8)
-                            : std::max(4, activePlayerHint + 2),
-                        4, 8);
-                    const bool localControllerReady =
-                        localPlayerSlotHint <= 0 ||
-                        (localPlayerSlotHint <= 64 && s_cachedControllers[localPlayerSlotHint - 1] != 0);
-                    if (cachedCount >= warmupTargetControllers && localControllerReady) {
-                        s_controllerCacheWarmed = true;
-                        if (sceneWarmupState != esp::SceneWarmupState::Stable) {
-                            setSceneWarmupState(esp::SceneWarmupState::Stable);
-                            sceneWarmupState = esp::SceneWarmupState::Stable;
-                        }
-                    } else if (sceneWarmupState != esp::SceneWarmupState::SceneTransition) {
-                        setSceneWarmupState(esp::SceneWarmupState::HierarchyWarming);
-                        sceneWarmupState = esp::SceneWarmupState::HierarchyWarming;
-                    }
                 }
 
                 if (!anyNew) {
                     ++s_zeroControllerStreak;
-                    if (!sceneSettling && s_zeroControllerStreak >= 4 && (s_zeroControllerStreak % 4) == 0) {
-                        setSceneWarmupState(esp::SceneWarmupState::Recovery);
-                        sceneWarmupState = esp::SceneWarmupState::Recovery;
-                        refreshDmaCaches("stale_tlb_no_controllers", DmaRefreshTier::Probe);
+                    const bool liveHierarchyExpected =
+                        s_engineInGame.load(std::memory_order_relaxed) &&
+                        !s_engineMenu.load(std::memory_order_relaxed) &&
+                        entityList != 0 &&
+                        listEntry != 0;
+                    if (!sceneSettling && liveHierarchyExpected) {
+                        const bool refreshCooldownElapsed =
+                            s_lastZeroControllerRefreshUs == 0 ||
+                            hierarchyNowUs <= s_lastZeroControllerRefreshUs ||
+                            (hierarchyNowUs - s_lastZeroControllerRefreshUs) >= 750000u;
+                        if (refreshCooldownElapsed && s_zeroControllerStreak >= 4) {
+                            s_lastZeroControllerRefreshUs = hierarchyNowUs;
+                            if (s_zeroControllerStreak >= 36) {
+                                setSceneWarmupState(esp::SceneWarmupState::Recovery);
+                                sceneWarmupState = esp::SceneWarmupState::Recovery;
+                                refreshDmaCaches("stale_tlb_no_controllers_full", DmaRefreshTier::Full);
+                            } else if (s_zeroControllerStreak >= 16) {
+                                refreshDmaCaches("stale_tlb_no_controllers_repair", DmaRefreshTier::Repair);
+                            } else {
+                                refreshDmaCaches("stale_tlb_no_controllers_probe", DmaRefreshTier::Probe);
+                            }
+                        }
+
+                        const bool recoveryCooldownElapsed =
+                            s_lastZeroControllerRecoveryUs == 0 ||
+                            hierarchyNowUs <= s_lastZeroControllerRecoveryUs ||
+                            (hierarchyNowUs - s_lastZeroControllerRecoveryUs) >= 8000000u;
+                        if (s_zeroControllerStreak >= 72 && recoveryCooldownElapsed) {
+                            s_lastZeroControllerRecoveryUs = hierarchyNowUs;
+                            refreshDmaCaches("stale_tlb_no_controllers_persistent", DmaRefreshTier::Full);
+                        }
                     }
                 } else {
                     s_zeroControllerStreak = 0;
+                    s_lastZeroControllerRefreshUs = 0;
+                    s_lastZeroControllerRecoveryUs = 0;
                 }
             }
 
@@ -407,9 +423,76 @@
                 }
             }
 
+            {
+                constexpr uint64_t kHierarchyStableMissingHoldUs = 1800000u;
+                constexpr uint64_t kHierarchyResetMissingHoldUs = 3000000u;
+                constexpr uint16_t kHierarchyStableMissingThreshold = 48u;
+                constexpr uint16_t kHierarchyResetMissingThreshold = 96u;
+                const uint64_t recentResetUs = s_lastSceneResetUs.load(std::memory_order_relaxed);
+                const bool recentStructuralReset =
+                    recentResetUs > 0 &&
+                    hierarchyNowUs > recentResetUs &&
+                    (hierarchyNowUs - recentResetUs) <= 4000000u;
+                const uint64_t missingHoldUs =
+                    recentStructuralReset || sceneWarmupState != esp::SceneWarmupState::Stable
+                    ? kHierarchyResetMissingHoldUs
+                    : kHierarchyStableMissingHoldUs;
+                const uint16_t missingThreshold =
+                    recentStructuralReset || sceneWarmupState != esp::SceneWarmupState::Stable
+                    ? kHierarchyResetMissingThreshold
+                    : kHierarchyStableMissingThreshold;
+
+                for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
+                    const int i = playerRefreshSlots[slotIdx];
+                    const bool liveHierarchyReady =
+                        controllers[i] != 0 &&
+                        isValidPawnHandle(pawnHandles[i]) &&
+                        pawnEntries[i] != 0 &&
+                        pawns[i] != 0;
+                    if (liveHierarchyReady) {
+                        s_hierarchyMissingStreaks[i] = 0;
+                        s_hierarchyLastPresentUs[i] = hierarchyNowUs;
+                        continue;
+                    }
+
+                    const bool previousHierarchyReady =
+                        prevCachedControllers[i] != 0 &&
+                        isValidPawnHandle(prevCachedPawnHandles[i]) &&
+                        prevCachedPawnEntries[i] != 0 &&
+                        prevCachedPawns[i] != 0;
+                    if (!previousHierarchyReady) {
+                        s_hierarchyMissingStreaks[i] = 0;
+                        s_hierarchyLastPresentUs[i] = 0;
+                        continue;
+                    }
+
+                    const bool controllerCompatible =
+                        controllers[i] == 0 ||
+                        controllers[i] == prevCachedControllers[i];
+                    const bool holdAgeAllowed =
+                        s_hierarchyLastPresentUs[i] == 0 ||
+                        hierarchyNowUs <= s_hierarchyLastPresentUs[i] ||
+                        (hierarchyNowUs - s_hierarchyLastPresentUs[i]) <= missingHoldUs;
+                    if (s_hierarchyMissingStreaks[i] < 0xFFFFu)
+                        ++s_hierarchyMissingStreaks[i];
+
+                    if (controllerCompatible &&
+                        holdAgeAllowed &&
+                        s_hierarchyMissingStreaks[i] < missingThreshold) {
+                        controllers[i] = prevCachedControllers[i];
+                        pawnHandles[i] = prevCachedPawnHandles[i];
+                        pawnEntries[i] = prevCachedPawnEntries[i];
+                        pawns[i] = prevCachedPawns[i];
+                    } else {
+                        s_hierarchyLastPresentUs[i] = 0;
+                    }
+                }
+            }
+
             for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
                 const int i = playerRefreshSlots[slotIdx];
 
+                s_cachedControllers[i] = controllers[i];
                 s_cachedPawns[i] = pawns[i];
                 s_cachedPawnHandles[i] = pawnHandles[i];
                 s_cachedPawnEntries[i] = pawnEntries[i];
@@ -451,23 +534,63 @@
                     hierarchyNowUs > recentResetUs &&
                     (hierarchyNowUs - recentResetUs) <= 4000000u;
                 const int hierarchyMissingTolerance = recentStructuralReset ? 0 : 2;
-                const uint32_t partialHierarchyThreshold = recentStructuralReset ? 24u : 60u;
-                const uint32_t partialHierarchyCadence = recentStructuralReset ? 12u : 30u;
+                const int warmupTargetControllers = std::clamp(
+                    (maxClientsHint > 0)
+                        ? std::min(maxClientsHint, 8)
+                        : std::max(4, activePlayerHint + 2),
+                    4, 8);
+                const int warmupTargetPawnHandles =
+                    std::clamp(warmupTargetControllers - 1, 2, warmupTargetControllers);
+                const int warmupTargetPawns =
+                    std::clamp(warmupTargetControllers - 2, 2, warmupTargetControllers);
+                const bool localControllerReady =
+                    localPlayerSlotHint <= 0 ||
+                    (localPlayerSlotHint <= 64 && controllers[localPlayerSlotHint - 1] != 0);
+                bool localPawnReady =
+                    localPawn == 0 ||
+                    (localControllerPawnHandle != 0u && localControllerPawnHandle != 0xFFFFFFFFu);
+                if (localPawn != 0) {
+                    for (int i = 0; i < resolvedPlayerSlotLimit; ++i) {
+                        if (pawns[i] == localPawn) {
+                            localPawnReady = true;
+                            break;
+                        }
+                    }
+                }
+                const bool hierarchyWarmupSatisfied =
+                    controllerCount >= warmupTargetControllers &&
+                    pawnHandleCount >= warmupTargetPawnHandles &&
+                    pawnCount >= warmupTargetPawns &&
+                    localControllerReady &&
+                    localPawnReady;
+                if (!s_controllerCacheWarmed) {
+                    if (hierarchyWarmupSatisfied) {
+                        s_controllerCacheWarmed = true;
+                        if (sceneWarmupState != esp::SceneWarmupState::Stable) {
+                            setSceneWarmupState(esp::SceneWarmupState::Stable);
+                            sceneWarmupState = esp::SceneWarmupState::Stable;
+                        }
+                    } else if (sceneWarmupState != esp::SceneWarmupState::SceneTransition) {
+                        setSceneWarmupState(esp::SceneWarmupState::HierarchyWarming);
+                        sceneWarmupState = esp::SceneWarmupState::HierarchyWarming;
+                    }
+                }
+
                 const bool hierarchyLooksPartial =
                     controllerCount >= 2 &&
                     pawnHandleCount >= 2 &&
                     pawnCount + hierarchyMissingTolerance < pawnHandleCount;
-                if (hierarchyLooksPartial && localHierarchyEvidence) {
+                const bool hierarchyLooksUnderResolved =
+                    controllerCount >= warmupTargetControllers &&
+                    pawnHandleCount >= std::max(2, warmupTargetPawnHandles - 1) &&
+                    pawnCount <= std::max(1, controllerCount / 4);
+                if ((hierarchyLooksPartial || hierarchyLooksUnderResolved) && localHierarchyEvidence) {
+                    if (s_partialHierarchySinceUs == 0)
+                        s_partialHierarchySinceUs = hierarchyNowUs;
                     ++s_partialHierarchyStreak;
-                    if (!sceneSettling &&
-                        s_partialHierarchyStreak >= partialHierarchyThreshold &&
-                        (s_partialHierarchyStreak % partialHierarchyCadence) == 0u) {
-                        refreshDmaCaches(
-                            "partial_player_hierarchy",
-                            recentStructuralReset ? DmaRefreshTier::Repair : DmaRefreshTier::Probe);
-                    }
                 } else {
                     s_partialHierarchyStreak = 0;
+                    s_partialHierarchySinceUs = 0;
                 }
             }
         }

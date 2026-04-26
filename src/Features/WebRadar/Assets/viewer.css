@@ -719,6 +719,11 @@ input {
   filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.32));
 }
 
+.map-shell.is-map-unknown .map-shell__image,
+.map-shell.is-map-unknown .radar-overlay {
+  opacity: 0;
+}
+
 .radar-overlay {
   position: absolute;
   inset: 0;
@@ -887,8 +892,7 @@ body.only-radar .app-shell {
 
 body.only-radar .topbar,
 body.only-radar .team-panel,
-body.only-radar .radar-message,
-body.only-radar .bomb-status {
+body.only-radar .radar-message {
   display: none !important;
 }
 
@@ -948,23 +952,125 @@ body.only-radar .map-shell {
   top: 14px;
   left: auto;
   right: 14px;
-  width: fit-content;
+  width: 214px;
 }
 
-.bomb-status__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+.bomb-timer {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 7px;
+  padding: 10px 11px;
+  color: #ffc84f;
+  background:
+    linear-gradient(180deg, rgba(20, 18, 12, 0.88), rgba(9, 16, 23, 0.82));
+  border-color: rgba(255, 198, 78, 0.26);
+}
+
+.bomb-status.is-carrier-only {
+  width: 230px;
+}
+
+.bomb-timer__row {
+  min-height: 16px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.bomb-timer__carrier {
+  color: #ffc84f;
+}
+
+.bomb-timer__icon {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
   background: currentColor;
-  box-shadow: 0 0 12px currentColor;
+  -webkit-mask: url("./assets/icons/c4.svg") no-repeat center / contain;
+  mask: url("./assets/icons/c4.svg") no-repeat center / contain;
 }
 
-.bomb-status.is-red {
-  color: #ef7373;
+.bomb-timer__accent {
+  width: 3px;
+  height: 15px;
+  border-radius: 999px;
+  background: currentColor;
 }
 
-.bomb-status.is-green {
-  color: #61d784;
+.bomb-timer__accent--defuse {
+  background: #61d784;
+}
+
+.bomb-timer__label {
+  flex: 1 1 auto;
+  color: currentColor;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.bomb-timer__value {
+  min-width: 0;
+  color: currentColor;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bomb-timer__bar {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(75, 56, 18, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(255, 198, 78, 0.16);
+}
+
+.bomb-timer__fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: #ffc84f;
+  transition: width 80ms linear, background 160ms ease;
+}
+
+.bomb-timer__defuse {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.bomb-timer__bar--defuse {
+  background: rgba(20, 60, 30, 0.68);
+  box-shadow: inset 0 0 0 1px rgba(97, 215, 132, 0.18);
+}
+
+.bomb-timer__bar--defuse .bomb-timer__fill {
+  background: #61d784;
+}
+
+.bomb-status.is-critical {
+  color: #ff6860;
+  border-color: rgba(255, 104, 96, 0.32);
+}
+
+.bomb-status.is-critical .bomb-timer__bar {
+  background: rgba(74, 24, 24, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(255, 104, 96, 0.18);
+}
+
+.bomb-status.is-critical .bomb-timer__bar:not(.bomb-timer__bar--defuse) .bomb-timer__fill {
+  background: #ff6860;
+}
+
+.bomb-status.is-defuse-late .bomb-timer__accent--defuse,
+.bomb-status.is-defuse-late .bomb-timer__bar--defuse .bomb-timer__fill {
+  background: #ff6860;
 }
 
 @keyframes bombRingSpin {

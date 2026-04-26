@@ -97,6 +97,9 @@ namespace g {
     inline auto& espBombColor = espSettings.bombColor;
     inline float& espBombTextSize = espSettings.bombTextSize;
     inline bool& espBombText = espSettings.bombText;
+    inline bool& espBombTime = espSettings.bombTime;
+    inline float& espBombTimerX = espSettings.bombTimerX;
+    inline float& espBombTimerY = espSettings.bombTimerY;
     inline auto& espSoundColor = espSettings.soundColor;
     inline float& espOffscreenSize = espSettings.offscreenSize;
     inline bool& espPreviewOpen = espSettings.previewOpen;
@@ -121,6 +124,9 @@ namespace g {
     inline auto& radarBombColor = radarSettings.bombColor;
     inline auto& radarAngleColor = radarSettings.angleColor;
     inline bool& radarCalibrationOpen = radarSettings.calibrationOpen;
+    inline bool& radarSpectatorList = radarSettings.spectatorList;
+    inline float& radarSpectatorListX = radarSettings.spectatorListX;
+    inline float& radarSpectatorListY = radarSettings.spectatorListY;
 
     inline bool& webRadarEnabled = webRadarSettings.enabled;
     inline int& webRadarIntervalMs = webRadarSettings.intervalMs;
@@ -135,5 +141,7 @@ namespace g {
 
     inline ImFont*& fontDefault = fontState.fontDefault;
     inline ImFont*& fontSegoeBold = fontState.fontSegoeBold;
+    inline ImFont*& fontComicSans = fontState.fontComicSans;
     inline ImFont*& fontWeaponIcons = fontState.fontWeaponIcons;
+    inline app::state::EspUiIconState& espUiIcons = state.espUiIcons;
 }

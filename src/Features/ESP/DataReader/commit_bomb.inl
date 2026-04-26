@@ -1,3 +1,14 @@
+        const int bombCommitSignOnState = s_engineSignOnState.load(std::memory_order_relaxed);
+        const bool bombCommitLiveContext =
+            s_engineInGame.load(std::memory_order_relaxed) &&
+            !s_engineMenu.load(std::memory_order_relaxed) &&
+            bombCommitSignOnState == 6;
+
+        if (!bombCommitLiveContext) {
+            s_bombState = {};
+            s_bombState.position = { NAN, NAN, NAN };
+            s_bombState.rawPosition = { NAN, NAN, NAN };
+        } else {
         const bool bombHasDroppedEvidence = IsDroppedBombResolveKind(bombResolve.kind);
 
         const bool bombDefinitelyCarried =
@@ -93,7 +104,9 @@
                 s_bombState.sourceFlags = s_lastConfirmedBombState.sourceFlags;
                 s_bombState.confidence = s_lastConfirmedBombState.confidence;
                 s_bombState.blowTime = s_lastConfirmedBombState.blowTime;
+                s_bombState.timerLength = s_lastConfirmedBombState.timerLength;
                 s_bombState.defuseEndTime = s_lastConfirmedBombState.defuseEndTime;
+                s_bombState.defuseLength = s_lastConfirmedBombState.defuseLength;
                 s_bombState.currentGameTime = s_lastConfirmedBombState.currentGameTime;
                 reusedConfirmedBombState = true;
             }
@@ -114,7 +127,7 @@
             targetBombBoundsValid = true;
         }
 
-        if (isValidWorldPos(targetBombPos)) {
+        if (isValidWorldPos(targetBombPos) && !bombEpochJustWiped) {
             s_lastVisibleBombPos = targetBombPos;
             s_lastVisibleBombBoundsMins = targetBombBoundsMins;
             s_lastVisibleBombBoundsMaxs = targetBombBoundsMaxs;
@@ -145,14 +158,25 @@
             gameTimeValid &&
             bombDefuseEndTime > currentGameTime &&
             bombDefuseEndTime < currentGameTime + 30.0f;
+        const bool timerLengthValid =
+            std::isfinite(bombTimerLength) &&
+            bombTimerLength >= 5.0f &&
+            bombTimerLength <= 90.0f;
+        const bool defuseLengthValid =
+            std::isfinite(bombDefuseLength) &&
+            bombDefuseLength >= 1.0f &&
+            bombDefuseLength <= 15.0f;
 
         if (!reusedConfirmedBombState) {
             s_bombState.blowTime = blowTimeValid ? bombBlowTime : 0.0f;
+            s_bombState.timerLength = timerLengthValid ? bombTimerLength : 0.0f;
             s_bombState.defuseEndTime = defuseTimeValid ? bombDefuseEndTime : 0.0f;
+            s_bombState.defuseLength = defuseLengthValid ? bombDefuseLength : 0.0f;
             s_bombState.currentGameTime = gameTimeValid ? currentGameTime : 0.0f;
         }
 
-        if (isValidWorldPos(s_bombState.position) && (s_bombState.planted || s_bombState.dropped)) {
+        if (isValidWorldPos(s_bombState.position) && (s_bombState.planted || s_bombState.dropped) && !bombEpochJustWiped) {
             s_lastConfirmedBombState = s_bombState;
             s_lastConfirmedBombStateUs = nowUs;
+        }
         }

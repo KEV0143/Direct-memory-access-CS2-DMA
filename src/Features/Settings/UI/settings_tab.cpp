@@ -13,6 +13,8 @@ const char* ui::tabs::SettingsTab::Label() const
 
 void ui::tabs::SettingsTab::Render(MenuState& state, IStatusSink& statusSink)
 {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10.0f, 8.0f));
     ImGui::BeginChild("##settingschild", ImVec2(0, 0), ImGuiChildFlags_Borders);
 
     const float panelGap = 14.0f;
@@ -36,7 +38,7 @@ void ui::tabs::SettingsTab::Render(MenuState& state, IStatusSink& statusSink)
     ImGui::Dummy(ImVec2(0.0f, 12.0f));
     static bool s_debugWindowOpen = false;
     if (ImGui::Button(s_debugWindowOpen ? "Close Debug / Telemetry" : "Open Debug / Telemetry",
-                       ImVec2(ImGui::GetContentRegionAvail().x, 30.0f)))
+                       ImVec2(ImGui::GetContentRegionAvail().x, 34.0f)))
         s_debugWindowOpen = !s_debugWindowOpen;
     ImGui::EndChild();
 
@@ -44,4 +46,5 @@ void ui::tabs::SettingsTab::Render(MenuState& state, IStatusSink& statusSink)
         settings_sections::RenderDebugWindow(&s_debugWindowOpen);
 
     ImGui::EndChild();
+    ImGui::PopStyleVar(2);
 }

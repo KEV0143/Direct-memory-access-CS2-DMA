@@ -8,6 +8,7 @@
     static uint64_t s_boneCacheResetSerial = 0;
     static uint64_t s_lastBoneReadsUs = 0;
     if (g::espSkeleton) {
+        const uint64_t boneSubsystemNowUs = TickNowUs();
         auto clearResolvedBoneSlot = [&](int i) {
             hasBoneData[i] = false;
             sceneNodes[i] = 0;
@@ -15,6 +16,37 @@
                 const int boneIdx = esp::kPlayerStoredBoneIds[b];
                 allBones[i][boneIdx] = {};
             }
+        };
+        auto copyCommittedBoneSlot = [&](int i, const esp::PlayerData& committed) -> bool {
+            if (i < 0 || i >= 64)
+                return false;
+            if (!committed.valid ||
+                !committed.hasBones ||
+                committed.pawn == 0 ||
+                committed.pawn != pawns[i]) {
+                return false;
+            }
+            hasBoneData[i] = true;
+            sceneNodes[i] = s_cachedSceneNodes[i];
+            for (int b = 0; b < esp::kPlayerStoredBoneCount; ++b) {
+                const int boneIdx = esp::kPlayerStoredBoneIds[b];
+                allBones[i][boneIdx] = committed.bones[b];
+            }
+            return true;
+        };
+        auto restoreCommittedBoneSlot = [&](int i) -> bool {
+            if (copyCommittedBoneSlot(i, s_players[i]))
+                return true;
+            return copyCommittedBoneSlot(i, s_prevPlayers[i]);
+        };
+        auto hasReusableCommittedBoneSlot = [&](int i) -> bool {
+            if (i < 0 || i >= 64 || !pawns[i])
+                return false;
+            const esp::PlayerData& current = s_players[i];
+            if (current.valid && current.hasBones && current.pawn == pawns[i])
+                return true;
+            const esp::PlayerData& previous = s_prevPlayers[i];
+            return previous.valid && previous.hasBones && previous.pawn == pawns[i];
         };
 
         {
@@ -36,12 +68,6 @@
             s_cachedBoneArrays[i] = 0;
         }
 
-        
-        
-        
-        
-        
-        
         int boneScanSlots[64] = {};
         int boneScanSlotCount = 0;
         const int boneFilterLocalTeam = s_localTeam;
@@ -57,19 +83,25 @@
             const bool staleTeamDuringSwitch =
                 localTeamLikelySwitched &&
                 !liveTeamReads[i];
+            const bool liveConfirmedTeammate =
+                liveTeamReads[i] &&
+                teams[i] == boneFilterLocalTeam;
+            const bool committedWouldRenderAsEnemy =
+                s_players[i].valid &&
+                s_players[i].pawn == pawns[i] &&
+                (boneFilterLocalTeam != 2 && boneFilterLocalTeam != 3 ||
+                 s_players[i].team != boneFilterLocalTeam);
             if (filterTeammatesForBones &&
-                teams[i] == boneFilterLocalTeam &&
-                !staleTeamDuringSwitch)
+                liveConfirmedTeammate &&
+                !staleTeamDuringSwitch &&
+                !committedWouldRenderAsEnemy) {
                 continue;
+            }
             boneScanSlots[boneScanSlotCount++] = i;
         }
         if (boneScanSlotCount == 0 &&
             filterTeammatesForBones &&
             playerResolvedSlotCount > 0) {
-            
-            
-            
-            
             for (int resolvedIdx = 0; resolvedIdx < playerResolvedSlotCount; ++resolvedIdx)
                 boneScanSlots[boneScanSlotCount++] = playerResolvedSlots[resolvedIdx];
         }
@@ -82,27 +114,31 @@
                 continue;
             if (!s_cachedSceneNodes[i] ||
                 !s_cachedBoneArrays[i] ||
-                !s_players[i].hasBones) {
+                !hasReusableCommittedBoneSlot(i)) {
                 boneReadsUrgent = true;
                 break;
             }
         }
+        constexpr uint64_t kBoneUrgentRetryUs = 12000;
         const bool boneReadsDue =
-            boneReadsUrgent ||
             s_lastBoneReadsUs == 0 ||
+            (boneReadsUrgent && (boneNowUs - s_lastBoneReadsUs) >= kBoneUrgentRetryUs) ||
             (boneNowUs - s_lastBoneReadsUs) >= esp::intervals::kBoneReadsUs;
         _boneReadsActiveTick = boneReadsDue;
 
-        if (!boneReadsDue) {
-            for (int resolvedIdx = 0; resolvedIdx < playerResolvedSlotCount; ++resolvedIdx) {
-                const int i = playerResolvedSlots[resolvedIdx];
-                clearResolvedBoneSlot(i);
-                sceneNodes[i] = s_cachedSceneNodes[i];
-            }
-        } else if (boneScanSlotCount == 0) {
-            
+        if (boneScanSlotCount == 0) {
             for (int resolvedIdx = 0; resolvedIdx < playerResolvedSlotCount; ++resolvedIdx)
                 clearResolvedBoneSlot(playerResolvedSlots[resolvedIdx]);
+            SetSubsystemUnknown(RuntimeSubsystem::Bones);
+        } else if (!boneReadsDue) {
+            for (int resolvedIdx = 0; resolvedIdx < playerResolvedSlotCount; ++resolvedIdx) {
+                const int i = playerResolvedSlots[resolvedIdx];
+                if (!restoreCommittedBoneSlot(i)) {
+                    clearResolvedBoneSlot(i);
+                    sceneNodes[i] = s_cachedSceneNodes[i];
+                }
+            }
+            MarkSubsystemHealthy(RuntimeSubsystem::Bones, boneSubsystemNowUs);
         } else {
             uintptr_t boneArrays[64] = {};
             int sceneNodeFailures = 0;
@@ -154,9 +190,11 @@
                 boneArrayFailures = 1;
                 for (int scanIdx = 0; scanIdx < boneScanSlotCount; ++scanIdx) {
                     const int i = boneScanSlots[scanIdx];
-                    sceneNodes[i] = 0;
-                    boneArrays[i] = 0;
-                    clearResolvedBoneSlot(i);
+                    if (!restoreCommittedBoneSlot(i)) {
+                        sceneNodes[i] = 0;
+                        boneArrays[i] = 0;
+                        clearResolvedBoneSlot(i);
+                    }
                 }
                 logUpdateDataIssue("scatter_16_17", "optional_failed_bone_merged_disabled");
             }
@@ -228,10 +266,19 @@
                 }
                 if (queuedFreshBoneReads && !mem.ExecuteReadScatter(handle)) {
                     boneReadFailures = 1;
-                    for (int scanIdx = 0; scanIdx < boneScanSlotCount; ++scanIdx)
-                        clearResolvedBoneSlot(boneScanSlots[scanIdx]);
+                    for (int scanIdx = 0; scanIdx < boneScanSlotCount; ++scanIdx) {
+                        const int i = boneScanSlots[scanIdx];
+                        if (!restoreCommittedBoneSlot(i))
+                            clearResolvedBoneSlot(i);
+                    }
                     logUpdateDataIssue("scatter_17_refresh", "optional_failed_bone_positions_refresh");
                 }
+            }
+
+            for (int scanIdx = 0; scanIdx < boneScanSlotCount; ++scanIdx) {
+                const int i = boneScanSlots[scanIdx];
+                if (!hasBoneData[i])
+                    restoreCommittedBoneSlot(i);
             }
 
             for (int scanIdx = 0; scanIdx < boneScanSlotCount; ++scanIdx) {
@@ -271,26 +318,24 @@
                         boneArrayCount,
                         readyCount,
                         esp::kPlayerStoredBoneCount);
-
-                    int sampleCount = 0;
-                    for (int scanIdx = 0; scanIdx < boneScanSlotCount && sampleCount < 3; ++scanIdx) {
-                        const int i = boneScanSlots[scanIdx];
-                        if (!pawns[i])
-                            continue;
-                        if (!sceneNodes[i] && !boneArrays[i] && !hasBoneData[i])
-                            continue;
-                        ++sampleCount;
-                        DmaLogPrintf(
-                            "[DEBUG] Bones sample: slot=%d pawn=0x%llX scene=0x%llX boneArray=0x%llX hasBones=%d health=%d life=%u",
-                            i,
-                            static_cast<unsigned long long>(pawns[i]),
-                            static_cast<unsigned long long>(sceneNodes[i]),
-                            static_cast<unsigned long long>(boneArrays[i]),
-                            hasBoneData[i] ? 1 : 0,
-                            healths[i],
-                            static_cast<unsigned>(lifeStates[i]));
-                    }
                 }
+            }
+
+            if (sceneNodeFailures > 0 || boneArrayFailures > 0 || boneReadFailures > 0) {
+                const bool anyCachedBones = [&]() -> bool {
+                    for (int scanIdx = 0; scanIdx < boneScanSlotCount; ++scanIdx) {
+                        const int i = boneScanSlots[scanIdx];
+                        if (s_cachedBoneArrays[i] != 0 || hasReusableCommittedBoneSlot(i))
+                            return true;
+                    }
+                    return false;
+                }();
+                if (anyCachedBones)
+                    MarkSubsystemDegraded(RuntimeSubsystem::Bones, boneSubsystemNowUs);
+                else
+                    MarkSubsystemFailed(RuntimeSubsystem::Bones, boneSubsystemNowUs);
+            } else {
+                MarkSubsystemHealthy(RuntimeSubsystem::Bones, boneSubsystemNowUs);
             }
         }
     } else if (narrowDebugEnabled(kNarrowDebugBones)) {
@@ -298,4 +343,7 @@
         if (narrowDebugTick(kNarrowDebugBones, s_bonesDisabledDebugCounter, 120u)) {
             DmaLogPrintf("[DEBUG] Bones: skipped skeleton=0");
         }
+        SetSubsystemUnknown(RuntimeSubsystem::Bones);
+    } else {
+        SetSubsystemUnknown(RuntimeSubsystem::Bones);
     }

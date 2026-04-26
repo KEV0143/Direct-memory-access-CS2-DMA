@@ -54,7 +54,10 @@
         esp["WorldExplosiveTimer"] = g::espWorldExplosiveTimer;
         esp["BombInfo"] = g::espBombInfo;
         esp["BombText"] = g::espBombText;
+        esp["BombTime"] = g::espBombTime;
         esp["BombTextSize"] = g::espBombTextSize;
+        esp["BombTimerX"] = g::espBombTimerX;
+        esp["BombTimerY"] = g::espBombTimerY;
         esp["OffscreenSize"] = g::espOffscreenSize;
         SaveColor(esp, "BoxColor", g::espBoxColor);
         SaveColor(esp, "HealthColor", g::espHealthColor);
@@ -98,6 +101,9 @@
         SaveColor(radar, "DotColor", g::radarDotColor);
         SaveColor(radar, "BombColor", g::radarBombColor);
         SaveColor(radar, "AngleColor", g::radarAngleColor);
+        radar["SpectatorList"] = g::radarSpectatorList;
+        radar["SpectatorListX"] = g::radarSpectatorListX;
+        radar["SpectatorListY"] = g::radarSpectatorListY;
 
         json& webRadar = EnsureSection(root, "WEBRadar");
         webRadar["Enabled"] = g::webRadarEnabled;

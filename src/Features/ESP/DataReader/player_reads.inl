@@ -31,8 +31,10 @@
     bool liveTeamReads[64] = {};
     uint8_t lifeStates[64] = {};
     Vector3 positions[64] = {};
+    bool coreReadFresh[64] = {};
+    bool coreReadPlausible[64] = {};
+    bool coreReadAlive[64] = {};
     uintptr_t sceneNodes[64] = {};
-    uintptr_t clippingWeapons[64] = {};
     uintptr_t weaponServices[64] = {};
     uint32_t activeWeaponHandles[64] = {};
     uintptr_t activeWeaponEntries[64] = {};
@@ -55,17 +57,76 @@
     };
     
     int weaponC4OwnerPlayerIndex = -1;
-    auto findPlayerIndexByEntityHandle = [&](uint32_t handleValue) -> int {
+    auto isValidEntityHandle = [&](uint32_t handleValue) -> bool {
         const uint32_t slot = handleValue & kEntityHandleMask;
-        if (slot == 0u || slot == 0x7FFFu)
+        return handleValue != 0u &&
+               handleValue != 0xFFFFFFFFu &&
+               slot != 0u &&
+               slot != kEntityHandleMask;
+    };
+    auto resolveEntityFromHandle = [&](uint32_t handleValue) -> uintptr_t {
+        if (!isValidEntityHandle(handleValue) || !entityList)
+            return 0;
+
+        const uint32_t entityIndex = handleValue & kEntityHandleMask;
+        const uint32_t block = entityIndex >> 9;
+        const uint32_t slot = entityIndex & kEntitySlotMask;
+        uintptr_t entry = 0;
+        if (!readPointer(entityList + 0x10 + 8ull * static_cast<uintptr_t>(block), &entry))
+            return 0;
+
+        uintptr_t entity = 0;
+        readPointer(entry + kEntitySlotSize * static_cast<uintptr_t>(slot), &entity);
+        if (!isLikelyGamePointer(entity) &&
+            kEntitySlotSizeFallback != kEntitySlotSize) {
+            uintptr_t fallbackEntity = 0;
+            readPointer(entry + kEntitySlotSizeFallback * static_cast<uintptr_t>(slot), &fallbackEntity);
+            if (isLikelyGamePointer(fallbackEntity))
+                entity = fallbackEntity;
+        }
+
+        return entity;
+    };
+    auto findPlayerIndexByEntityHandle = [&](uint32_t handleValue) -> int {
+        if (!isValidEntityHandle(handleValue))
             return -1;
+
+        const uintptr_t resolvedEntity = resolveEntityFromHandle(handleValue);
         for (int i = 0; i < 64; ++i) {
-            const uint32_t pawnSlot = pawnHandles[i] & kEntityHandleMask;
-            if (pawnSlot != 0u && pawnSlot == slot)
+            if (pawnHandles[i] == handleValue && pawns[i])
+                return i;
+            if (resolvedEntity && (pawns[i] == resolvedEntity || controllers[i] == resolvedEntity))
                 return i;
         }
-        if (slot <= 64u && controllers[slot - 1] != 0)
-            return static_cast<int>(slot - 1u);
+
+        if (resolvedEntity && ofs.C_BasePlayerPawn_m_hController > 0) {
+            uint32_t controllerHandle = 0;
+            if (readValue(resolvedEntity + ofs.C_BasePlayerPawn_m_hController, &controllerHandle, sizeof(controllerHandle)) &&
+                isValidEntityHandle(controllerHandle)) {
+                const uintptr_t controller = resolveEntityFromHandle(controllerHandle);
+                if (controller) {
+                    for (int i = 0; i < 64; ++i) {
+                        if (controllers[i] == controller)
+                            return i;
+                    }
+                }
+            }
+        }
+
+        if (resolvedEntity && ofs.CCSPlayerController_m_hPlayerPawn > 0) {
+            uint32_t pawnHandle = 0;
+            if (readValue(resolvedEntity + ofs.CCSPlayerController_m_hPlayerPawn, &pawnHandle, sizeof(pawnHandle)) &&
+                isValidEntityHandle(pawnHandle)) {
+                const uintptr_t pawn = resolveEntityFromHandle(pawnHandle);
+                if (pawn) {
+                    for (int i = 0; i < 64; ++i) {
+                        if (pawns[i] == pawn || pawnHandles[i] == pawnHandle)
+                            return i;
+                    }
+                }
+            }
+        }
+
         return -1;
     };
     uintptr_t itemServices[64] = {};

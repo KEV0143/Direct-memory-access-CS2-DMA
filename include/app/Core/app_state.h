@@ -113,6 +113,9 @@ namespace app::state {
         float bombColor[4] = { 1.0f, 0.65f, 0.20f, 1.0f };
         float bombTextSize = 0.0f;
         bool bombText = false;
+        bool bombTime = false;
+        float bombTimerX = 780.0f;
+        float bombTimerY = 86.0f;
         float soundColor[4] = { 0.35f, 0.75f, 1.0f, 1.0f };
         float offscreenSize = 14.0f;
         bool previewOpen = false;
@@ -139,6 +142,9 @@ namespace app::state {
         float bombColor[4] = { 1.0f, 0.74716979f, 0.0f, 1.0f };
         float angleColor[4] = { 1.0f, 1.0f, 1.0f, 0.95f };
         bool calibrationOpen = false;
+        bool spectatorList = false;
+        float spectatorListX = 24.0f;
+        float spectatorListY = 300.0f;
     };
 
     struct WebRadarSettings {
@@ -157,7 +163,23 @@ namespace app::state {
     struct FontState {
         ImFont* fontDefault = nullptr;
         ImFont* fontSegoeBold = nullptr;
+        ImFont* fontComicSans = nullptr;
         ImFont* fontWeaponIcons = nullptr;
+    };
+
+    struct EspUiIconState {
+        uintptr_t enableEsp = 0;
+        uintptr_t espPreview = 0;
+        uintptr_t cornerBox = 0;
+        uintptr_t healthBar = 0;
+        uintptr_t armorBar = 0;
+        uintptr_t visibilityColors = 0;
+        uintptr_t weaponLabel = 0;
+        uintptr_t skeleton = 0;
+        uintptr_t snapLines = 0;
+        uintptr_t playerFlags = 0;
+        uintptr_t worldEsp = 0;
+        uintptr_t bombEsp = 0;
     };
 
     struct AppState {
@@ -168,6 +190,7 @@ namespace app::state {
         WebRadarSettings webRadar = {};
         UiSettings ui = {};
         FontState fonts = {};
+        EspUiIconState espUiIcons = {};
     };
 
     inline AppState globalState = {};

@@ -14,7 +14,9 @@
             {"m_is_defusing", false},
             {"m_is_defused", false},
             {"m_blow_time", 0.0f},
+            {"m_timer_length", 40.0f},
             {"m_defuse_time", 0.0f},
+            {"m_defuse_length", 10.0f},
             {"m_seq", nowMs},
             {"m_ts", nowMs},
             {"m_position", {{"x", 0.0f}, {"y", 0.0f}, {"z", 0.0f}}}

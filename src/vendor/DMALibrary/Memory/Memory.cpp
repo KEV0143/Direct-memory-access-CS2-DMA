@@ -1103,7 +1103,13 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 	DWORD read_size = 0;
 	if (!VMMDLL_MemReadEx(this->vHandle, current_process.PID, address, static_cast<PBYTE>(buffer), size, &read_size, VMMDLL_FLAG_NOCACHE))
 	{
-		LOG("[!] Failed to read Memory at 0x%p\n", address);
+		static std::atomic<uint32_t> s_directReadFailureCount = 0;
+		const uint32_t failureCount = s_directReadFailureCount.fetch_add(1, std::memory_order_relaxed) + 1u;
+		if (!DIRECT_WARN_SUPPRESSED.load(std::memory_order_relaxed) &&
+			(failureCount == 1u || (failureCount % 250u) == 0u))
+		{
+			LOG("[!] Failed to read Memory at 0x%p\n", address);
+		}
 		return false;
 	}
 
@@ -1116,7 +1122,13 @@ bool Memory::Read(uintptr_t address, void* buffer, size_t size, int pid) const
 	DWORD read_size = 0;
 	if (!VMMDLL_MemReadEx(this->vHandle, pid, address, static_cast<PBYTE>(buffer), size, &read_size, VMMDLL_FLAG_NOCACHE))
 	{
-		LOG("[!] Failed to read Memory at 0x%p\n", address);
+		static std::atomic<uint32_t> s_directReadPidFailureCount = 0;
+		const uint32_t failureCount = s_directReadPidFailureCount.fetch_add(1, std::memory_order_relaxed) + 1u;
+		if (!DIRECT_WARN_SUPPRESSED.load(std::memory_order_relaxed) &&
+			(failureCount == 1u || (failureCount % 250u) == 0u))
+		{
+			LOG("[!] Failed to read Memory at 0x%p\n", address);
+		}
 		return false;
 	}
 	return (read_size == size);
@@ -1222,6 +1234,11 @@ bool Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 void Memory::SetScatterReadWarningSuppressed(bool suppressed)
 {
 	SCATTER_WARN_SUPPRESSED.store(suppressed, std::memory_order_relaxed);
+}
+
+void Memory::SetDirectReadWarningSuppressed(bool suppressed)
+{
+	DIRECT_WARN_SUPPRESSED.store(suppressed, std::memory_order_relaxed);
 }
 
 void Memory::ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid)

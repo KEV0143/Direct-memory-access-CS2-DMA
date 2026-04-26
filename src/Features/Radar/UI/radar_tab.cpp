@@ -4,6 +4,7 @@
 #include "app/Core/globals.h"
 #include "app/UI/MenuShell/menu_state.h"
 #include "app/UI/MenuShell/tab_page.h"
+#include "app/UI/MenuShell/ui_widgets.h"
 
 #include <imgui.h>
 
@@ -16,23 +17,20 @@ void ui::tabs::RadarTab::Render(MenuState& state, IStatusSink& statusSink)
 {
     (void)state;
 
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10.0f, 8.0f));
     ImGui::BeginChild("##radarchild", ImVec2(0, 0), ImGuiChildFlags_Borders);
 
-    const float indent = 8.0f;
-    ImGui::Indent(indent);
-
-    ImGui::Checkbox("Enable Radar", &g::radarEnabled);
-    ImGui::Spacing();
+    ui::widgets::ToggleRow("enable_radar", "Enable Radar", &g::radarEnabled);
 
     if (g::radarEnabled) {
-        radar_sections::RenderCalibrationSection(statusSink);
-
-        ImGui::Spacing();
         radar_sections::RenderDisplaySection();
-        ImGui::Spacing();
+        ImGui::Dummy(ImVec2(0.0f, 4.0f));
         radar_sections::RenderColorsSection();
+        ImGui::Dummy(ImVec2(0.0f, 4.0f));
+        radar_sections::RenderCalibrationSection(statusSink);
     }
 
-    ImGui::Unindent(indent);
     ImGui::EndChild();
+    ImGui::PopStyleVar(2);
 }

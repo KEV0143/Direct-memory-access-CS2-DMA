@@ -22,7 +22,7 @@
         if (!isResolvedBombCandidate(idx))
             return false;
         const uint16_t weaponId = (weaponIds[idx] < 20000u) ? weaponIds[idx] : 0u;
-        return bombCarrierBySlot[idx] || inventoryHasBombBySlot[idx] || weaponId == 49u;
+        return bombCarrierBySlot[idx] || inventoryHasBombBySlot[idx] || weaponId == kWeaponC4Id;
     };
 
     int resolvedBombCarrierSlot = -1;
@@ -54,7 +54,7 @@
                     score += 100;
                 if (inventoryHasBombBySlot[i])
                     score += 40;
-                if (weaponId == 49u)
+            if (weaponId == kWeaponC4Id)
                     score += 18;
                 if (i == s_lastResolvedBombCarrierSlot)
                     score += 8;
@@ -137,24 +137,60 @@
         s_cachedCommittedAmmoClips[idx] = -1;
     };
 
-    auto hasPlausibleCommittedBones = [&](int playerSlot) -> bool {
-        if (playerSlot < 0 || playerSlot >= 64 || !hasBoneData[playerSlot])
+    static uintptr_t s_lastGoodBonePawns[64] = {};
+    static uint64_t s_lastGoodBoneUs[64] = {};
+    static Vector3 s_lastGoodBones[64][esp::kPlayerStoredBoneCount] = {};
+
+    auto getStoredBoneCompactIndex = [&](int boneId) -> int {
+        for (int storedIdx = 0; storedIdx < esp::kPlayerStoredBoneCount; ++storedIdx) {
+            if (esp::kPlayerStoredBoneIds[storedIdx] == boneId)
+                return storedIdx;
+        }
+        return -1;
+    };
+
+    auto storedBoneLooksPlausible = [&](const Vector3* storedBones, int playerSlot) -> bool {
+        if (!storedBones || playerSlot < 0 || playerSlot >= 64)
             return false;
 
-        const Vector3& pelvis = allBones[playerSlot][esp::PELVIS];
-        const Vector3& chest = allBones[playerSlot][esp::CHEST];
-        const Vector3& head = allBones[playerSlot][esp::HEAD];
-        if (!isValidWorldPos(pelvis) || !isValidWorldPos(chest) || !isValidWorldPos(head))
-            return false;
-        if (head.z <= chest.z || chest.z <= pelvis.z)
+        const int pelvisIdx = getStoredBoneCompactIndex(esp::PELVIS);
+        const int chestIdx = getStoredBoneCompactIndex(esp::CHEST);
+        const int spine2Idx = getStoredBoneCompactIndex(esp::SPINE2);
+        const int headIdx = getStoredBoneCompactIndex(esp::HEAD);
+        const int leftHeelIdx = getStoredBoneCompactIndex(esp::FOOT_HEEL_L);
+        const int rightHeelIdx = getStoredBoneCompactIndex(esp::FOOT_HEEL_R);
+        if (pelvisIdx < 0 || headIdx < 0)
             return false;
 
-        const Vector3& leftHeel = allBones[playerSlot][esp::FOOT_HEEL_L];
-        const Vector3& rightHeel = allBones[playerSlot][esp::FOOT_HEEL_R];
-        if (isValidWorldPos(leftHeel) && leftHeel.z > pelvis.z + 24.0f)
+        const Vector3& pelvis = storedBones[pelvisIdx];
+        const Vector3& head = storedBones[headIdx];
+        if (!isValidWorldPos(pelvis) || !isValidWorldPos(head))
             return false;
-        if (isValidWorldPos(rightHeel) && rightHeel.z > pelvis.z + 24.0f)
+        if (head.z <= pelvis.z)
             return false;
+
+        const bool hasChest = chestIdx >= 0 && isValidWorldPos(storedBones[chestIdx]);
+        const bool hasSpine2 = spine2Idx >= 0 && isValidWorldPos(storedBones[spine2Idx]);
+        if (hasChest) {
+            const Vector3& chest = storedBones[chestIdx];
+            if (head.z <= chest.z || chest.z <= pelvis.z)
+                return false;
+        } else if (hasSpine2) {
+            const Vector3& spine2 = storedBones[spine2Idx];
+            if (head.z <= spine2.z || spine2.z <= pelvis.z)
+                return false;
+        }
+
+        if (leftHeelIdx >= 0) {
+            const Vector3& leftHeel = storedBones[leftHeelIdx];
+            if (isValidWorldPos(leftHeel) && leftHeel.z > pelvis.z + 24.0f)
+                return false;
+        }
+        if (rightHeelIdx >= 0) {
+            const Vector3& rightHeel = storedBones[rightHeelIdx];
+            if (isValidWorldPos(rightHeel) && rightHeel.z > pelvis.z + 24.0f)
+                return false;
+        }
 
         if (isValidWorldPos(positions[playerSlot])) {
             const float pelvisDelta = (pelvis - positions[playerSlot]).Length();
@@ -164,6 +200,85 @@
         }
 
         return true;
+    };
+
+    auto hasPlausibleCommittedBones = [&](int playerSlot) -> bool {
+        if (playerSlot < 0 || playerSlot >= 64 || !hasBoneData[playerSlot])
+            return false;
+
+        Vector3 currentStoredBones[esp::kPlayerStoredBoneCount] = {};
+        for (int storedIdx = 0; storedIdx < esp::kPlayerStoredBoneCount; ++storedIdx)
+            currentStoredBones[storedIdx] = allBones[playerSlot][esp::kPlayerStoredBoneIds[storedIdx]];
+
+        return storedBoneLooksPlausible(currentStoredBones, playerSlot);
+    };
+
+    auto rememberGoodCommittedBones = [&](int playerSlot, const Vector3* bones) {
+        if (playerSlot < 0 || playerSlot >= 64 || !bones || !pawns[playerSlot])
+            return;
+        s_lastGoodBonePawns[playerSlot] = pawns[playerSlot];
+        s_lastGoodBoneUs[playerSlot] = nowUs;
+        for (int boneIdx = 0; boneIdx < esp::kPlayerStoredBoneCount; ++boneIdx)
+            s_lastGoodBones[playerSlot][boneIdx] = bones[boneIdx];
+    };
+
+    constexpr uint64_t kCommittedBoneHoldUs = 850000;
+    constexpr uint64_t kLastGoodBoneHoldUs = 1800000;
+    auto canReusePreviousCommittedBones = [&](int playerSlot) -> bool {
+        if (playerSlot < 0 || playerSlot >= 64)
+            return false;
+        if (pawns[playerSlot] == 0)
+            return false;
+        if (s_prevCaptureTimeUs == 0 || nowUs <= s_prevCaptureTimeUs)
+            return false;
+        if ((nowUs - s_prevCaptureTimeUs) > kCommittedBoneHoldUs)
+            return false;
+
+        const esp::PlayerData& prevPlayer = s_prevPlayers[playerSlot];
+        if (!prevPlayer.valid || !prevPlayer.hasBones || prevPlayer.pawn != pawns[playerSlot])
+            return false;
+
+        return storedBoneLooksPlausible(prevPlayer.bones, playerSlot);
+    };
+
+    auto canReuseLastGoodCommittedBones = [&](int playerSlot) -> bool {
+        if (playerSlot < 0 || playerSlot >= 64 || !pawns[playerSlot])
+            return false;
+        if (s_lastGoodBonePawns[playerSlot] != pawns[playerSlot] ||
+            s_lastGoodBoneUs[playerSlot] == 0 ||
+            nowUs <= s_lastGoodBoneUs[playerSlot] ||
+            (nowUs - s_lastGoodBoneUs[playerSlot]) > kLastGoodBoneHoldUs) {
+            return false;
+        }
+        return storedBoneLooksPlausible(s_lastGoodBones[playerSlot], playerSlot);
+    };
+
+    auto copyResolvedBones = [&](int playerSlot, esp::PlayerData& targetPlayer) -> bool {
+        if (hasPlausibleCommittedBones(playerSlot)) {
+            targetPlayer.hasBones = true;
+            for (int boneIdx = 0; boneIdx < esp::kPlayerStoredBoneCount; ++boneIdx)
+                targetPlayer.bones[boneIdx] = allBones[playerSlot][esp::kPlayerStoredBoneIds[boneIdx]];
+            rememberGoodCommittedBones(playerSlot, targetPlayer.bones);
+            return true;
+        }
+
+        if (canReusePreviousCommittedBones(playerSlot)) {
+            targetPlayer.hasBones = true;
+            for (int boneIdx = 0; boneIdx < esp::kPlayerStoredBoneCount; ++boneIdx)
+                targetPlayer.bones[boneIdx] = s_prevPlayers[playerSlot].bones[boneIdx];
+            rememberGoodCommittedBones(playerSlot, targetPlayer.bones);
+            return true;
+        }
+
+        if (canReuseLastGoodCommittedBones(playerSlot)) {
+            targetPlayer.hasBones = true;
+            for (int boneIdx = 0; boneIdx < esp::kPlayerStoredBoneCount; ++boneIdx)
+                targetPlayer.bones[boneIdx] = s_lastGoodBones[playerSlot][boneIdx];
+            return true;
+        }
+
+        targetPlayer.hasBones = false;
+        return false;
     };
 
     auto collectGrenadesForSlot = [&](int idx, auto& grenadeIdsOut, int& grenadeCountOut) {
@@ -276,31 +391,270 @@
     
     {
         int activeCount = 0;
-        for (int i = 0; i < 64; ++i) {
-            if (!s_players[i].valid)
-                continue;
-            if (s_localPawn != 0 && s_players[i].pawn == s_localPawn)
-                continue;
-            if (localPlayerIndexValid && localPlayerIndexHasLiveEvidence && i == localPlayerIndex)
-                continue;
-            ++activeCount;
-        }
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        if (localPlayerIndexValid &&
+        int resolvedLiveCount = 0;
+        int committedLiveCount = 0;
+        bool activeCountedSlots[64] = {};
+        const bool localAliveEvidence =
+            localPlayerIndexValid &&
             localPlayerIndexHasLiveEvidence &&
             !localIsDeadResolved &&
-            localHealthResolved > 0)
+            localHealthResolved > 0;
+        const bool localControllerPawnHandleValidForCount =
+            localControllerPawnHandle != 0u &&
+            localControllerPawnHandle != 0xFFFFFFFFu;
+        const uint32_t localControllerPawnSlotForCount =
+            localControllerPawnHandleValidForCount
+            ? (localControllerPawnHandle & kEntityHandleMask)
+            : 0u;
+        auto isFreshLiveCoreSlot = [&](int i) -> bool {
+            if (i < 0 || i >= 64 || !pawns[i])
+                return false;
+            if (!coreReadFresh[i] || !coreReadAlive[i])
+                return false;
+            if (teams[i] != 2 && teams[i] != 3)
+                return false;
+            return isValidWorldPos(positions[i]);
+        };
+        auto isLocalActiveSlot = [&](int i) -> bool {
+            if (i < 0 || i >= 64)
+                return false;
+            if (s_localPawn != 0 && pawns[i] == s_localPawn)
+                return true;
+            if (localPlayerIndexValid && localPlayerIndexHasLiveEvidence && i == localPlayerIndex)
+                return true;
+            if (localControllerMaskBit > 0 && localControllerMaskBit <= 64 && i == (localControllerMaskBit - 1))
+                return true;
+            const uint32_t pawnSlot = pawnHandles[i] & kEntityHandleMask;
+            return localControllerPawnSlotForCount != 0u &&
+                   pawnSlot != 0u &&
+                   pawnSlot == localControllerPawnSlotForCount;
+        };
+        for (int resolvedIdx = 0; resolvedIdx < playerResolvedSlotCount; ++resolvedIdx) {
+            const int i = playerResolvedSlots[resolvedIdx];
+            if (!isFreshLiveCoreSlot(i))
+                continue;
+            ++resolvedLiveCount;
+            if (!activeCountedSlots[i]) {
+                activeCountedSlots[i] = true;
+                ++activeCount;
+            }
+        }
+        bool localAlreadyCounted = false;
+        for (int i = 0; i < 64; ++i) {
+            if (activeCountedSlots[i] && isLocalActiveSlot(i)) {
+                localAlreadyCounted = true;
+                break;
+            }
+        }
+        if (localAliveEvidence && !localAlreadyCounted)
             ++activeCount;
+        for (int i = 0; i < 64; ++i) {
+            if (!s_players[i].valid || s_players[i].health <= 0)
+                continue;
+            if (s_players[i].team != 2 && s_players[i].team != 3)
+                continue;
+            if (!isValidWorldPos(s_players[i].position))
+                continue;
+            ++committedLiveCount;
+            if (activeCountedSlots[i] || isLocalActiveSlot(i))
+                continue;
+            activeCountedSlots[i] = true;
+            ++activeCount;
+        }
+
+        {
+            static uint64_t s_populationWatchdogResetSerial = 0;
+            static uint32_t s_populationWatchdogStreak = 0;
+            static uint64_t s_populationWatchdogSinceUs = 0;
+            static uint64_t s_lastPopulationWatchdogRefreshUs = 0;
+            static uint64_t s_lastPopulationWatchdogHardUs = 0;
+            static int s_expectedActivePopulation = 0;
+            static uint64_t s_expectedActivePopulationUs = 0;
+            static uint64_t s_launchUnderresolvedSinceUs = 0;
+            static uint64_t s_lastLaunchUnderresolvedRefreshUs = 0;
+            const uint64_t watchdogResetSerial = s_sceneResetSerial.load(std::memory_order_relaxed);
+            if (s_populationWatchdogResetSerial != watchdogResetSerial) {
+                s_populationWatchdogResetSerial = watchdogResetSerial;
+                s_populationWatchdogStreak = 0;
+                s_populationWatchdogSinceUs = 0;
+                s_lastPopulationWatchdogRefreshUs = 0;
+                s_lastPopulationWatchdogHardUs = 0;
+                s_expectedActivePopulation = 0;
+                s_expectedActivePopulationUs = 0;
+                s_launchUnderresolvedSinceUs = 0;
+                s_lastLaunchUnderresolvedRefreshUs = 0;
+            }
+
+            const bool liveMatchContext =
+                s_engineInGame.load(std::memory_order_relaxed) &&
+                !s_engineMenu.load(std::memory_order_relaxed) &&
+                s_engineSignOnState.load(std::memory_order_relaxed) == 6;
+            const auto populationWarmupState =
+                static_cast<esp::SceneWarmupState>(s_sceneWarmupState.load(std::memory_order_relaxed));
+            const uint64_t populationLastResetUs = s_lastSceneResetUs.load(std::memory_order_relaxed);
+            const uint64_t populationWarmupEnteredUs = s_sceneWarmupEnteredUs.load(std::memory_order_relaxed);
+            const uint64_t populationResetAgeUs =
+                populationLastResetUs > 0 && nowUs >= populationLastResetUs
+                ? nowUs - populationLastResetUs
+                : 0;
+            const uint64_t populationWarmupAgeUs =
+                populationWarmupEnteredUs > 0 && nowUs >= populationWarmupEnteredUs
+                ? nowUs - populationWarmupEnteredUs
+                : 0;
+            const bool populationGraceElapsed =
+                populationResetAgeUs >= 2500000u &&
+                populationWarmupAgeUs >= 1800000u;
+            const int observedPopulation = std::max(activeCount, resolvedLiveCount);
+            const bool healthyPopulationSample =
+                liveMatchContext &&
+                populationWarmupState == esp::SceneWarmupState::Stable &&
+                observedPopulation >= 2 &&
+                observedPopulation <= 64 &&
+                playerResolvedSlotCount >= 2;
+            if (healthyPopulationSample) {
+                if (observedPopulation > s_expectedActivePopulation ||
+                    s_expectedActivePopulation == 0 ||
+                    (s_expectedActivePopulationUs > 0 &&
+                     nowUs >= s_expectedActivePopulationUs &&
+                     (nowUs - s_expectedActivePopulationUs) > 60000000u)) {
+                    s_expectedActivePopulation = observedPopulation;
+                    s_expectedActivePopulationUs = nowUs;
+                }
+            }
+
+            const bool launchUnderresolved =
+                liveMatchContext &&
+                localAliveEvidence &&
+                populationResetAgeUs >= 800000u &&
+                populationResetAgeUs <= 12000000u &&
+                highestEntityIndex >= 64 &&
+                observedPopulation <= 1 &&
+                resolvedLiveCount <= 1;
+            if (launchUnderresolved) {
+                if (s_launchUnderresolvedSinceUs == 0)
+                    s_launchUnderresolvedSinceUs = nowUs;
+                const uint64_t underresolvedAgeUs =
+                    nowUs >= s_launchUnderresolvedSinceUs
+                    ? nowUs - s_launchUnderresolvedSinceUs
+                    : 0;
+                if (populationWarmupState == esp::SceneWarmupState::Stable)
+                    setSceneWarmupState(esp::SceneWarmupState::HierarchyWarming);
+                const bool launchRefreshCooldownElapsed =
+                    s_lastLaunchUnderresolvedRefreshUs == 0 ||
+                    nowUs <= s_lastLaunchUnderresolvedRefreshUs ||
+                    (nowUs - s_lastLaunchUnderresolvedRefreshUs) >= 900000u;
+                if (launchRefreshCooldownElapsed && underresolvedAgeUs >= 600000u) {
+                    s_lastLaunchUnderresolvedRefreshUs = nowUs;
+                    const bool repairLaunch =
+                        underresolvedAgeUs >= 2200000u ||
+                        playerResolvedSlotCount <= 1;
+                    if (repairLaunch && underresolvedAgeUs >= 3200000u)
+                        BumpSceneReset(nowUs);
+                    setSceneWarmupState(esp::SceneWarmupState::HierarchyWarming);
+                    refreshDmaCaches(
+                        repairLaunch ? "launch_underresolved_players_repair" : "launch_underresolved_players_probe",
+                        repairLaunch ? DmaRefreshTier::Repair : DmaRefreshTier::Probe,
+                        false);
+                }
+            } else {
+                s_launchUnderresolvedSinceUs = 0;
+                s_lastLaunchUnderresolvedRefreshUs = 0;
+            }
+
+            const bool watchdogEligible =
+                liveMatchContext &&
+                populationGraceElapsed &&
+                highestEntityIndex >= 64 &&
+                !launchUnderresolved &&
+                !s_dmaRecovering.load(std::memory_order_relaxed) &&
+                !s_dmaRecoveryRequested.load(std::memory_order_relaxed);
+            const bool hierarchyBlackout =
+                watchdogEligible &&
+                localAliveEvidence &&
+                playerResolvedSlotCount == 0;
+            const bool coreBlackout =
+                watchdogEligible &&
+                localAliveEvidence &&
+                playerResolvedSlotCount >= 2 &&
+                resolvedLiveCount == 0;
+            const bool activeBlackout =
+                watchdogEligible &&
+                localAliveEvidence &&
+                activeCount == 0;
+            const bool activePopulationCollapsed =
+                watchdogEligible &&
+                localAliveEvidence &&
+                s_expectedActivePopulation >= 4 &&
+                activeCount > 0 &&
+                activeCount <= std::max(1, s_expectedActivePopulation / 4) &&
+                resolvedLiveCount <= std::max(1, s_expectedActivePopulation / 4);
+            const bool staleCommittedPopulation =
+                watchdogEligible &&
+                resolvedLiveCount >= 2 &&
+                committedLiveCount >= 6 &&
+                committedLiveCount > resolvedLiveCount + 2;
+            const bool populationBroken =
+                hierarchyBlackout ||
+                coreBlackout ||
+                activeBlackout ||
+                activePopulationCollapsed ||
+                staleCommittedPopulation;
+
+            if (populationBroken) {
+                if (s_populationWatchdogSinceUs == 0)
+                    s_populationWatchdogSinceUs = nowUs;
+                if (s_populationWatchdogStreak < 0xFFFFFFFFu)
+                    ++s_populationWatchdogStreak;
+
+                const uint64_t brokenAgeUs =
+                    nowUs >= s_populationWatchdogSinceUs
+                    ? nowUs - s_populationWatchdogSinceUs
+                    : 0;
+                const bool refreshCooldownElapsed =
+                    s_lastPopulationWatchdogRefreshUs == 0 ||
+                    nowUs <= s_lastPopulationWatchdogRefreshUs ||
+                    (nowUs - s_lastPopulationWatchdogRefreshUs) >= 2500000u;
+                if (refreshCooldownElapsed &&
+                    s_populationWatchdogStreak >= 8u &&
+                    brokenAgeUs >= 1200000u) {
+                    s_lastPopulationWatchdogRefreshUs = nowUs;
+                    const bool hardRefresh = brokenAgeUs >= 5500000u || s_populationWatchdogStreak >= 90u;
+                    const bool repairRefresh = hardRefresh || brokenAgeUs >= 2500000u || s_populationWatchdogStreak >= 30u;
+                    const char* reason =
+                        hierarchyBlackout ? "population_watchdog_hierarchy_blackout" :
+                        coreBlackout ? "population_watchdog_core_blackout" :
+                        activeBlackout ? "population_watchdog_active_blackout" :
+                        activePopulationCollapsed ? "population_watchdog_active_collapse" :
+                        "population_watchdog_stale_committed_players";
+                    if (staleCommittedPopulation && brokenAgeUs >= 1500000u) {
+                        clearAllState(true);
+                        activeCount = 0;
+                        resolvedLiveCount = 0;
+                    } else if (repairRefresh) {
+                        BumpSceneReset(nowUs);
+                    }
+                    setSceneWarmupState(esp::SceneWarmupState::Recovery);
+                    refreshDmaCaches(
+                        reason,
+                        hardRefresh ? DmaRefreshTier::Full : repairRefresh ? DmaRefreshTier::Repair : DmaRefreshTier::Probe,
+                        hardRefresh);
+                    if (hardRefresh) {
+                        const bool hardCooldownElapsed =
+                            s_lastPopulationWatchdogHardUs == 0 ||
+                            nowUs <= s_lastPopulationWatchdogHardUs ||
+                            (nowUs - s_lastPopulationWatchdogHardUs) >= 8000000u;
+                        if (hardCooldownElapsed) {
+                            s_lastPopulationWatchdogHardUs = nowUs;
+                            RequestDmaRecovery(reason);
+                        }
+                    }
+                }
+            } else {
+                s_populationWatchdogStreak = 0;
+                s_populationWatchdogSinceUs = 0;
+            }
+        }
+
         s_activePlayerCount.store(activeCount, std::memory_order_relaxed);
         s_highestEntityIdxStat.store(highestEntityIndex, std::memory_order_relaxed);
         s_worldMarkerCountStat.store(s_worldMarkerCount, std::memory_order_relaxed);
@@ -357,22 +711,45 @@
             
             
             if (!pawns[i]) {
-                if (s_players[i].valid && s_players[i].pawn != 0 &&
-                    s_webRadarPlayers[i].valid && s_webRadarPlayers[i].pawn != 0)
-                    continue; 
+                if (s_webRadarPlayers[i].valid &&
+                    s_webRadarPlayers[i].pawn != 0 &&
+                    s_webRadarPlayers[i].staleFrames < 300) {
+                    ++s_webRadarPlayers[i].staleFrames;
+                    continue;
+                }
                 s_webRadarPlayers[i] = {};
                 continue;
             }
 
-            
-            
             Vector3 webRadarPos = positions[i];
-            const bool haveWebRadarPos = isValidWorldPos(webRadarPos);
-            if (!haveWebRadarPos || (teams[i] != 2 && teams[i] != 3)) {
+            bool haveWebRadarPos = isValidWorldPos(webRadarPos);
+            const bool teamValid = (teams[i] == 2 || teams[i] == 3);
+            const bool coreReliable = coreReadFresh[i] && coreReadPlausible[i];
+            const bool isDead = healths[i] <= 0 || lifeStates[i] != 0;
+            const bool cachedSamePawn =
+                s_webRadarPlayers[i].valid &&
+                s_webRadarPlayers[i].pawn == pawns[i];
+            if (!haveWebRadarPos && cachedSamePawn && isValidWorldPos(s_webRadarPlayers[i].position)) {
+                webRadarPos = s_webRadarPlayers[i].position;
+                haveWebRadarPos = true;
+            }
+            if ((!coreReliable || !teamValid || !haveWebRadarPos) && cachedSamePawn) {
+                esp::PlayerData& cached = s_webRadarPlayers[i];
+                if (cached.staleFrames < 300) {
+                    ++cached.staleFrames;
+                    if (isDead) {
+                        cached.health = 0;
+                        cached.velocity = {};
+                        cached.hasBomb = false;
+                        cached.hasBones = false;
+                    }
+                    continue;
+                }
+            }
+            if (!coreReliable || !haveWebRadarPos || !teamValid) {
                 s_webRadarPlayers[i] = {};
                 continue;
             }
-            const bool isDead = healths[i] <= 0 || lifeStates[i] != 0;
             esp::PlayerData& wp = s_webRadarPlayers[i];
             wp.valid = true;
             wp.pawn = pawns[i];
@@ -399,15 +776,12 @@
             resolveCommittedWeaponState(i, liveWeaponId, committedWeaponId, committedAmmoClip);
             wp.ammoClip = committedAmmoClip;
             wp.weaponId = committedWeaponId;
-            wp.hasBomb = (i == resolvedBombCarrierSlot);
-            wp.hasBones = hasPlausibleCommittedBones(i);
+            wp.hasBomb = !isDead && (i == resolvedBombCarrierSlot);
+            wp.hasBones = false;
             collectGrenadesForSlot(i, wp.grenadeIds, wp.grenadeCount);
             memcpy(wp.name, names[i], 128);
             wp.name[127] = '\0';
-            if (wp.hasBones) {
-                for (int boneIdx = 0; boneIdx < esp::kPlayerStoredBoneCount; ++boneIdx)
-                    wp.bones[boneIdx] = allBones[i][esp::kPlayerStoredBoneIds[boneIdx]];
-            }
+            copyResolvedBones(i, wp);
         }
     } else if (s_webRadarCacheLive) {
         s_webRadarCacheLive = false;
@@ -416,10 +790,9 @@
     }
 
     if (minimapBoundsValid)
-        HandleMapCalibration(minimapMins, minimapMaxs);
+        HandleMapCalibration(minimapMins, minimapMaxs, liveMapKey);
 
     PublishCurrentSnapshot(SnapshotAll);
-    s_lastPublishUs.store(TickNowUs(), std::memory_order_relaxed);
 
     s_requiredReadFailureCount = 0;
     MarkDmaReadSuccess();

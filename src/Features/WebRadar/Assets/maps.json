@@ -6,7 +6,7 @@
       "origin": { "x": -3230.0, "y": 1713.0 },
       "scale": 5.0,
       "bounds": { "min_x": -3230.0, "max_x": 1890.0, "min_y": -3407.0, "max_y": 1713.0 },
-      "images": { "radar": "/data/de_mirage/radar.png", "background": "/data/de_mirage/background.png" }
+      "images": { "radar": "/data/de_mirage/radar.webp", "background": "/data/de_mirage/radar.webp" }
     },
     {
       "name": "de_inferno",
@@ -14,7 +14,7 @@
       "origin": { "x": -2087.0, "y": 3870.0 },
       "scale": 4.9,
       "bounds": { "min_x": -2087.0, "max_x": 2930.6, "min_y": -1147.6, "max_y": 3870.0 },
-      "images": { "radar": "/data/de_inferno/radar.png", "background": "/data/de_inferno/background.png" }
+      "images": { "radar": "/data/de_inferno/radar.webp", "background": "/data/de_inferno/radar.webp" }
     },
     {
       "name": "de_dust2",
@@ -22,7 +22,7 @@
       "origin": { "x": -2476.0, "y": 3239.0 },
       "scale": 4.4,
       "bounds": { "min_x": -2476.0, "max_x": 2029.6, "min_y": -1266.6, "max_y": 3239.0 },
-      "images": { "radar": "/data/de_dust2/radar.png", "background": "/data/de_dust2/background.png" }
+      "images": { "radar": "/data/de_dust2/radar.webp", "background": "/data/de_dust2/radar.webp" }
     },
     {
       "name": "de_nuke",
@@ -30,7 +30,7 @@
       "origin": { "x": -3453.0, "y": 2887.0 },
       "scale": 7.0,
       "bounds": { "min_x": -3453.0, "max_x": 3715.0, "min_y": -4281.0, "max_y": 2887.0 },
-      "images": { "radar": "/data/de_nuke/radar.png", "background": "/data/de_nuke/background.png" }
+      "images": { "radar": "/data/de_nuke/radar.webp", "background": "/data/de_nuke/radar.webp" }
     },
     {
       "name": "de_overpass",
@@ -38,7 +38,39 @@
       "origin": { "x": -4831.0, "y": 1781.0 },
       "scale": 5.2,
       "bounds": { "min_x": -4831.0, "max_x": 493.8, "min_y": -3543.8, "max_y": 1781.0 },
-      "images": { "radar": "/data/de_overpass/radar.png", "background": "/data/de_overpass/background.png" }
+      "images": { "radar": "/data/de_overpass/radar.webp", "background": "/data/de_overpass/radar.webp" }
+    },
+    {
+      "name": "de_train",
+      "display_name": "Train",
+      "origin": { "x": -2308.0, "y": 2078.0 },
+      "scale": 4.082077,
+      "bounds": { "min_x": -2308.0, "max_x": 1872.046848, "min_y": -2102.046848, "max_y": 2078.0 },
+      "images": { "radar": "/data/de_train/radar.webp", "background": "/data/de_train/radar.webp" }
+    },
+    {
+      "name": "ar_baggage",
+      "display_name": "Baggage",
+      "origin": { "x": -1838.0, "y": 1858.0 },
+      "scale": 4.1,
+      "bounds": { "min_x": -1838.0, "max_x": 2360.4, "min_y": -2340.4, "max_y": 1858.0 },
+      "images": { "radar": "/data/ar_baggage/radar.webp", "background": "/data/ar_baggage/radar.webp" }
+    },
+    {
+      "name": "ar_shoots",
+      "display_name": "Shoots",
+      "origin": { "x": -2953.0, "y": 2164.0 },
+      "scale": 5.0,
+      "bounds": { "min_x": -2953.0, "max_x": 2167.0, "min_y": -2956.0, "max_y": 2164.0 },
+      "images": { "radar": "/data/ar_shoots/radar.webp", "background": "/data/ar_shoots/radar.webp" }
+    },
+    {
+      "name": "ar_shoots_night",
+      "display_name": "Shoots (Night)",
+      "origin": { "x": -2953.0, "y": 2164.0 },
+      "scale": 5.0,
+      "bounds": { "min_x": -2953.0, "max_x": 2167.0, "min_y": -2956.0, "max_y": 2164.0 },
+      "images": { "radar": "/data/ar_shoots_night/radar.webp", "background": "/data/ar_shoots_night/radar.webp" }
     },
     {
       "name": "de_ancient",
@@ -46,7 +78,15 @@
       "origin": { "x": -2953.0, "y": 2164.0 },
       "scale": 5.0,
       "bounds": { "min_x": -2953.0, "max_x": 2167.0, "min_y": -2956.0, "max_y": 2164.0 },
-      "images": { "radar": "/data/de_ancient/radar.png", "background": "/data/de_ancient/background.png" }
+      "images": { "radar": "/data/de_ancient/radar.webp", "background": "/data/de_ancient/radar.webp" }
+    },
+    {
+      "name": "de_ancient_night",
+      "display_name": "Ancient (Night)",
+      "origin": { "x": -2953.0, "y": 2164.0 },
+      "scale": 5.0,
+      "bounds": { "min_x": -2953.0, "max_x": 2167.0, "min_y": -2956.0, "max_y": 2164.0 },
+      "images": { "radar": "/data/de_ancient_night/radar.webp", "background": "/data/de_ancient_night/radar.webp" }
     },
     {
       "name": "de_anubis",
@@ -54,7 +94,7 @@
       "origin": { "x": -2796.0, "y": 3328.0 },
       "scale": 5.22,
       "bounds": { "min_x": -2796.0, "max_x": 2549.28, "min_y": -2017.28, "max_y": 3328.0 },
-      "images": { "radar": "/data/de_anubis/radar.png", "background": "/data/de_anubis/background.png" }
+      "images": { "radar": "/data/de_anubis/radar.webp", "background": "/data/de_anubis/radar.webp" }
     },
     {
       "name": "de_vertigo",
@@ -62,7 +102,23 @@
       "origin": { "x": -3168.0, "y": 1762.0 },
       "scale": 4.0,
       "bounds": { "min_x": -3168.0, "max_x": 928.0, "min_y": -2334.0, "max_y": 1762.0 },
-      "images": { "radar": "/data/de_vertigo/radar.png", "background": "/data/de_vertigo/background.png" }
+      "images": { "radar": "/data/de_vertigo/radar.webp", "background": "/data/de_vertigo/radar.webp" }
+    },
+    {
+      "name": "cs_office",
+      "display_name": "Office",
+      "origin": { "x": -1838.0, "y": 1858.0 },
+      "scale": 4.1,
+      "bounds": { "min_x": -1838.0, "max_x": 2360.4, "min_y": -2340.4, "max_y": 1858.0 },
+      "images": { "radar": "/data/cs_office/radar.webp", "background": "/data/cs_office/radar.webp" }
+    },
+    {
+      "name": "cs_italy",
+      "display_name": "Italy",
+      "origin": { "x": -2647.0, "y": 2592.0 },
+      "scale": 4.6,
+      "bounds": { "min_x": -2647.0, "max_x": 2063.4, "min_y": -2118.4, "max_y": 2592.0 },
+      "images": { "radar": "/data/cs_italy/radar.webp", "background": "/data/cs_italy/radar.webp" }
     },
     {
       "name": "aim_custom",
@@ -71,7 +127,7 @@
       "scale": 1.0,
       "dynamic": true,
       "bounds": { "min_x": -1024.0, "max_x": 1024.0, "min_y": -1024.0, "max_y": 1024.0 },
-      "images": { "radar": "", "background": "" }
+      "images": { "radar": "/data/aim_custom/radar.webp", "background": "/data/aim_custom/radar.webp" }
     }
   ]
 }

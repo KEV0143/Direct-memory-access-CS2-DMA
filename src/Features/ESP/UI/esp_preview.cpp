@@ -318,17 +318,14 @@ namespace
                 Vec2 b = BonePos2D(p.to, cx, boxTop, boneScale);
                 dl->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), skelCol, 1.6f);
             }
-            for (int j : kJoints) {
-                Vec2 bp = BonePos2D(j, cx, boxTop, boneScale);
-                dl->AddCircleFilled(ImVec2(bp.x, bp.y), 2.2f,
-                                    IM_COL32(0, 0, 0, 200), 8);
-                dl->AddCircleFilled(ImVec2(bp.x, bp.y), 1.4f, skelCol, 8);
+            if (g::espSkeletonDots) {
+                for (int j : kJoints) {
+                    Vec2 bp = BonePos2D(j, cx, boxTop, boneScale);
+                    dl->AddCircleFilled(ImVec2(bp.x, bp.y), 2.2f,
+                                        IM_COL32(0, 0, 0, 200), 8);
+                    dl->AddCircleFilled(ImVec2(bp.x, bp.y), 1.4f, skelCol, 8);
+                }
             }
-            Vec2 head = BonePos2D(esp::HEAD, cx, boxTop, boneScale);
-            float headR = 7.0f * boneScale;
-            dl->AddCircle(ImVec2(head.x, head.y), headR,
-                          IM_COL32(0, 0, 0, 200), 16, 2.8f);
-            dl->AddCircle(ImVec2(head.x, head.y), headR, skelCol, 16, 1.4f);
         }
 
         
@@ -359,7 +356,7 @@ namespace
                 
                 if (g::espWeaponText) {
                     const char* weapon = "AK-47";
-                    ImFont* tf = ImGui::GetFont();
+                    ImFont* tf = g::fontComicSans ? g::fontComicSans : ImGui::GetFont();
                     float tfs = g::espWeaponTextSize > 0.0f ? g::espWeaponTextSize : ImGui::GetFontSize();
                     ImVec2 ts = tf->CalcTextSizeA(tfs, FLT_MAX, 0.0f, weapon);
                     TextShadowFont(dl, tf, tfs, ImVec2(cx - ts.x * 0.5f, bottomY),
@@ -369,7 +366,7 @@ namespace
             }
             if (g::espWeaponAmmo) {
                 const char* ammo = "25 / 30";
-                ImFont* af = ImGui::GetFont();
+                    ImFont* af = g::fontComicSans ? g::fontComicSans : ImGui::GetFont();
                 float afs = g::espWeaponAmmoSize > 0.0f ? g::espWeaponAmmoSize : ImGui::GetFontSize();
                 ImVec2 ts = af->CalcTextSizeA(afs, FLT_MAX, 0.0f, ammo);
                 TextShadowFont(dl, af, afs, ImVec2(cx - ts.x * 0.5f, bottomY),
@@ -383,15 +380,15 @@ namespace
             float flagY = boxTop;
             float flagX = boxLeft + boxW + 6;
             if (g::espFlagScoped) {
-                TextShadow(dl, ImVec2(flagX, flagY), Col4(g::espFlagScopedColor), "Scoped");
+                TextShadowFont(dl, g::fontComicSans, ImGui::GetFontSize(), ImVec2(flagX, flagY), Col4(g::espFlagScopedColor), "Scoped");
                 flagY += ImGui::GetFontSize() + 1;
             }
             if (g::espFlagMoney) {
-                TextShadow(dl, ImVec2(flagX, flagY), Col4(g::espFlagMoneyColor), "$4200");
+                TextShadowFont(dl, g::fontComicSans, ImGui::GetFontSize(), ImVec2(flagX, flagY), Col4(g::espFlagMoneyColor), "$4200");
                 flagY += ImGui::GetFontSize() + 1;
             }
             if (g::espDistance) {
-                TextShadow(dl, ImVec2(flagX, flagY), Col4(g::espDistanceColor), "42m");
+                TextShadowFont(dl, g::fontComicSans, ImGui::GetFontSize(), ImVec2(flagX, flagY), Col4(g::espDistanceColor), "42m");
                 flagY += ImGui::GetFontSize() + 1;
             }
         }
@@ -411,9 +408,20 @@ void ui::RenderEspPreview()
         ImVec2(triMode ? 480.0f : 240.0f, 320),
         ImVec2(triMode ? 780.0f : 400.0f, 520));
 
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 12.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.025f, 0.035f, 0.052f, 0.98f));
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.14f, 0.22f, 0.34f, 0.72f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBg, ImVec4(0.035f, 0.047f, 0.065f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgActive, ImVec4(0.045f, 0.065f, 0.095f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TitleBgCollapsed, ImVec4(0.035f, 0.047f, 0.065f, 1.0f));
+
     if (!ImGui::Begin("ESP Preview", &g::espPreviewOpen,
                       ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoScrollbar)) {
         ImGui::End();
+        ImGui::PopStyleColor(5);
+        ImGui::PopStyleVar(3);
         return;
     }
 
@@ -423,9 +431,15 @@ void ui::RenderEspPreview()
     const float pw = avail.x;
     const float ph = avail.y;
 
-    
-    dl->AddRectFilled(winPos, ImVec2(winPos.x + pw, winPos.y + ph),
-                      IM_COL32(12, 12, 12, 255), 4.0f);
+    const ImVec2 panelMax(winPos.x + pw, winPos.y + ph);
+    dl->AddRectFilled(winPos, panelMax, IM_COL32(5, 11, 20, 248), 10.0f);
+    dl->AddRectFilled(
+        ImVec2(winPos.x + 1.0f, winPos.y + 1.0f),
+        ImVec2(panelMax.x - 1.0f, winPos.y + 34.0f),
+        IM_COL32(12, 27, 46, 92),
+        9.0f,
+        ImDrawFlags_RoundCornersTop);
+    dl->AddRect(winPos, panelMax, IM_COL32(43, 77, 124, 125), 10.0f, 0, 0.75f);
 
     if (triMode) {
         
@@ -503,4 +517,6 @@ void ui::RenderEspPreview()
 
     ImGui::Dummy(avail);
     ImGui::End();
+    ImGui::PopStyleColor(5);
+    ImGui::PopStyleVar(3);
 }

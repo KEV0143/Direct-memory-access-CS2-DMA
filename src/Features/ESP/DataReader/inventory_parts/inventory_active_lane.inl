@@ -1,11 +1,8 @@
     if (activeWeaponLaneDue) {
-        const bool useClippingWeaponFallback = ofs.C_CSPlayerPawn_m_pClippingWeapon > 0;
         auto resolveActiveWeaponEntity = [&](int idx) -> uintptr_t {
             if (idx < 0 || idx >= 64)
                 return 0;
-            if (activeWeapons[idx])
-                return activeWeapons[idx];
-            return useClippingWeaponFallback ? clippingWeapons[idx] : 0;
+            return activeWeapons[idx];
         };
         const bool weaponServicesRefreshDue =
             s_lastWeaponServicesRefreshUs == 0 ||
@@ -29,19 +26,6 @@
         }
         for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
             const int i = inventoryPlayerSlots[inventorySlotIdx];
-            const bool needsClippingFallback =
-                pawns[i] &&
-                useClippingWeaponFallback &&
-                (weaponServicesRefreshDue || !s_cachedActiveWeaponsResolved[i] || !s_cachedClippingWeaponsResolved[i]);
-            if (!needsClippingFallback)
-                continue;
-            mem.AddScatterReadRequest(handle,
-                pawns[i] + ofs.C_CSPlayerPawn_m_pClippingWeapon,
-                &clippingWeapons[i], sizeof(uintptr_t));
-            queuedActiveReads = true;
-        }
-        for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
-            const int i = inventoryPlayerSlots[inventorySlotIdx];
             if (!s_cachedWeaponServicesResolved[i])
                 continue;
             mem.AddScatterReadRequest(handle,
@@ -52,10 +36,7 @@
         
         for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
             const int i = inventoryPlayerSlots[inventorySlotIdx];
-            const uintptr_t cachedEntity =
-                s_cachedActiveWeaponsResolved[i]
-                ? s_cachedActiveWeaponsResolved[i]
-                : (useClippingWeaponFallback ? clippingWeapons[i] : 0);
+            const uintptr_t cachedEntity = s_cachedActiveWeaponsResolved[i];
             if (!cachedEntity)
                 continue;
             if (ofs.C_BasePlayerWeapon_m_iClip1 > 0)
@@ -70,7 +51,6 @@
                 memcpy(activeWeaponHandles, s_cachedActiveWeaponHandles, sizeof(activeWeaponHandles));
                 memcpy(activeWeaponEntries, s_cachedActiveWeaponEntries, sizeof(activeWeaponEntries));
                 memcpy(activeWeapons, s_cachedActiveWeaponsResolved, sizeof(activeWeapons));
-                memcpy(clippingWeapons, s_cachedClippingWeaponsResolved, sizeof(clippingWeapons));
                 memcpy(weaponIds, s_cachedWeaponIdsResolved, sizeof(weaponIds));
                 memcpy(ammoClips, s_cachedAmmoClipsResolved, sizeof(ammoClips));
                 logUpdateDataIssue("scatter_12_active", "active_weapon_merged_failed_using_cached");
@@ -79,10 +59,6 @@
                     memcpy(weaponServices, s_cachedWeaponServicesResolved, sizeof(weaponServices));
                 memcpy(activeWeaponEntries, s_cachedActiveWeaponEntries, sizeof(activeWeaponEntries));
                 memcpy(activeWeapons, s_cachedActiveWeaponsResolved, sizeof(activeWeapons));
-                for (uintptr_t& clippingWeapon : clippingWeapons) {
-                    if (!isLikelyGamePointer(clippingWeapon))
-                        clippingWeapon = 0;
-                }
                 memcpy(weaponIds, s_cachedWeaponIdsResolved, sizeof(weaponIds));
                 for (uintptr_t& weaponService : weaponServices) {
                     if (!isLikelyGamePointer(weaponService))
@@ -163,7 +139,7 @@
                             for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
                                 const int i = inventoryPlayerSlots[inventorySlotIdx];
                                 const uint32_t weaponHandle = activeWeaponHandles[i];
-                                if (!weaponHandle || weaponHandle == 0xFFFFFFFFu)
+                                if (!isValidEntityHandle(weaponHandle))
                                     continue;
                                 const uint32_t block = (weaponHandle & kEntityHandleMask) >> 9;
                                 mem.AddScatterReadRequest(handle,
@@ -186,7 +162,7 @@
                             for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
                                 const int i = inventoryPlayerSlots[inventorySlotIdx];
                                 const uint32_t weaponHandle = activeWeaponHandles[i];
-                                if (!weaponHandle || weaponHandle == 0xFFFFFFFFu || !activeWeaponEntries[i])
+                                if (!isValidEntityHandle(weaponHandle) || !activeWeaponEntries[i])
                                     continue;
                                 const uint32_t slot = weaponHandle & kEntitySlotMask;
                                 mem.AddScatterReadRequest(handle,
@@ -197,6 +173,13 @@
                             if (queuedEntityRefresh && !mem.ExecuteReadScatter(handle)) {
                                 weaponEntityFailures = 1;
                                 memcpy(activeWeapons, s_cachedActiveWeaponsResolved, sizeof(activeWeapons));
+                            }
+                            for (int inventorySlotIdx = 0; inventorySlotIdx < inventoryPlayerSlotCount; ++inventorySlotIdx) {
+                                const int i = inventoryPlayerSlots[inventorySlotIdx];
+                                if (activeWeapons[i] && !isLikelyGamePointer(activeWeapons[i])) {
+                                    activeWeapons[i] = 0;
+                                    activeWeaponEntries[i] = 0;
+                                }
                             }
                             entitiesChanged = true;
                         }

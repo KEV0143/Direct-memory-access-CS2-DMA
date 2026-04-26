@@ -2,6 +2,7 @@
 
 #include "app/Core/globals.h"
 #include "app/UI/MenuShell/menu_utils.h"
+#include "app/UI/MenuShell/ui_widgets.h"
 
 #include <algorithm>
 #include <cstring>
@@ -10,6 +11,8 @@
 
 namespace
 {
+    constexpr float kControlWidth = 320.0f;
+
     constexpr const char* kMapOverrideItems[] = {
         "Auto (Detect)",
         "de_mirage",
@@ -17,9 +20,16 @@ namespace
         "de_dust2",
         "de_nuke",
         "de_overpass",
+        "de_train",
+        "ar_baggage",
+        "ar_shoots",
+        "ar_shoots_night",
         "de_ancient",
+        "de_ancient_night",
         "de_anubis",
         "de_vertigo",
+        "cs_office",
+        "cs_italy",
         "aim_custom"
     };
 
@@ -34,9 +44,10 @@ namespace
 
 void ui::tabs::webradar_sections::RenderConnectionSection(MenuState& state, const std::string& radarLink, IStatusSink& statusSink)
 {
-    ImGui::Checkbox("Enable WEBRadar", &g::webRadarEnabled);
+    ui::widgets::SectionTitle("Connection");
+    ui::widgets::ToggleRow("enable_webradar", "Enable WEBRadar", &g::webRadarEnabled);
 
-    ImGui::InputInt("Port", &g::webRadarPort);
+    ui::widgets::CompactInputIntRowAt("port", "Port", &g::webRadarPort, kControlWidth, 84.0f);
     g::webRadarPort = std::clamp(g::webRadarPort, 1025, 65535);
 
     int mapOverrideIndex = 0;
@@ -47,7 +58,9 @@ void ui::tabs::webradar_sections::RenderConnectionSection(MenuState& state, cons
         }
     }
 
-    if (ImGui::BeginCombo("Map Override", kMapOverrideItems[mapOverrideIndex])) {
+    ImGui::TextDisabled("Map Override");
+    ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+    if (ImGui::BeginCombo("##map_override", kMapOverrideItems[mapOverrideIndex])) {
         for (int i = 0; i < IM_ARRAYSIZE(kMapOverrideItems); ++i) {
             const bool selected = (mapOverrideIndex == i);
             if (ImGui::Selectable(kMapOverrideItems[i], selected)) {
@@ -63,19 +76,17 @@ void ui::tabs::webradar_sections::RenderConnectionSection(MenuState& state, cons
 
     g::webRadarMapOverride = state.webMapOverride;
 
+    ImGui::Dummy(ImVec2(0.0f, 8.0f));
     ImGui::BeginDisabled(radarLink.empty());
-    if (ImGui::Button("Open Radar", ImVec2(220, 32))) {
+    if (ui::widgets::FullButton("Open Radar", 34.0f))
         OpenLocalRadar(radarLink, statusSink);
-    }
     ImGui::EndDisabled();
 }
 
 void ui::tabs::webradar_sections::RenderQrSection(const std::string& radarLink)
 {
-    ImGui::SetNextItemOpen(g::webRadarQrOpen, ImGuiCond_Always);
-    const bool qrOpen = ImGui::CollapsingHeader("QR Code", ImGuiTreeNodeFlags_DefaultOpen);
-    g::webRadarQrOpen = qrOpen;
-    if (!qrOpen)
+    ui::widgets::ToggleRow("qr_code", "QR Code", &g::webRadarQrOpen);
+    if (!g::webRadarQrOpen)
         return;
 
     constexpr float kQrSize = 184.0f;
@@ -100,10 +111,8 @@ void ui::tabs::webradar_sections::RenderQrSection(const std::string& radarLink)
 
 void ui::tabs::webradar_sections::RenderDebugSection(const webradar::RuntimeStats& runtimeStats, uint16_t effectivePort)
 {
-    ImGui::SetNextItemOpen(g::webRadarDebugOpen, ImGuiCond_Always);
-    const bool debugOpen = ImGui::CollapsingHeader("Debug");
-    g::webRadarDebugOpen = debugOpen;
-    if (!debugOpen)
+    ui::widgets::ToggleRow("debug", "Debug", &g::webRadarDebugOpen);
+    if (!g::webRadarDebugOpen)
         return;
 
     ImGui::Text("Status: %s", runtimeStats.statusText.empty() ? "Idle" : runtimeStats.statusText.c_str());

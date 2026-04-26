@@ -8,7 +8,7 @@
 #include <string_view>
 
 namespace app::build_info {
-inline constexpr std::string_view kVersionTag = "v1.0.1";
+    inline constexpr std::string_view kVersionTag = "v1.0.2";
 inline constexpr std::string_view kRepositoryUrl = "https://github.com/KEV0143/Direct-memory-access-CS2-DMA";
 inline constexpr std::string_view kRepositoryReleasesUrl = "https://github.com/KEV0143/Direct-memory-access-CS2-DMA/releases";
 inline constexpr std::string_view kRemoteBuildInfoUrl = "https://raw.githubusercontent.com/KEV0143/Direct-memory-access-CS2-DMA/main/include/app/Core/build_info.h";

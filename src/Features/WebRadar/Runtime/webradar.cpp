@@ -1,5 +1,6 @@
 #include "Features/WebRadar/webradar.h"
 #include "Features/WebRadar/embedded_assets.h"
+#include "Features/Radar/map_registry.h"
 #include "app/Core/globals.h"
 #include "app/Config/project_paths.h"
 
@@ -34,21 +35,7 @@ namespace
 {
     constexpr size_t kMaxHttpRequestSize = 16 * 1024;
 
-    struct MapDefinition
-    {
-        std::string name;
-        std::string displayName;
-        double minX = 0.0;
-        double maxX = 0.0;
-        double minY = 0.0;
-        double maxY = 0.0;
-        double originX = 0.0;
-        double originY = 0.0;
-        double scale = 1.0;
-        bool dynamic = false;
-        std::string radarImage;
-        std::string backgroundImage;
-    };
+    using MapDefinition = radar::MapDefinition;
 
     struct HttpRequest
     {
@@ -351,18 +338,25 @@ namespace
         const char* cacheControl,
         bool keepAlive)
     {
+        const std::string cacheControlValue = cacheControl ? cacheControl : "no-store";
+        const std::string noCacheCompatHeaders =
+            cacheControlValue.find("no-store") != std::string::npos
+                ? "Pragma: no-cache\r\nExpires: 0\r\n"
+                : "";
         const std::string header = std::format(
             "HTTP/1.1 {} {}\r\n"
             "Connection: {}\r\n"
             "Access-Control-Allow-Origin: *\r\n"
             "X-Content-Type-Options: nosniff\r\n"
             "Cache-Control: {}\r\n"
+            "{}"
             "Content-Type: {}\r\n"
             "Content-Length: {}\r\n\r\n",
             statusCode,
             HttpStatusText(statusCode),
             keepAlive ? "keep-alive" : "close",
-            cacheControl ? cacheControl : "no-store",
+            cacheControlValue,
+            noCacheCompatHeaders,
             contentType ? contentType : "application/octet-stream",
             body.size());
 
@@ -567,6 +561,8 @@ namespace
             return "text/css; charset=utf-8";
         if (extension == ".png")
             return "image/png";
+        if (extension == ".webp")
+            return "image/webp";
         if (extension == ".jpg" || extension == ".jpeg")
             return "image/jpeg";
         if (extension == ".svg")
@@ -640,158 +636,14 @@ namespace
         return true;
     }
 
-    std::vector<MapDefinition> BuildFallbackMaps()
-    {
-        return {
-            { "de_mirage",   "Mirage",                -3230.0, 1890.0,   -3407.0, 1713.0,  -3230.0, 1713.0, 5.00, false, "/data/de_mirage/radar.png", "/data/de_mirage/background.png" },
-            { "de_inferno",  "Inferno",               -2087.0, 2930.6,   -1147.6, 3870.0,  -2087.0, 3870.0, 4.90, false, "/data/de_inferno/radar.png", "/data/de_inferno/background.png" },
-            { "de_dust2",    "Dust II",               -2476.0, 2029.6,   -1266.6, 3239.0,  -2476.0, 3239.0, 4.40, false, "/data/de_dust2/radar.png", "/data/de_dust2/background.png" },
-            { "de_nuke",     "Nuke",                  -3453.0, 3715.0,   -4281.0, 2887.0,  -3453.0, 2887.0, 7.00, false, "/data/de_nuke/radar.png", "/data/de_nuke/background.png" },
-            { "de_overpass", "Overpass",               -4831.0, 493.8,    -3543.8, 1781.0,  -4831.0, 1781.0, 5.20, false, "/data/de_overpass/radar.png", "/data/de_overpass/background.png" },
-            { "de_ancient",  "Ancient",                -2953.0, 2167.0,   -2956.0, 2164.0,  -2953.0, 2164.0, 5.00, false, "/data/de_ancient/radar.png", "/data/de_ancient/background.png" },
-            { "de_anubis",   "Anubis",                 -2796.0, 2549.28,  -2017.28, 3328.0, -2796.0, 3328.0, 5.22, false, "/data/de_anubis/radar.png", "/data/de_anubis/background.png" },
-            { "de_vertigo",  "Vertigo",                -3168.0, 928.0,    -2334.0, 1762.0,  -3168.0, 1762.0, 4.00, false, "/data/de_vertigo/radar.png", "/data/de_vertigo/background.png" },
-            { "aim_custom",  "Aim / Workshop (Dynamic)", -1024.0, 1024.0,   -1024.0, 1024.0,  0.0, 0.0, 1.00, true, "", "" },
-        };
-    }
-
-    std::vector<MapDefinition> LoadMapDefinitions()
-    {
-        
-        webradar::EmbeddedAsset mapsAsset{};
-        if (webradar::FindEmbeddedAsset("/maps.json", &mapsAsset)) {
-            try {
-                nlohmann::json root = nlohmann::json::parse(
-                    static_cast<const char*>(mapsAsset.data),
-                    static_cast<const char*>(mapsAsset.data) + mapsAsset.size,
-                    nullptr, false);
-                if (!root.is_discarded() && root.contains("maps") && root["maps"].is_array()) {
-                    std::vector<MapDefinition> maps;
-                    for (const auto& item : root["maps"]) {
-                        if (!item.is_object() || !item.contains("name") || !item["name"].is_string())
-                            continue;
-                        MapDefinition map = {};
-                        map.name = item["name"].get<std::string>();
-                        map.displayName = item.value("display_name", map.name);
-                        map.dynamic = item.value("dynamic", false);
-                        if (item.contains("origin") && item["origin"].is_object()) {
-                            const auto& origin = item["origin"];
-                            if (origin.contains("x") && origin["x"].is_number()) map.originX = origin["x"].get<double>();
-                            if (origin.contains("y") && origin["y"].is_number()) map.originY = origin["y"].get<double>();
-                        }
-                        if (item.contains("bounds") && item["bounds"].is_object()) {
-                            const auto& bounds = item["bounds"];
-                            if (bounds.contains("min_x") && bounds["min_x"].is_number()) map.minX = bounds["min_x"].get<double>();
-                            if (bounds.contains("max_x") && bounds["max_x"].is_number()) map.maxX = bounds["max_x"].get<double>();
-                            if (bounds.contains("min_y") && bounds["min_y"].is_number()) map.minY = bounds["min_y"].get<double>();
-                            if (bounds.contains("max_y") && bounds["max_y"].is_number()) map.maxY = bounds["max_y"].get<double>();
-                        }
-                        if (item.contains("scale") && item["scale"].is_number()) map.scale = item["scale"].get<double>();
-                        if (item.contains("images") && item["images"].is_object()) {
-                            const auto& images = item["images"];
-                            if (images.contains("radar") && images["radar"].is_string()) map.radarImage = images["radar"].get<std::string>();
-                            if (images.contains("background") && images["background"].is_string()) map.backgroundImage = images["background"].get<std::string>();
-                        }
-                        maps.push_back(std::move(map));
-                    }
-                    if (!maps.empty()) return maps;
-                }
-            } catch (...) {}
-        }
-
-        
-        const auto rawPath = app::paths::ResolveWebRadarAssetPath("maps.json");
-        if (!rawPath.empty()) {
-            try {
-                std::ifstream file(rawPath, std::ios::in | std::ios::binary);
-                if (file.is_open()) {
-                    nlohmann::json root = nlohmann::json::parse(file, nullptr, false);
-                    if (!root.is_discarded() && root.contains("maps") && root["maps"].is_array()) {
-                        std::vector<MapDefinition> maps;
-                        for (const auto& item : root["maps"]) {
-                            if (!item.is_object() || !item.contains("name") || !item["name"].is_string())
-                                continue;
-
-                            MapDefinition map = {};
-                            map.name = item["name"].get<std::string>();
-                            map.displayName = item.value("display_name", map.name);
-                            map.dynamic = item.value("dynamic", false);
-
-                            if (item.contains("origin") && item["origin"].is_object()) {
-                                const auto& origin = item["origin"];
-                                if (origin.contains("x") && origin["x"].is_number())
-                                    map.originX = origin["x"].get<double>();
-                                if (origin.contains("y") && origin["y"].is_number())
-                                    map.originY = origin["y"].get<double>();
-                            }
-
-                            if (item.contains("bounds") && item["bounds"].is_object()) {
-                                const auto& bounds = item["bounds"];
-                                if (bounds.contains("min_x") && bounds["min_x"].is_number())
-                                    map.minX = bounds["min_x"].get<double>();
-                                if (bounds.contains("max_x") && bounds["max_x"].is_number())
-                                    map.maxX = bounds["max_x"].get<double>();
-                                if (bounds.contains("min_y") && bounds["min_y"].is_number())
-                                    map.minY = bounds["min_y"].get<double>();
-                                if (bounds.contains("max_y") && bounds["max_y"].is_number())
-                                    map.maxY = bounds["max_y"].get<double>();
-                            }
-
-                            if (item.contains("scale") && item["scale"].is_number())
-                                map.scale = item["scale"].get<double>();
-
-                            if (item.contains("images") && item["images"].is_object()) {
-                                const auto& images = item["images"];
-                                if (images.contains("radar") && images["radar"].is_string())
-                                    map.radarImage = images["radar"].get<std::string>();
-                                if (images.contains("background") && images["background"].is_string())
-                                    map.backgroundImage = images["background"].get<std::string>();
-                            }
-
-                            maps.push_back(std::move(map));
-                        }
-
-                        if (!maps.empty())
-                            return maps;
-                    }
-                }
-            } catch (...) {
-            }
-        }
-
-        return BuildFallbackMaps();
-    }
-
     const std::vector<MapDefinition>& GetMapDefinitions()
     {
-        static const std::vector<MapDefinition> kMaps = LoadMapDefinitions();
-        return kMaps;
+        return radar::GetMapDefinitions();
     }
 
     std::string BuildFallbackMapsJson()
     {
-        nlohmann::json root;
-        root["maps"] = nlohmann::json::array();
-        for (const auto& map : GetMapDefinitions()) {
-            root["maps"].push_back({
-                {"name", map.name},
-                {"display_name", map.displayName.empty() ? map.name : map.displayName},
-                {"origin", { {"x", map.originX}, {"y", map.originY} }},
-                {"scale", map.scale},
-                {"dynamic", map.dynamic},
-                {"bounds", {
-                    {"min_x", map.minX},
-                    {"max_x", map.maxX},
-                    {"min_y", map.minY},
-                    {"max_y", map.maxY}
-                }},
-                {"images", {
-                    {"radar", map.radarImage},
-                    {"background", map.backgroundImage}
-                }}
-            });
-        }
-        return root.dump();
+        return radar::BuildMapsJson();
     }
 
     std::filesystem::path ResolveStaticAssetPath(const std::string& requestPath)
@@ -1184,16 +1036,11 @@ std::string WEBRadar::BuildPlayerSteamId(int slot)
 
 std::string WEBRadar::NormalizeMapName(const std::string& rawName)
 {
-    const std::string name = ToLower(Trim(rawName));
-    if (name.empty() || name == "auto")
+    const std::string trimmed = Trim(rawName);
+    if (trimmed.empty() || ToLower(trimmed) == "auto")
         return {};
 
-    for (const auto& map : GetMapDefinitions()) {
-        if (name == map.name)
-            return name;
-    }
-
-    return {};
+    return radar::NormalizeMapName(trimmed);
 }
 
 std::string WEBRadar::ResolveMapName(const esp::WebRadarSnapshot& snapshot)

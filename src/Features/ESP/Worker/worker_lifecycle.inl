@@ -1,3 +1,26 @@
+namespace {
+DWORD_PTR BuildWorkerAffinityMask(unsigned backFromLastCore)
+{
+    constexpr unsigned kMaskBits = static_cast<unsigned>(sizeof(DWORD_PTR) * 8u);
+    unsigned cpuCount = std::thread::hardware_concurrency();
+    if (cpuCount == 0)
+        cpuCount = 1;
+    cpuCount = std::min(cpuCount, kMaskBits);
+
+    const unsigned clampedBack = std::min(backFromLastCore, cpuCount - 1u);
+    const unsigned coreIndex = cpuCount - 1u - clampedBack;
+    return static_cast<DWORD_PTR>(1ull) << coreIndex;
+}
+
+void ApplyWorkerThreadTuning(unsigned backFromLastCore)
+{
+    const DWORD_PTR affinityMask = BuildWorkerAffinityMask(backFromLastCore);
+    if (affinityMask != 0)
+        SetThreadAffinityMask(GetCurrentThread(), affinityMask);
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+}
+}
+
 void esp::StartDataWorker()
 {
     if (s_dataWorkerRunning.exchange(true, std::memory_order_relaxed))
@@ -14,27 +37,12 @@ void esp::StartDataWorker()
     s_dataWorkerUpdateInFlight.store(false, std::memory_order_relaxed);
     ResetCameraSnapshot();
     s_dataWorker = std::thread([]() {
-        
-        
-        
-        
-        
-        
-        const DWORD_PTR coreMask = 1ull << (std::thread::hardware_concurrency() - 1);
-        SetThreadAffinityMask(GetCurrentThread(), coreMask);
-        
-        
-        SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+        ApplyWorkerThreadTuning(0);
         DataWorkerLoop();
     });
     s_cameraWorker = std::thread([]() {
-        
-        
-        
-        const DWORD nCpus = static_cast<DWORD>(std::thread::hardware_concurrency());
-        const DWORD_PTR camCore = nCpus >= 4 ? (1ull << (nCpus - 2)) : (1ull << (nCpus - 1));
-        SetThreadAffinityMask(GetCurrentThread(), camCore);
-        SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
+        const unsigned cpuCount = std::thread::hardware_concurrency();
+        ApplyWorkerThreadTuning(cpuCount >= 4 ? 1u : 0u);
         CameraWorkerLoop();
     });
 }

@@ -484,6 +484,15 @@ namespace {
             g::fpsLimit = 0;
         if (g::fpsLimit > 500)
             g::fpsLimit = 500;
+        auto sanitizeOverlayPos = [](float& x, float& y, float defaultX, float defaultY) {
+            constexpr float kMaxCoord = 12000.0f;
+            if (!std::isfinite(x) || std::fabs(x) > kMaxCoord)
+                x = defaultX;
+            if (!std::isfinite(y) || std::fabs(y) > kMaxCoord)
+                y = defaultY;
+        };
+        sanitizeOverlayPos(g::radarSpectatorListX, g::radarSpectatorListY, defaults.radar.spectatorListX, defaults.radar.spectatorListY);
+        sanitizeOverlayPos(g::espBombTimerX, g::espBombTimerY, defaults.esp.bombTimerX, defaults.esp.bombTimerY);
         if (g::menuToggleKey < 0x08 || g::menuToggleKey > 0xFE || g::menuToggleKey == kVkEnd || g::menuToggleKey == kVkInsert)
             g::menuToggleKey = defaults.ui.menuToggleKey;
         g::espItemEnabledMask.set(0, false);
@@ -554,7 +563,10 @@ namespace {
         LoadBool(ini, "ESP", "WorldExplosiveTimer", g::espWorldExplosiveTimer);
         LoadBool(ini, "ESP", "BombInfo", g::espBombInfo);
         LoadBool(ini, "ESP", "BombText", g::espBombText);
+        LoadBool(ini, "ESP", "BombTime", g::espBombTime);
         LoadFloat(ini, "ESP", "BombTextSize", g::espBombTextSize);
+        LoadFloat(ini, "ESP", "BombTimerX", g::espBombTimerX);
+        LoadFloat(ini, "ESP", "BombTimerY", g::espBombTimerY);
         LoadDisabledItemIds(ini, "ESP", "ItemHiddenIds", g::espItemEnabledMask);
         LoadFloat(ini, "ESP", "OffscreenSize", g::espOffscreenSize);
         LoadColor(ini, "ESP", "BoxColor", g::espBoxColor);
@@ -590,6 +602,9 @@ namespace {
         LoadColor(ini, "Radar", "DotColor", g::radarDotColor);
         LoadColor(ini, "Radar", "BombColor", g::radarBombColor);
         LoadColor(ini, "Radar", "AngleColor", g::radarAngleColor);
+        LoadBool(ini, "Radar", "SpectatorList", g::radarSpectatorList);
+        LoadFloat(ini, "Radar", "SpectatorListX", g::radarSpectatorListX);
+        LoadFloat(ini, "Radar", "SpectatorListY", g::radarSpectatorListY);
 
         LoadBool(ini, "WEBRadar", "Enabled", g::webRadarEnabled);
         LoadInt(ini, "WEBRadar", "Port", g::webRadarPort);

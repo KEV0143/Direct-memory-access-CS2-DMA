@@ -12,7 +12,9 @@
     uint8_t bombTicking = 0;
     uint8_t bombBeingDefused = 0;
     float bombBlowTime = 0.0f;
+    float bombTimerLength = 0.0f;
     float bombDefuseEndTime = 0.0f;
+    float bombDefuseLength = 0.0f;
     float currentGameTime = s_lastStableGameTime;
     float intervalPerTick = s_lastStableIntervalPerTick;
     highestEntityIndex = std::max(0, s_highestEntityIdxStat.load(std::memory_order_relaxed));
@@ -26,6 +28,7 @@
     Vector3 weaponC4CollisionMaxs = {};
     uint32_t weaponC4OwnerHandle = 0;
     bool weaponC4PosValid = false;
+    char liveMapNameRaw[64] = {};
 
     auto sanitizePointer = [&](uintptr_t value) -> uintptr_t {
         return isLikelyGamePointer(value) ? value : 0;
@@ -94,16 +97,26 @@
     static uintptr_t s_cbpWeaponC4 = 0;
     static uintptr_t s_cbpWeaponC4Raw = 0;
     static uint64_t s_cbpResetSerial = 0;
+    static uintptr_t s_pendingEntityList = 0;
+    static uint32_t s_pendingEntityListConfirmCount = 0;
     static uint64_t s_lastHighestEntityRefreshUs = 0;
     static uint64_t s_lastMinimapRefreshUs = 0;
     static uint64_t s_lastSensitivityRefreshUs = 0;
     static uint64_t s_lastIntervalRefreshUs = 0;
+    static uintptr_t s_pendingGameRulesCandidate = 0;
+    static uint32_t s_pendingGameRulesConfirmCount = 0;
     static uint32_t s_gameRulesSanityFailureStreak = 0;
     static uint64_t s_lastGameRulesSanityLogUs = 0;
     static uint64_t s_lastGameRulesSanityRecoveryUs = 0;
     static bool s_entityHierarchyMissing = false;
     static uint32_t s_entityHierarchyMissingStreak = 0;
     static uint64_t s_lastEntityHierarchyRecoveryUs = 0;
+    static uint32_t s_entityHierarchyFlatStreak = 0;
+    static uint64_t s_lastEntityHierarchyFlatRecoveryUs = 0;
+    static uintptr_t s_cachedMatchmakingBase = 0;
+    static uint64_t s_lastMatchmakingBaseRefreshUs = 0;
+    static uint64_t s_lastLiveMapNameRefreshUs = 0;
+    static std::string s_cachedLiveMapKey;
     {
         const uint64_t cbpSceneSerial = s_sceneResetSerial.load(std::memory_order_relaxed);
         if (s_cbpResetSerial != cbpSceneSerial) {
@@ -119,10 +132,14 @@
             
             s_cachedEntityList = 0;
             s_cachedListEntry = 0;
+            s_pendingEntityList = 0;
+            s_pendingEntityListConfirmCount = 0;
             s_lastHighestEntityRefreshUs = 0;
             s_lastMinimapRefreshUs = 0;
             s_lastSensitivityRefreshUs = 0;
             s_lastIntervalRefreshUs = 0;
+            s_pendingGameRulesCandidate = 0;
+            s_pendingGameRulesConfirmCount = 0;
             s_gameRulesSanityFailureStreak = 0;
             s_lastGameRulesSanityLogUs = 0;
             s_lastGameRulesSanityRecoveryUs = 0;
@@ -131,10 +148,22 @@
             s_entityHierarchyMissing = false;
             s_entityHierarchyMissingStreak = 0;
             s_lastEntityHierarchyRecoveryUs = 0;
+            s_entityHierarchyFlatStreak = 0;
+            s_lastEntityHierarchyFlatRecoveryUs = 0;
+            s_cachedMatchmakingBase = 0;
+            s_lastMatchmakingBaseRefreshUs = 0;
+            s_lastLiveMapNameRefreshUs = 0;
+            s_cachedLiveMapKey.clear();
         }
     }
     {
         const uint64_t baseNowUs = TickNowUs();
+        liveMapKey = s_cachedLiveMapKey;
+        const int baseSignOnState = s_engineSignOnState.load(std::memory_order_relaxed);
+        const bool engineMatchLikeBase =
+            s_engineInGame.load(std::memory_order_relaxed) &&
+            !s_engineMenu.load(std::memory_order_relaxed) &&
+            baseSignOnState == 6;
         const bool highestEntityRefreshDue =
             s_lastHighestEntityRefreshUs == 0 ||
             (baseNowUs - s_lastHighestEntityRefreshUs) >= esp::intervals::kBaseHighestEntityRefreshUs;
@@ -150,6 +179,9 @@
             s_lastStableIntervalPerTick <= 0.0f ||
             s_lastIntervalRefreshUs == 0 ||
             (baseNowUs - s_lastIntervalRefreshUs) >= esp::intervals::kBaseIntervalRefreshUs;
+        const bool liveMapNameRefreshDue =
+            s_lastLiveMapNameRefreshUs == 0 ||
+            (baseNowUs - s_lastLiveMapNameRefreshUs) >= esp::intervals::kBaseMinimapRefreshUs;
         
         uintptr_t rawEntityList = 0, rawLocalPawn = 0, rawLocalController = 0;
         uintptr_t rawGameRules = 0, rawGlobalVars = 0;
@@ -174,13 +206,13 @@
             mem.AddScatterReadRequest(handle, g::clientBase + ofs.dwLocalPlayerPawn, &rawLocalPawn, sizeof(rawLocalPawn));
         if (ofs.dwLocalPlayerController > 0)
             mem.AddScatterReadRequest(handle, g::clientBase + ofs.dwLocalPlayerController, &rawLocalController, sizeof(rawLocalController));
-        if (ofs.dwGameRules > 0)
+        if (engineMatchLikeBase && ofs.dwGameRules > 0)
             mem.AddScatterReadRequest(handle, g::clientBase + ofs.dwGameRules, &rawGameRules, sizeof(rawGameRules));
         if (ofs.dwGlobalVars > 0)
             mem.AddScatterReadRequest(handle, g::clientBase + ofs.dwGlobalVars, &rawGlobalVars, sizeof(rawGlobalVars));
-        if (ofs.dwPlantedC4 > 0)
+        if (engineMatchLikeBase && ofs.dwPlantedC4 > 0)
             mem.AddScatterReadRequest(handle, g::clientBase + ofs.dwPlantedC4, &rawPlantedC4, sizeof(rawPlantedC4));
-        if (ofs.dwWeaponC4 > 0)
+        if (engineMatchLikeBase && ofs.dwWeaponC4 > 0)
             mem.AddScatterReadRequest(handle, g::clientBase + ofs.dwWeaponC4, &rawWeaponC4, sizeof(rawWeaponC4));
         if (ofs.dwSensitivity > 0)
             mem.AddScatterReadRequest(handle, g::clientBase + ofs.dwSensitivity, &rawSensPtr, sizeof(rawSensPtr));
@@ -188,6 +220,21 @@
             mem.AddScatterReadRequest(handle, g::clientBase + ofs.dwViewMatrix, &viewMatrix, sizeof(viewMatrix));
         if (ofs.dwViewAngles > 0)
             mem.AddScatterReadRequest(handle, g::clientBase + ofs.dwViewAngles, &viewAngles, sizeof(viewAngles));
+        if (engineMatchLikeBase && liveMapNameRefreshDue && ofs.dwGameTypes > 0) {
+            if (!s_cachedMatchmakingBase ||
+                s_lastMatchmakingBaseRefreshUs == 0 ||
+                (baseNowUs - s_lastMatchmakingBaseRefreshUs) >= 2000000u) {
+                s_cachedMatchmakingBase = mem.GetBaseDaddy("matchmaking.dll");
+                s_lastMatchmakingBaseRefreshUs = baseNowUs;
+            }
+            std::ptrdiff_t mapNameRva = ofs.dwGameTypes + static_cast<std::ptrdiff_t>(0x120);
+            if (ofs.dwGameTypes_mapName > ofs.dwGameTypes)
+                mapNameRva = ofs.dwGameTypes_mapName;
+            else if (ofs.dwGameTypes_mapName > 0 && ofs.dwGameTypes_mapName < 0x10000)
+                mapNameRva = ofs.dwGameTypes + ofs.dwGameTypes_mapName;
+            if (s_cachedMatchmakingBase && mapNameRva > 0)
+                mem.AddScatterReadRequest(handle, s_cachedMatchmakingBase + static_cast<uintptr_t>(mapNameRva), liveMapNameRaw, sizeof(liveMapNameRaw) - 1);
+        }
 
         
         const bool hasCachedPointers = s_cachedEntityList != 0;
@@ -206,7 +253,7 @@
             if (ofs.C_BasePlayerPawn_m_vOldOrigin > 0)
                 mem.AddScatterReadRequest(handle, s_cbpLocalPawn + ofs.C_BasePlayerPawn_m_vOldOrigin, &localPos, sizeof(localPos));
         }
-        if (s_cbpGameRules) {
+        if (engineMatchLikeBase && s_cbpGameRules) {
             if (minimapRefreshDue && ofs.C_CSGameRules_m_vMinimapMins > 0)
                 mem.AddScatterReadRequest(handle, s_cbpGameRules + ofs.C_CSGameRules_m_vMinimapMins, &minimapMins, sizeof(minimapMins));
             if (minimapRefreshDue && ofs.C_CSGameRules_m_vMinimapMaxs > 0)
@@ -218,9 +265,9 @@
         }
         if (s_cbpSensPtr && sensitivityRefreshDue && ofs.dwSensitivity_sensitivity > 0)
             mem.AddScatterReadRequest(handle, s_cbpSensPtr + ofs.dwSensitivity_sensitivity, &liveSensitivity, sizeof(liveSensitivity));
-        if (s_cbpPlantedC4)
+        if (engineMatchLikeBase && s_cbpPlantedC4)
             mem.AddScatterReadRequest(handle, s_cbpPlantedC4, &rawPlantedC4Deref, sizeof(uintptr_t));
-        if (s_cbpWeaponC4Raw)
+        if (engineMatchLikeBase && s_cbpWeaponC4Raw)
             mem.AddScatterReadRequest(handle, s_cbpWeaponC4Raw, &rawWeaponC4Deref, sizeof(uintptr_t));
         if (s_cbpGlobalVars) {
             for (size_t i = 0; i < std::size(kIntervalCandidates); ++i) {
@@ -236,15 +283,38 @@
         if (!executeOptionalScatterRead()) {
             logUpdateDataIssue("scatter_1", "base_merged_scatter_failed");
         }
+        liveMapNameRaw[sizeof(liveMapNameRaw) - 1] = '\0';
+        if (liveMapNameRefreshDue) {
+            std::string normalizedMap = radar::NormalizeMapName(liveMapNameRaw);
+            if (normalizedMap.empty()) {
+                uintptr_t mapNamePointer = 0;
+                memcpy(&mapNamePointer, liveMapNameRaw, sizeof(mapNamePointer));
+                const bool plausibleStringPointer =
+                    mapNamePointer >= 0x10000ULL &&
+                    mapNamePointer < 0x0000800000000000ULL;
+                if (plausibleStringPointer) {
+                    char pointedMapName[64] = {};
+                    if (readValue(mapNamePointer, pointedMapName, sizeof(pointedMapName) - 1)) {
+                        pointedMapName[sizeof(pointedMapName) - 1] = '\0';
+                        normalizedMap = radar::NormalizeMapName(pointedMapName);
+                    }
+                }
+            }
+            if (!normalizedMap.empty()) {
+                liveMapKey = normalizedMap;
+                s_cachedLiveMapKey = normalizedMap;
+                s_lastLiveMapNameRefreshUs = baseNowUs;
+            }
+        }
 
         
         entityList = sanitizePointer(rawEntityList);
         localPawn = sanitizePointer(rawLocalPawn);
         localController = sanitizePointer(rawLocalController);
-        gameRules = sanitizePointer(rawGameRules);
+        gameRules = engineMatchLikeBase ? sanitizePointer(rawGameRules) : 0;
         globalVars = sanitizePointer(rawGlobalVars);
-        plantedC4Entity = sanitizePointer(rawPlantedC4);
-        weaponC4Entity = sanitizePointer(rawWeaponC4);
+        plantedC4Entity = engineMatchLikeBase ? sanitizePointer(rawPlantedC4) : 0;
+        weaponC4Entity = engineMatchLikeBase ? sanitizePointer(rawWeaponC4) : 0;
         sensPtr = sanitizePointer(rawSensPtr);
 
         
@@ -360,6 +430,18 @@
                 }
             }
         }
+        if (!engineMatchLikeBase) {
+            gameRules = 0;
+            plantedC4Entity = 0;
+            weaponC4Entity = 0;
+            minimapMins = {};
+            minimapMaxs = {};
+            minimapBoundsValid = false;
+            bombPlantedByRules = false;
+            bombDroppedByRules = false;
+            s_pendingGameRulesCandidate = 0;
+            s_pendingGameRulesConfirmCount = 0;
+        }
 
         auto minimapBoundsLookPlausible = [&](const Vector3& minsToCheck, const Vector3& maxsToCheck) -> bool {
             if (!std::isfinite(minsToCheck.x) || !std::isfinite(minsToCheck.y) ||
@@ -391,6 +473,35 @@
             plantedFlagSane &&
             droppedFlagSane &&
             minimapBoundsSane;
+        const bool newGameRulesCandidate =
+            stableInGameGameRulesWindow &&
+            gameRules != 0 &&
+            gameRulesLooksSane &&
+            gameRules != s_cbpGameRules;
+
+        if (newGameRulesCandidate) {
+            if (s_pendingGameRulesCandidate != gameRules) {
+                s_pendingGameRulesCandidate = gameRules;
+                s_pendingGameRulesConfirmCount = 1;
+            } else if (s_pendingGameRulesConfirmCount < 0xFFFFFFFFu) {
+                ++s_pendingGameRulesConfirmCount;
+            }
+
+            if (s_pendingGameRulesConfirmCount < 2u) {
+                gameRules = s_cbpGameRules;
+                minimapMins = s_minimapMins;
+                minimapMaxs = s_minimapMaxs;
+                minimapBoundsValid = s_hasMinimapBounds;
+                bombPlantedByRules = false;
+                bombDroppedByRules = false;
+            } else {
+                s_pendingGameRulesCandidate = 0;
+                s_pendingGameRulesConfirmCount = 0;
+            }
+        } else if (!gameRulesLooksSane || gameRules == 0 || gameRules == s_cbpGameRules) {
+            s_pendingGameRulesCandidate = 0;
+            s_pendingGameRulesConfirmCount = 0;
+        }
 
         if (stableInGameGameRulesWindow && !gameRulesLooksSane) {
             ++s_gameRulesSanityFailureStreak;
@@ -413,20 +524,40 @@
                     static_cast<unsigned>(bombDroppedFlag));
             }
 
-            if (s_gameRulesSanityFailureStreak >= 3u &&
-                (baseNowUs - s_lastGameRulesSanityRecoveryUs) >= 1000000u) {
+            if (s_gameRulesSanityFailureStreak >= 5u &&
+                (baseNowUs - s_lastGameRulesSanityRecoveryUs) >= 3000000u) {
                 s_lastGameRulesSanityRecoveryUs = baseNowUs;
                 refreshDmaCaches("gamerules_sanity_failed", DmaRefreshTier::Repair, true);
+                if (s_gameRulesSanityFailureStreak >= 10u) {
+                    RequestDmaRecovery("gamerules_sanity_failed_persistent");
+                }
             }
 
-            gameRules = 0;
-            minimapMins = s_minimapMins;
-            minimapMaxs = s_minimapMaxs;
-            minimapBoundsValid = s_hasMinimapBounds;
+            const bool canFallbackToCachedGameRules =
+                s_cbpGameRules != 0 &&
+                s_cbpGameRules != gameRules &&
+                s_hasMinimapBounds;
+            gameRules = canFallbackToCachedGameRules ? s_cbpGameRules : 0;
+            minimapMins = canFallbackToCachedGameRules ? s_minimapMins : Vector3{};
+            minimapMaxs = canFallbackToCachedGameRules ? s_minimapMaxs : Vector3{};
+            minimapBoundsValid = canFallbackToCachedGameRules ? s_hasMinimapBounds : false;
             bombPlantedByRules = false;
             bombDroppedByRules = false;
         } else if (!stableInGameGameRulesWindow || gameRulesLooksSane) {
             s_gameRulesSanityFailureStreak = 0;
+        }
+
+        if (!engineMatchLikeBase) {
+            SetSubsystemUnknown(RuntimeSubsystem::GameRulesMap);
+        } else if (!gameRulesLooksSane || !gameRules) {
+            if (stableInGameGameRulesWindow)
+                MarkSubsystemFailed(RuntimeSubsystem::GameRulesMap, baseNowUs);
+            else
+                MarkSubsystemDegraded(RuntimeSubsystem::GameRulesMap, baseNowUs);
+        } else if (minimapBoundsValid || bombPlantedByRules || bombDroppedByRules) {
+            MarkSubsystemHealthy(RuntimeSubsystem::GameRulesMap, baseNowUs);
+        } else {
+            MarkSubsystemDegraded(RuntimeSubsystem::GameRulesMap, baseNowUs);
         }
 
         
@@ -486,21 +617,38 @@
     
     
     
-    static uintptr_t s_pendingEntityList = 0;
-    static uint32_t s_pendingEntityListConfirmCount = 0;
     bool acceptEntityListCacheUpdate = entityList != 0;
     if (entityList && s_cachedEntityList &&
         entityList != s_cachedEntityList) {
         const auto entityListWarmupState =
             static_cast<esp::SceneWarmupState>(s_sceneWarmupState.load(std::memory_order_relaxed));
-        const bool stableInGameEntityList =
+        const bool liveEntityHierarchyContext =
             s_engineInGame.load(std::memory_order_relaxed) &&
+            !s_engineMenu.load(std::memory_order_relaxed) &&
+            s_engineSignOnState.load(std::memory_order_relaxed) == 6;
+        const bool stableInGameEntityList =
+            liveEntityHierarchyContext &&
             entityListWarmupState == esp::SceneWarmupState::Stable;
 
-        if (!stableInGameEntityList) {
+        if (!liveEntityHierarchyContext) {
             s_pendingEntityList = 0;
             s_pendingEntityListConfirmCount = 0;
-            handleSceneTransition("entity_list_rebuilt", true, true);
+            acceptEntityListCacheUpdate = true;
+        } else if (!stableInGameEntityList) {
+            if (s_pendingEntityList != entityList) {
+                s_pendingEntityList = entityList;
+                s_pendingEntityListConfirmCount = 1;
+            } else if (s_pendingEntityListConfirmCount < 0xFFFFFFFFu) {
+                ++s_pendingEntityListConfirmCount;
+            }
+            if (s_pendingEntityListConfirmCount >= 2u) {
+                refreshDmaCaches("entity_list_rebuilt", DmaRefreshTier::Repair, true);
+                s_pendingEntityList = 0;
+                s_pendingEntityListConfirmCount = 0;
+                acceptEntityListCacheUpdate = true;
+            } else {
+                acceptEntityListCacheUpdate = false;
+            }
         } else {
             acceptEntityListCacheUpdate = false;
             if (s_pendingEntityList != entityList) {
@@ -522,6 +670,12 @@
         s_pendingEntityListConfirmCount = 0;
     }
 
+    if (!acceptEntityListCacheUpdate) {
+        entityList = s_cachedEntityList;
+        listEntry = s_cachedListEntry;
+        highestEntityIndex = std::max(0, s_highestEntityIdxStat.load(std::memory_order_relaxed));
+    }
+
     if (acceptEntityListCacheUpdate && entityList)
         s_cachedEntityList = entityList;
     if (listEntry)
@@ -539,52 +693,98 @@
         static_cast<esp::SceneWarmupState>(s_sceneWarmupState.load(std::memory_order_relaxed));
     const bool sceneSettling =
         baseReadsSceneAge < 2000000 ||
-        baseWarmupState != esp::SceneWarmupState::Stable;
+        (baseReadsSceneAge < 10000000 &&
+         baseWarmupState != esp::SceneWarmupState::Stable &&
+         baseWarmupState != esp::SceneWarmupState::Recovery);
     {
         const bool entityHierarchyReady = entityList != 0 && listEntry != 0;
+        const bool liveEntityHierarchyContext =
+            s_engineInGame.load(std::memory_order_relaxed) &&
+            !s_engineMenu.load(std::memory_order_relaxed) &&
+            s_engineSignOnState.load(std::memory_order_relaxed) == 6;
         if (!entityHierarchyReady) {
-            
-            
-            
-            
-            
-            
-            if (!s_entityHierarchyMissing) {
-                refreshDmaCaches("entity_hierarchy_missing", DmaRefreshTier::Probe);
-            }
-            ++s_entityHierarchyMissingStreak;
-            const uint64_t nowUs = TickNowUs();
-            if (sceneSettling) {
-                if (s_entityHierarchyMissingStreak >= 3 &&
-                    (nowUs - s_lastEntityHierarchyRecoveryUs) >= 200000) {
-                    s_lastEntityHierarchyRecoveryUs = nowUs;
-                    refreshDmaCaches("entity_hierarchy_settling_repair", DmaRefreshTier::Repair);
-                }
-                if (s_entityHierarchyMissingStreak >= 12 &&
-                    (nowUs - s_lastEntityHierarchyRecoveryUs) >= 300000) {
-                    s_lastEntityHierarchyRecoveryUs = nowUs;
-                    refreshDmaCaches("entity_hierarchy_settling_full", DmaRefreshTier::Full);
-                }
-                if (s_entityHierarchyMissingStreak >= 24 &&
-                    (nowUs - s_lastEntityHierarchyRecoveryUs) >= 1000000) {
-                    s_lastEntityHierarchyRecoveryUs = nowUs;
-                    RequestDmaRecovery("entity_hierarchy_settling_persistent");
-                }
+            if (!liveEntityHierarchyContext) {
+                s_entityHierarchyMissing = false;
+                s_entityHierarchyMissingStreak = 0;
+                s_lastEntityHierarchyRecoveryUs = 0;
+                s_entityHierarchyFlatStreak = 0;
+                s_lastEntityHierarchyFlatRecoveryUs = 0;
+            } else if (baseWarmupState == esp::SceneWarmupState::Recovery ||
+                       s_dmaRecovering.load(std::memory_order_relaxed)) {
+                s_entityHierarchyMissingStreak = 0;
             } else {
-                const bool canAttemptRecovery =
-                    s_engineInGame.load(std::memory_order_relaxed) &&
-                    s_entityHierarchyMissingStreak >= 24 &&
-                    (nowUs - s_lastEntityHierarchyRecoveryUs) >= 3000000;
-                if (canAttemptRecovery) {
-                    s_lastEntityHierarchyRecoveryUs = nowUs;
-                    refreshDmaCaches("entity_hierarchy_missing_persistent", DmaRefreshTier::Full);
-                    RequestDmaRecovery("entity_hierarchy_missing_persistent");
+                if (!s_entityHierarchyMissing)
+                    refreshDmaCaches("entity_hierarchy_missing", DmaRefreshTier::Probe);
+
+                ++s_entityHierarchyMissingStreak;
+                const uint64_t nowUs = TickNowUs();
+                if (sceneSettling) {
+                    if (s_entityHierarchyMissingStreak >= 3 &&
+                        (nowUs - s_lastEntityHierarchyRecoveryUs) >= 500000) {
+                        s_lastEntityHierarchyRecoveryUs = nowUs;
+                        refreshDmaCaches("entity_hierarchy_settling_repair", DmaRefreshTier::Repair);
+                    }
+                    if (s_entityHierarchyMissingStreak >= 12 &&
+                        (nowUs - s_lastEntityHierarchyRecoveryUs) >= 1000000) {
+                        s_lastEntityHierarchyRecoveryUs = nowUs;
+                        refreshDmaCaches("entity_hierarchy_settling_full", DmaRefreshTier::Full);
+                    }
+                    if (s_entityHierarchyMissingStreak >= 24 &&
+                        (nowUs - s_lastEntityHierarchyRecoveryUs) >= 3000000) {
+                        s_lastEntityHierarchyRecoveryUs = nowUs;
+                        refreshDmaCaches("entity_hierarchy_settling_persistent", DmaRefreshTier::Full, true);
+                    }
+                } else {
+                    const bool canAttemptRecovery =
+                        s_engineInGame.load(std::memory_order_relaxed) &&
+                        s_entityHierarchyMissingStreak >= 24 &&
+                        (nowUs - s_lastEntityHierarchyRecoveryUs) >= 5000000;
+                    if (canAttemptRecovery) {
+                        s_lastEntityHierarchyRecoveryUs = nowUs;
+                        refreshDmaCaches("entity_hierarchy_missing_persistent", DmaRefreshTier::Full);
+                        RequestDmaRecovery("entity_hierarchy_missing_persistent");
+                    }
                 }
+                s_entityHierarchyMissing = true;
             }
-            s_entityHierarchyMissing = true;
         } else {
             s_entityHierarchyMissing = false;
             s_entityHierarchyMissingStreak = 0;
+            const bool flatLiveEntityHierarchy =
+                liveEntityHierarchyContext &&
+                baseReadsSceneAge >= 1500000u &&
+                s_playerSlotScanLimitStat.load(std::memory_order_relaxed) >= 32 &&
+                s_activePlayerCount.load(std::memory_order_relaxed) == 0 &&
+                highestEntityIndex > 0 &&
+                highestEntityIndex < 32;
+            if (flatLiveEntityHierarchy &&
+                baseWarmupState != esp::SceneWarmupState::Recovery &&
+                !s_dmaRecovering.load(std::memory_order_relaxed)) {
+                ++s_entityHierarchyFlatStreak;
+                const uint64_t nowUs = TickNowUs();
+                const bool flatCooldownElapsed =
+                    s_lastEntityHierarchyFlatRecoveryUs == 0 ||
+                    nowUs <= s_lastEntityHierarchyFlatRecoveryUs ||
+                    (nowUs - s_lastEntityHierarchyFlatRecoveryUs) >= 900000u;
+                if (flatCooldownElapsed && s_entityHierarchyFlatStreak >= 3u) {
+                    s_lastEntityHierarchyFlatRecoveryUs = nowUs;
+                    const bool repairFlat = s_entityHierarchyFlatStreak >= 8u;
+                    const bool fullFlat = s_entityHierarchyFlatStreak >= 18u;
+                    if (repairFlat)
+                        SetSceneWarmupState(esp::SceneWarmupState::HierarchyWarming, nowUs);
+                    refreshDmaCaches(
+                        fullFlat ? "entity_hierarchy_flat_full" :
+                        repairFlat ? "entity_hierarchy_flat_repair" :
+                        "entity_hierarchy_flat_probe",
+                        fullFlat ? DmaRefreshTier::Full :
+                        repairFlat ? DmaRefreshTier::Repair :
+                        DmaRefreshTier::Probe,
+                        fullFlat);
+                }
+            } else {
+                s_entityHierarchyFlatStreak = 0;
+                s_lastEntityHierarchyFlatRecoveryUs = 0;
+            }
         }
     }
 

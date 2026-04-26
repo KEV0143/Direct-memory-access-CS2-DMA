@@ -20,6 +20,8 @@ const char* ui::tabs::WebRadarTab::Label() const
 
 void ui::tabs::WebRadarTab::Render(MenuState& state, IStatusSink& statusSink)
 {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(10.0f, 8.0f));
     ImGui::BeginChild("##webradarchild", ImVec2(0, 0), ImGuiChildFlags_Borders);
 
     const webradar::RuntimeStats wr = webradar::GetRuntimeStats();
@@ -33,8 +35,11 @@ void ui::tabs::WebRadarTab::Render(MenuState& state, IStatusSink& statusSink)
     const std::string radarLink = lanLinks.empty() ? localLink : lanLinks.front();
 
     webradar_sections::RenderConnectionSection(state, radarLink, statusSink);
+    ImGui::Dummy(ImVec2(0.0f, 4.0f));
     webradar_sections::RenderQrSection(radarLink);
+    ImGui::Dummy(ImVec2(0.0f, 4.0f));
     webradar_sections::RenderDebugSection(wr, effectivePort);
 
     ImGui::EndChild();
+    ImGui::PopStyleVar(2);
 }

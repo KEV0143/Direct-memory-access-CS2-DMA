@@ -42,19 +42,6 @@ static bool isValidWorldPos(const Vector3& v)
            (std::fabs(v.x) + std::fabs(v.y) + std::fabs(v.z) > 1.0f);
 }
 
-static uint64_t TickNowUs()
-{
-    static const auto s_epoch = std::chrono::steady_clock::now();
-    const auto now = std::chrono::steady_clock::now();
-    return static_cast<uint64_t>(
-        std::chrono::duration_cast<std::chrono::microseconds>(now - s_epoch).count());
-}
-
-static uint64_t TickNowMs()
-{
-    return TickNowUs() / 1000u;
-}
-
 static ImFont* GetEspNameFont()
 {
     if (g::fontSegoeBold)

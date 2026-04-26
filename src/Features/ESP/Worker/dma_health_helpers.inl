@@ -49,6 +49,24 @@ esp::DmaHealthStats esp::GetDmaHealthStats()
         if (nowMs >= recoveryRequestedMs)
             stats.recoveryRequestAgeMs = nowMs - recoveryRequestedMs;
     }
+    {
+        std::lock_guard<std::mutex> lock(s_dmaEventMutex);
+        stats.eventCount = static_cast<int>(std::min<uint32_t>(
+            s_dmaEventCount,
+            static_cast<uint32_t>(esp::DmaHealthStats::kMaxEvents)));
+        for (int i = 0; i < stats.eventCount; ++i) {
+            const uint32_t newestIndex =
+                (s_dmaEventWriteIndex + esp::DmaHealthStats::kMaxEvents - 1u - static_cast<uint32_t>(i)) %
+                esp::DmaHealthStats::kMaxEvents;
+            const DmaEventRecord& source = s_dmaEvents[newestIndex];
+            strncpy_s(stats.events[i].action, sizeof(stats.events[i].action), source.action, _TRUNCATE);
+            strncpy_s(stats.events[i].reason, sizeof(stats.events[i].reason), source.reason, _TRUNCATE);
+            if (source.timeUs > 0) {
+                const uint64_t eventMs = source.timeUs / 1000u;
+                stats.events[i].ageMs = nowMs >= eventMs ? nowMs - eventMs : 0;
+            }
+        }
+    }
     stats.gameStatus = static_cast<esp::GameStatus>(s_gameStatus.load(std::memory_order_relaxed));
     return stats;
 }
@@ -158,6 +176,11 @@ esp::DebugStats esp::GetDebugStats()
     const uint64_t warmupEnteredUs = s_sceneWarmupEnteredUs.load(std::memory_order_relaxed);
     if (warmupEnteredUs > 0 && nowUs >= warmupEnteredUs)
         stats.warmupAgeUs = nowUs - warmupEnteredUs;
+    stats.playersCore = GetSubsystemHealthInfo(RuntimeSubsystem::PlayersCore, nowUs);
+    stats.cameraView = GetSubsystemHealthInfo(RuntimeSubsystem::CameraView, nowUs);
+    stats.gamerulesMap = GetSubsystemHealthInfo(RuntimeSubsystem::GameRulesMap, nowUs);
+    stats.bones = GetSubsystemHealthInfo(RuntimeSubsystem::Bones, nowUs);
+    stats.world = GetSubsystemHealthInfo(RuntimeSubsystem::World, nowUs);
     const uint32_t bombFlags = s_bombDebugFlags.load(std::memory_order_relaxed);
     stats.bombPlanted = (bombFlags & (1u << 0)) != 0u;
     stats.bombTicking = (bombFlags & (1u << 1)) != 0u;

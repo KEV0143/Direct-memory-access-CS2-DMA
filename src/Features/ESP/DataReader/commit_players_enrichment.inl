@@ -89,11 +89,7 @@
             p.hasBomb = (i == resolvedBombCarrierSlot);
             collectGrenadesForSlot(i, p.grenadeIds, p.grenadeCount);
 
-            if (hasPlausibleCommittedBones(i)) {
-                p.hasBones = true;
-                for (int boneIdx = 0; boneIdx < esp::kPlayerStoredBoneCount; ++boneIdx)
-                    p.bones[boneIdx] = allBones[i][esp::kPlayerStoredBoneIds[boneIdx]];
-            } else {
+            if (!copyResolvedBones(i, p)) {
                 p.hasBones = false;
             }
         }

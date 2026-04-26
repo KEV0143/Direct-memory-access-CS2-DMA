@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#07141f" />
 <title>KevqDMA WEBRadar</title>
 <link rel="icon" type="image/png" href="./favicon.png" />
-<link rel="stylesheet" href="./viewer.css?v=20260320i" />
+  <link rel="stylesheet" href="./viewer.css?v=20260426e" />
 </head>
 <body>
   <div id="app" class="app-shell">
@@ -117,9 +117,30 @@
           </div>
 
           <div id="radar-message" class="radar-message">Connected. Waiting for live entities</div>
-          <div id="bomb-status" class="bomb-status hidden">
-            <span class="bomb-status__dot"></span>
-            <span id="bomb-status-text">Bomb status</span>
+          <div id="bomb-status" class="bomb-status bomb-timer hidden">
+            <div id="bomb-carrier-row" class="bomb-timer__row bomb-timer__carrier hidden">
+              <span class="bomb-timer__icon"></span>
+              <span class="bomb-timer__label">Carrier</span>
+              <strong id="bomb-carrier-name" class="bomb-timer__value">---</strong>
+            </div>
+            <div id="bomb-time-row" class="bomb-timer__row">
+              <span class="bomb-timer__accent"></span>
+              <span class="bomb-timer__label">C4</span>
+              <strong id="bomb-time-left" class="bomb-timer__value">--.-s</strong>
+            </div>
+            <div id="bomb-time-bar" class="bomb-timer__bar">
+              <span id="bomb-time-progress" class="bomb-timer__fill"></span>
+            </div>
+            <div id="defuse-timer-row" class="bomb-timer__defuse hidden">
+              <div class="bomb-timer__row">
+                <span class="bomb-timer__accent bomb-timer__accent--defuse"></span>
+                <span class="bomb-timer__label">Defuse</span>
+                <strong id="defuse-time-left" class="bomb-timer__value">--.-s</strong>
+              </div>
+              <div class="bomb-timer__bar bomb-timer__bar--defuse">
+                <span id="defuse-time-progress" class="bomb-timer__fill"></span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -142,6 +163,6 @@
     </main>
   </div>
 
-  <script src="./viewer.js?v=20260411a"></script>
+  <script src="./viewer.js?v=20260426e"></script>
 </body>
 </html>

@@ -2,6 +2,7 @@
 
 #include "app/Core/globals.h"
 #include "app/UI/MenuShell/menu_utils.h"
+#include "app/UI/MenuShell/ui_widgets.h"
 #include "app/Config/config.h"
 #include "Features/ESP/esp.h"
 
@@ -56,8 +57,7 @@ void ui::tabs::settings_sections::RenderProfilesSection(MenuState& state, IStatu
     const float fieldWidth = contentWidth;
     const float dualButtonWidth = (contentWidth - innerGap) * 0.5f;
 
-    ImGui::SeparatorText("Profiles");
-    ImGui::Dummy(ImVec2(0.0f, 4.0f));
+    ui::widgets::SectionTitle("Profiles");
     ImGui::TextDisabled("Active Profile");
     ImGui::TextUnformatted(config::GetActiveProfile().c_str());
     ImGui::Dummy(ImVec2(0.0f, 8.0f));
@@ -83,11 +83,11 @@ void ui::tabs::settings_sections::RenderProfilesSection(MenuState& state, IStatu
     }
 
     ImGui::Dummy(ImVec2(0.0f, 10.0f));
-    if (ImGui::Button("Save Profile", ImVec2(dualButtonWidth, 30.0f))) {
+    if (ImGui::Button("Save Profile", ImVec2(dualButtonWidth, 32.0f))) {
         SaveProfile(state.profileName, statusSink);
     }
     ImGui::SameLine(0.0f, innerGap);
-    if (ImGui::Button("Load Profile", ImVec2(dualButtonWidth, 30.0f))) {
+    if (ImGui::Button("Load Profile", ImVec2(dualButtonWidth, 32.0f))) {
         LoadProfile(state.profileName, statusSink);
     }
 }
@@ -96,19 +96,18 @@ void ui::tabs::settings_sections::RenderControlsSection(MenuState& state, IStatu
 {
     const float contentWidth = ImGui::GetContentRegionAvail().x;
 
-    ImGui::SeparatorText("Controls");
-    ImGui::Dummy(ImVec2(0.0f, 4.0f));
+    ui::widgets::SectionTitle("Controls");
     ImGui::TextDisabled("Menu Toggle Key");
     ImGui::TextUnformatted(key_names::ToDisplayName(g::menuToggleKey).c_str());
     ImGui::Dummy(ImVec2(0.0f, 10.0f));
 
     if (!state.waitingForMenuKey) {
-        if (ImGui::Button("Change Menu Key", ImVec2(contentWidth, 30.0f))) {
+        if (ImGui::Button("Change Menu Key", ImVec2(contentWidth, 32.0f))) {
             StartMenuKeyCapture(state, statusSink);
         }
     }
     else {
-        if (ImGui::Button("Cancel Key Capture", ImVec2(contentWidth, 30.0f))) {
+        if (ImGui::Button("Cancel Key Capture", ImVec2(contentWidth, 32.0f))) {
             CancelMenuKeyCapture(state, statusSink);
         }
         ImGui::Dummy(ImVec2(0.0f, 6.0f));
@@ -116,7 +115,7 @@ void ui::tabs::settings_sections::RenderControlsSection(MenuState& state, IStatu
     }
 
     ImGui::Dummy(ImVec2(0.0f, 8.0f));
-    if (ImGui::Button("Reset to P", ImVec2(contentWidth, 30.0f))) {
+    if (ImGui::Button("Reset to P", ImVec2(contentWidth, 32.0f))) {
         ResetMenuKeyToInsert(state, statusSink);
     }
 }
@@ -124,18 +123,16 @@ void ui::tabs::settings_sections::RenderControlsSection(MenuState& state, IStatu
 void ui::tabs::settings_sections::RenderScreenSection(IStatusSink& statusSink)
 {
     (void)statusSink;
-    ImGui::SeparatorText("Screen");
-    ImGui::Dummy(ImVec2(0.0f, 4.0f));
+    ui::widgets::SectionTitle("Screen");
     ImGui::TextDisabled("Current Overlay Size");
     ImGui::Text("%d x %d", g::screenWidth, g::screenHeight);
     ImGui::Dummy(ImVec2(0.0f, 6.0f));
     ImGui::TextDisabled("Overlay size is detected automatically from the game window.");
 
     ImGui::Dummy(ImVec2(0.0f, 8.0f));
-    ImGui::Checkbox("VSync", &g::vsyncEnabled);
+    ui::widgets::ToggleRow("vsync", "VSync", &g::vsyncEnabled);
     if (!g::vsyncEnabled) {
-        ImGui::Dummy(ImVec2(0.0f, 6.0f));
-        ImGui::SliderInt("FPS Limit", &g::fpsLimit, 0, 500, g::fpsLimit == 0 ? "Unlimited" : "%d");
+        ui::widgets::SliderIntRow("fps_limit", "FPS Limit", &g::fpsLimit, 0, 500, g::fpsLimit == 0 ? "Unlimited" : "%d");
     }
 }
 
@@ -157,6 +154,22 @@ void ui::tabs::settings_sections::RenderDebugWindow(bool* open)
     };
     auto statusBadge = [](bool value, ImVec4 okColor, ImVec4 badColor) -> ImVec4 {
         return value ? okColor : badColor;
+    };
+    auto subsystemStateLabel = [](esp::SubsystemHealthState state) -> const char* {
+        switch (state) {
+        case esp::SubsystemHealthState::Healthy: return "healthy";
+        case esp::SubsystemHealthState::Degraded: return "degraded";
+        case esp::SubsystemHealthState::Failed: return "failed";
+        default: return "unknown";
+        }
+    };
+    auto subsystemStateColor = [](esp::SubsystemHealthState state) -> ImVec4 {
+        switch (state) {
+        case esp::SubsystemHealthState::Healthy: return ImVec4(0.30f, 0.86f, 0.30f, 1.0f);
+        case esp::SubsystemHealthState::Degraded: return ImVec4(0.95f, 0.76f, 0.24f, 1.0f);
+        case esp::SubsystemHealthState::Failed: return ImVec4(1.0f, 0.40f, 0.30f, 1.0f);
+        default: return ImVec4(0.62f, 0.62f, 0.66f, 1.0f);
+        }
     };
     auto stageColorForUs = [](uint64_t valueUs) -> ImVec4 {
         if (valueUs == 0)
@@ -311,16 +324,16 @@ void ui::tabs::settings_sections::RenderDebugWindow(bool* open)
     s_smoothedWorldAgeMs = smoothToward(
             s_smoothedWorldAgeMs,
             rawWorldAgeMs,
-            4.00f,
-            6.00f);
+            0.55f,
+            0.85f);
     }
     const float snapshotAgeMs = s_smoothedSnapshotAgeMs;
     const float cameraViewAgeMs = s_smoothedCameraViewAgeMs;
     const float worldAgeMs = s_smoothedWorldAgeMs;
 
     static float s_smoothedCycleTopUs = 0.0f;
-    constexpr float kPrimaryRiseTauSeconds = 6.00f;
-    constexpr float kPrimaryFallTauSeconds = 8.50f;
+    constexpr float kPrimaryRiseTauSeconds = 0.55f;
+    constexpr float kPrimaryFallTauSeconds = 0.50f;
     s_smoothedCycleTopUs = smoothToward(
         s_smoothedCycleTopUs,
         static_cast<float>(debug.cycleUs),
@@ -337,11 +350,32 @@ void ui::tabs::settings_sections::RenderDebugWindow(bool* open)
         ImGui::TextColored(ImVec4(0.4f, 0.8f, 0.4f, 1.0f), "(ok)");
 
     ImGui::TextDisabled("Freshness: Snap %.1f | Cam %.1f | World %.1f ms", snapshotAgeMs, cameraViewAgeMs, worldAgeMs);
+    ImGui::Text("Subsystems:");
+    ImGui::SameLine();
+    ImGui::TextDisabled("P");
+    ImGui::SameLine();
+    ImGui::TextColored(subsystemStateColor(debug.playersCore.state), "%s", subsystemStateLabel(debug.playersCore.state));
+    ImGui::SameLine();
+    ImGui::TextDisabled("C");
+    ImGui::SameLine();
+    ImGui::TextColored(subsystemStateColor(debug.cameraView.state), "%s", subsystemStateLabel(debug.cameraView.state));
+    ImGui::SameLine();
+    ImGui::TextDisabled("G");
+    ImGui::SameLine();
+    ImGui::TextColored(subsystemStateColor(debug.gamerulesMap.state), "%s", subsystemStateLabel(debug.gamerulesMap.state));
+    ImGui::SameLine();
+    ImGui::TextDisabled("B");
+    ImGui::SameLine();
+    ImGui::TextColored(subsystemStateColor(debug.bones.state), "%s", subsystemStateLabel(debug.bones.state));
+    ImGui::SameLine();
+    ImGui::TextDisabled("W");
+    ImGui::SameLine();
+    ImGui::TextColored(subsystemStateColor(debug.world.state), "%s", subsystemStateLabel(debug.world.state));
 
     ImGui::Separator();
 
-    constexpr float kSecondaryRiseTauSeconds = 8.00f;
-    constexpr float kSecondaryFallTauSeconds = 11.50f;
+    constexpr float kSecondaryRiseTauSeconds = 0.70f;
+    constexpr float kSecondaryFallTauSeconds = 1.10f;
     static float s_smoothedHeldAuxUs = 0.0f;
     static float s_smoothedHeldInvUs = 0.0f;
     static float s_smoothedHeldBonesUs = 0.0f;
@@ -456,13 +490,13 @@ void ui::tabs::settings_sections::RenderDebugWindow(bool* open)
     s_smoothedWorldCurrentUs = smoothToward(
         s_smoothedWorldCurrentUs,
         static_cast<float>(worldCurrentUs),
-        8.00f,
-        12.00f);
+        0.65f,
+        1.00f);
     s_smoothedWorldHeldUs = smoothToward(
         s_smoothedWorldHeldUs,
         static_cast<float>(worldHeldUs),
-        8.00f,
-        12.00f);
+        0.65f,
+        1.00f);
     s_smoothedAuxUs = smoothToward(
         s_smoothedAuxUs,
         static_cast<float>(st.playerAuxUs),
@@ -481,13 +515,13 @@ void ui::tabs::settings_sections::RenderDebugWindow(bool* open)
     s_smoothedWorldTickUs = smoothToward(
         s_smoothedWorldTickUs,
         static_cast<float>(st.worldScanUs),
-        2.60f,
-        3.60f);
+        0.45f,
+        0.70f);
     s_smoothedWorldLastUs = smoothToward(
         s_smoothedWorldLastUs,
         static_cast<float>(st.worldScanLastUs),
-        2.90f,
-        4.20f);
+        0.50f,
+        0.80f);
     const char* bombStateLabel = "Hidden";
     if (debug.bombPlanted)
         bombStateLabel = debug.bombTicking ? "Ticking" : "Planted";
@@ -528,9 +562,11 @@ void ui::tabs::settings_sections::RenderDebugWindow(bool* open)
 
     std::snprintf(
         detail, sizeof(detail),
-        "[ %s%s ]",
+        "[ %s%s | src 0x%X | q %u ]",
         bombStateLabel,
-        debug.bombBeingDefused ? " | Defusing" : "");
+        debug.bombBeingDefused ? " | Defusing" : "",
+        debug.bombSourceFlags,
+        static_cast<unsigned>(debug.bombConfidence));
     renderMetricBar("Bomb", s_smoothedBombUs, detail);
 
     std::snprintf(
@@ -561,7 +597,6 @@ void ui::tabs::settings_sections::RenderDebugWindow(bool* open)
         else if (health.recoveryRequested)
             ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), "DMA recovery requested");
     }
-
     ImGui::Dummy(ImVec2(0.0f, 8.0f));
     if (ImGui::Button("Copy Diagnostics", ImVec2(ImGui::GetContentRegionAvail().x, 30.0f))) {
         char line[512] = {};
@@ -609,6 +644,25 @@ void ui::tabs::settings_sections::RenderDebugWindow(bool* open)
             static_cast<unsigned long long>(debug.bombEpoch),
             warmupStateLabel(debug.warmupState),
             msFromUs(debug.warmupAgeUs));
+        diagnostics += line;
+
+        std::snprintf(line, sizeof(line),
+            "subsystems players=%s@%.1f/%u camera=%s@%.1f/%u gamerules=%s@%.1f/%u bones=%s@%.1f/%u world=%s@%.1f/%u\n",
+            subsystemStateLabel(debug.playersCore.state),
+            msFromUs(debug.playersCore.lastGoodAgeUs),
+            debug.playersCore.failureStreak,
+            subsystemStateLabel(debug.cameraView.state),
+            msFromUs(debug.cameraView.lastGoodAgeUs),
+            debug.cameraView.failureStreak,
+            subsystemStateLabel(debug.gamerulesMap.state),
+            msFromUs(debug.gamerulesMap.lastGoodAgeUs),
+            debug.gamerulesMap.failureStreak,
+            subsystemStateLabel(debug.bones.state),
+            msFromUs(debug.bones.lastGoodAgeUs),
+            debug.bones.failureStreak,
+            subsystemStateLabel(debug.world.state),
+            msFromUs(debug.world.lastGoodAgeUs),
+            debug.world.failureStreak);
         diagnostics += line;
 
         std::snprintf(line, sizeof(line),
@@ -667,13 +721,15 @@ void ui::tabs::settings_sections::RenderDebugWindow(bool* open)
         diagnostics += line;
 
         std::snprintf(line, sizeof(line),
-            "bomb state=%s planted=%d ticking=%d dropped=%d defusing=%d bounds=%d\n",
+            "bomb state=%s planted=%d ticking=%d dropped=%d defusing=%d bounds=%d source=0x%X confidence=%u\n",
             bombStateLabel,
             debug.bombPlanted ? 1 : 0,
             debug.bombTicking ? 1 : 0,
             debug.bombDropped ? 1 : 0,
             debug.bombBeingDefused ? 1 : 0,
-            debug.bombBoundsValid ? 1 : 0);
+            debug.bombBoundsValid ? 1 : 0,
+            debug.bombSourceFlags,
+            static_cast<unsigned>(debug.bombConfidence));
         diagnostics += line;
 
         std::snprintf(line, sizeof(line),
@@ -687,6 +743,21 @@ void ui::tabs::settings_sections::RenderDebugWindow(bool* open)
             static_cast<unsigned long long>(health.recoveryRequestAgeMs),
             static_cast<unsigned long long>(health.lastSuccessAgeMs));
         diagnostics += line;
+
+        if (health.eventCount > 0) {
+            diagnostics += "dma_events";
+            for (int i = 0; i < health.eventCount; ++i) {
+                const auto& event = health.events[i];
+                std::snprintf(line, sizeof(line),
+                    " [%d]=%s:%s@%llums",
+                    i,
+                    event.action,
+                    event.reason,
+                    static_cast<unsigned long long>(event.ageMs));
+                diagnostics += line;
+            }
+            diagnostics += "\n";
+        }
 
         const uint64_t uptimeSec = sessionUptimeUs / 1000000u;
         std::snprintf(line, sizeof(line),

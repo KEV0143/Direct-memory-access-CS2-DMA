@@ -7,6 +7,11 @@
     bool worldScanC4OwnerNearby = false;
     bool worldScanC4NoOwner = false;
     int worldScanC4Score = (std::numeric_limits<int>::min)();
+    const int worldSignOnState = s_engineSignOnState.load(std::memory_order_relaxed);
+    const bool liveWorldContext =
+        s_engineInGame.load(std::memory_order_relaxed) &&
+        !s_engineMenu.load(std::memory_order_relaxed) &&
+        worldSignOnState == 6;
 
     const bool kDebugWorldUtility = narrowDebugEnabled(kNarrowDebugWorld);
     const bool wantsDroppedItemMarkers = g::espItem;
@@ -23,6 +28,8 @@
         wantsWorldProjectiles ||
         wantsDroppedItemMarkers ||
         wantsBombConsumers;
+    bool worldScanAttempted = false;
+    bool worldScanOk = false;
     static int s_worldBombCandidateSlots[8] = {};
     static uint8_t s_worldBombCandidateSlotCount = 0;
 
@@ -180,7 +187,6 @@
         
         
         
-        bool worldScanOk = false;
         {
             
             for (int b = 0; b < blockCount; ++b)
@@ -278,6 +284,7 @@
             }
 
             
+            worldScanAttempted = true;
             worldScanOk = executeOptionalScatterRead();
 
             if (worldScanOk) {
@@ -516,5 +523,29 @@
                 highestEntityIndex,
                 shouldScanWorld ? 1 : 0);
         }
+    }
+    if (!liveWorldContext) {
+        for (int i = 0; i < s_worldMarkerCount && i < 256; ++i)
+            s_worldMarkers[i].valid = false;
+        s_worldMarkerCount = 0;
+        s_lastWorldScanUs = 0;
+    }
+    const bool worldSubsystemActive =
+        liveWorldContext &&
+        (wantsWorldUtilityMarkers ||
+         wantsDroppedItemMarkers ||
+         wantsBombConsumers);
+    if (!worldSubsystemActive) {
+        SetSubsystemUnknown(RuntimeSubsystem::World);
+    } else if (!shouldScanWorld) {
+        MarkSubsystemHealthy(RuntimeSubsystem::World, nowUs);
+    } else if (worldScanAttempted && worldScanOk) {
+        MarkSubsystemHealthy(RuntimeSubsystem::World, nowUs);
+    } else if (worldScanAttempted) {
+        MarkSubsystemDegraded(RuntimeSubsystem::World, nowUs);
+    } else if (entityList && ofs.CGameSceneNode_m_vecAbsOrigin > 0) {
+        MarkSubsystemDegraded(RuntimeSubsystem::World, nowUs);
+    } else {
+        SetSubsystemUnknown(RuntimeSubsystem::World);
     }
     uint16_t localWeaponIdResolved = 0;
