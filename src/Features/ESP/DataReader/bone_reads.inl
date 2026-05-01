@@ -75,6 +75,7 @@
             localTeamLiveResolved ||
             localControllerTeam == boneFilterLocalTeam;
         const bool filterTeammatesForBones =
+            !g::espShowTeammates &&
             (boneFilterLocalTeam == 2 || boneFilterLocalTeam == 3) &&
             boneFilterTeamConfirmed &&
             !localTeamLikelySwitched;

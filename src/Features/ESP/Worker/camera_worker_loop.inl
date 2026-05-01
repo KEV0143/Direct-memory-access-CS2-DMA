@@ -22,16 +22,21 @@ namespace {
                 const bool dmaRecoveryRequestedNow = IsDmaRecoveryRequested();
 
                 if (dmaRecoveringNow || dmaRecoveryRequestedNow) {
+                    if (cameraHandle) {
+                        mem.CloseScatterHandle(cameraHandle);
+                        cameraHandle = nullptr;
+                    }
                     consecutiveViewMisses = 0;
                     consecutiveLocalPosMisses = 0;
                     cachedLocalPawn = 0;
                     cachedLocalSceneNode = 0;
-                    cameraHandle = nullptr;
                     cameraHandleInvalidatedByRecovery = true;
                     SetSubsystemUnknown(RuntimeSubsystem::CameraView);
                     ResetCameraSnapshot();
                 } else if (clientBase) {
                     if (cameraHandleInvalidatedByRecovery) {
+                        if (cameraHandle)
+                            mem.CloseScatterHandle(cameraHandle);
                         cameraHandle = mem.CreateScatterHandle();
                         cameraHandleInvalidatedByRecovery = false;
                     }

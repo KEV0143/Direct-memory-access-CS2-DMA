@@ -7,7 +7,7 @@
         const std::filesystem::path jsonPath = FindOffsetsJsonPath(true);
         if (jsonPath.empty())
         {
-            g_values = {};
+            SetRuntimeValues({});
             if (message)
                 *message = "Offsets load failed: unable to resolve offsets.json path.";
             return false;
@@ -43,7 +43,7 @@
             }
             else
             {
-                g_values = {};
+                SetRuntimeValues({});
                 if (message)
                     *message = "Offsets load failed: offsets.json is missing.";
                 return false;
@@ -53,7 +53,7 @@
         const auto requiredZeroFields = ValidateLoadedValues(loaded, true);
         if (invalidJson || !requiredZeroFields.empty())
         {
-            g_values = {};
+            SetRuntimeValues({});
             if (message)
             {
                 std::ostringstream oss;
@@ -71,13 +71,13 @@
             return false;
         }
 
-        g_values = loaded;
+        SetRuntimeValues(loaded);
 
         if (migratedLegacyIni || legacyStateExists)
         {
             if (!WriteOffsetsJson(jsonPath, loaded, &storedState))
             {
-                g_values = {};
+                SetRuntimeValues({});
                 if (message)
                     *message = "Offsets load failed: cannot write " + jsonPath.string() + ".";
                 return false;
@@ -108,7 +108,7 @@
     }
     catch (...)
     {
-        g_values = {};
+        SetRuntimeValues({});
         if (message)
             *message = "Offsets load failed: runtime exception.";
         return false;

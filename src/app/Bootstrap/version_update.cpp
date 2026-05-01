@@ -63,6 +63,41 @@ namespace
         return statusCode >= 200 && statusCode < 300;
     }
 
+    std::string WinHttpErrorText(const char* operation, DWORD errorCode)
+    {
+        std::string message = operation ? operation : "WinHTTP";
+        message += " failed";
+        if (errorCode != ERROR_SUCCESS) {
+            std::string detail;
+            char* rawMessage = nullptr;
+            const DWORD length = FormatMessageA(
+                FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                nullptr,
+                errorCode,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                reinterpret_cast<LPSTR>(&rawMessage),
+                0,
+                nullptr);
+            if (length > 0 && rawMessage) {
+                detail = Trim(std::string(rawMessage, length));
+                LocalFree(rawMessage);
+            }
+
+            message += " (error " + std::to_string(errorCode);
+            if (!detail.empty())
+                message += ": " + detail;
+            message += ")";
+        }
+        return message;
+    }
+
+    void AppendAttemptError(std::string& combined, int attempt, const std::string& attemptError)
+    {
+        if (!combined.empty())
+            combined += "; ";
+        combined += "try " + std::to_string(attempt) + ": " + attemptError;
+    }
+
     void SetNoUpdateDefaults(bootstrap::VersionUpdateInfo& result)
     {
         result.updateAvailable = false;
@@ -70,10 +105,10 @@ namespace
             result.releaseUrl = app::build_info::RepositoryReleasesUrl();
     }
 
-    bool HttpGetText(const std::string& url,
-                     const std::vector<std::wstring>& headers,
-                     HttpTextResponse& out,
-                     std::string* error)
+    bool HttpGetTextOnce(const std::string& url,
+                         const std::vector<std::wstring>& headers,
+                         HttpTextResponse& out,
+                         std::string* error)
     {
         out = {};
 
@@ -113,7 +148,7 @@ namespace
             0);
         if (!session) {
             if (error)
-                *error = "WinHttpOpen failed";
+                *error = WinHttpErrorText("WinHttpOpen", GetLastError());
             return false;
         }
 
@@ -122,7 +157,7 @@ namespace
         if (!connection) {
             WinHttpCloseHandle(session);
             if (error)
-                *error = "WinHttpConnect failed for " + host;
+                *error = WinHttpErrorText("WinHttpConnect", GetLastError()) + " for " + host;
             return false;
         }
 
@@ -139,24 +174,32 @@ namespace
             WinHttpCloseHandle(connection);
             WinHttpCloseHandle(session);
             if (error)
-                *error = "WinHttpOpenRequest failed";
+                *error = WinHttpErrorText("WinHttpOpenRequest", GetLastError());
             return false;
         }
+
+        WinHttpSetTimeouts(request, 5000, 5000, 8000, 8000);
 
         for (const std::wstring& header : headers) {
             if (!header.empty())
                 WinHttpAddRequestHeaders(request, header.c_str(), static_cast<DWORD>(header.size()), WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE);
         }
 
-        const bool requestOk =
-            WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
-            WinHttpReceiveResponse(request, nullptr);
+        const BOOL sendOk = WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
+        DWORD requestError = sendOk ? ERROR_SUCCESS : GetLastError();
+        BOOL receiveOk = FALSE;
+        if (sendOk) {
+            receiveOk = WinHttpReceiveResponse(request, nullptr);
+            if (!receiveOk)
+                requestError = GetLastError();
+        }
+        const bool requestOk = sendOk && receiveOk;
         if (!requestOk) {
             WinHttpCloseHandle(request);
             WinHttpCloseHandle(connection);
             WinHttpCloseHandle(session);
             if (error)
-                *error = "HTTP GET failed for " + url;
+                *error = WinHttpErrorText(sendOk ? "WinHttpReceiveResponse" : "WinHttpSendRequest", requestError) + " for " + url;
             return false;
         }
 
@@ -183,6 +226,31 @@ namespace
         WinHttpCloseHandle(session);
 
         return true;
+    }
+
+    bool HttpGetText(const std::string& url,
+                     const std::vector<std::wstring>& headers,
+                     HttpTextResponse& out,
+                     std::string* error)
+    {
+        constexpr int kMaxAttempts = 3;
+        std::string combinedErrors;
+        for (int attempt = 1; attempt <= kMaxAttempts; ++attempt) {
+            std::string attemptError;
+            if (HttpGetTextOnce(url, headers, out, &attemptError)) {
+                if (error)
+                    error->clear();
+                return true;
+            }
+
+            AppendAttemptError(combinedErrors, attempt, attemptError);
+            if (attempt < kMaxAttempts)
+                Sleep(static_cast<DWORD>(120 * attempt));
+        }
+
+        if (error)
+            *error = "HTTP GET failed for " + url + " (" + combinedErrors + ")";
+        return false;
     }
 
     std::string NormalizeVersion(std::string value)

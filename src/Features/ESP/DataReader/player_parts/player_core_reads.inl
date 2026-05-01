@@ -295,7 +295,7 @@
                 if (!pawns[i])
                     continue;
                 if (!isLikelyGamePointer(pawns[i])) {
-                    markFallbackCoreFailure(i, 48u, 900000u);
+                    markFallbackCoreFailure(i, 96u, 2400000u);
                     continue;
                 }
 
@@ -319,7 +319,7 @@
                         s_coreReadFailSinceUs[i] = 0;
                         continue;
                     }
-                    markFallbackCoreFailure(i, 96u, 1500000u);
+                    markFallbackCoreFailure(i, 128u, 3000000u);
                     continue;
                 }
 
@@ -338,7 +338,7 @@
                         s_coreReadFailSinceUs[i] = 0;
                         continue;
                     }
-                    markFallbackCoreFailure(i, 96u, 1500000u);
+                    markFallbackCoreFailure(i, 128u, 3000000u);
                     continue;
                 }
 

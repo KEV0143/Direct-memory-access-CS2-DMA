@@ -80,8 +80,8 @@
                 ? coreRepairNowUs - s_coreRepairBadSinceUs[i]
                 : 0;
             if (allowStructuralEviction &&
-                s_coreRepairStreaks[i] >= 160u &&
-                repairBadAgeUs >= 1800000u) {
+                s_coreRepairStreaks[i] >= 240u &&
+                repairBadAgeUs >= 3000000u) {
                 s_stalePawnEvictionQueue[i] = true;
                 pawns[i] = 0;
                 s_coreRepairStreaks[i] = 0;

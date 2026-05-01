@@ -331,7 +331,8 @@
     char localNameResolved[128] = {};
     memcpy(localNameResolved, s_localName, sizeof(localNameResolved));
     uint16_t localGrenadeIdsResolved[esp::PlayerData::kMaxGrenades] = {};
-    int localGrenadeCountResolved = 0;
+    std::copy(std::begin(s_localGrenadeIds), std::end(s_localGrenadeIds), std::begin(localGrenadeIdsResolved));
+    int localGrenadeCountResolved = std::clamp(s_localGrenadeCount, 0, esp::PlayerData::kMaxGrenades);
     const LocalPlayerIndexSource localPlayerIndexSource =
         ResolveLocalPlayerIndexSource(localControllerMaskBit, localMaskBit);
     const int localPlayerIndex = ResolveLocalPlayerIndex(localControllerMaskBit, localMaskBit);
@@ -353,20 +354,53 @@
         localArmorResolved,
         localMoneyResolved,
         localHasDefuserResolved);
+    if (localPawnCoreLiveResolved) {
+        localIsDeadResolved = (localPawnHealth <= 0) || (localPawnLifeState != 0);
+        localHealthResolved = localIsDeadResolved ? 0 : std::clamp(localPawnHealth, 0, 100);
+    }
+    int localLoadoutIndex = -1;
     if (localPlayerIndexValid && localPlayerIndexHasLiveEvidence) {
+        localLoadoutIndex = localPlayerIndex;
+    } else if (localPlayerIndexValid && s_localPawn != 0 && pawns[localPlayerIndex] == s_localPawn) {
+        localLoadoutIndex = localPlayerIndex;
+    } else if (localControllerMaskBit > 0 && localControllerMaskBit <= 64) {
+        localLoadoutIndex = static_cast<int>(localControllerMaskBit - 1);
+    }
+    if (localLoadoutIndex < 0 && s_localPawn != 0) {
+        for (int i = 0; i < 64; ++i) {
+            if (pawns[i] == s_localPawn) {
+                localLoadoutIndex = i;
+                break;
+            }
+        }
+    }
+    if (localLoadoutIndex < 0 &&
+        localControllerPawnHandle != 0u &&
+        localControllerPawnHandle != 0xFFFFFFFFu) {
+        const uint32_t localControllerPawnSlot = localControllerPawnHandle & kEntityHandleMask;
+        if (localControllerPawnSlot != 0u) {
+            for (int i = 0; i < 64; ++i) {
+                if ((pawnHandles[i] & kEntityHandleMask) == localControllerPawnSlot) {
+                    localLoadoutIndex = i;
+                    break;
+                }
+            }
+        }
+    }
+    if (localLoadoutIndex >= 0 && localLoadoutIndex < 64) {
         const uint16_t liveLocalWeaponId =
-            (weaponIds[localPlayerIndex] < 20000u) ? weaponIds[localPlayerIndex] : 0;
+            (weaponIds[localLoadoutIndex] < 20000u) ? weaponIds[localLoadoutIndex] : 0;
         uint16_t committedLocalWeaponId = 0;
-        int committedLocalAmmoClip = ammoClips[localPlayerIndex];
+        int committedLocalAmmoClip = ammoClips[localLoadoutIndex];
         resolveCommittedWeaponState(
-            localPlayerIndex,
+            localLoadoutIndex,
             liveLocalWeaponId,
             committedLocalWeaponId,
             committedLocalAmmoClip);
         localWeaponIdResolved = committedLocalWeaponId;
         localAmmoClipResolved = committedLocalAmmoClip;
-        localHasBombResolved = (localPlayerIndex == resolvedBombCarrierSlot);
-        collectGrenadesForSlot(localPlayerIndex, localGrenadeIdsResolved, localGrenadeCountResolved);
+        localHasBombResolved = (localLoadoutIndex == resolvedBombCarrierSlot);
+        collectGrenadesForSlot(localLoadoutIndex, localGrenadeIdsResolved, localGrenadeCountResolved);
     } else if (localControllerMaskBit > 0 && localControllerMaskBit <= 64) {
         localHasBombResolved = ((localControllerMaskBit - 1) == resolvedBombCarrierSlot);
     }
@@ -394,14 +428,47 @@
         int resolvedLiveCount = 0;
         int committedLiveCount = 0;
         bool activeCountedSlots[64] = {};
-        const bool localAliveEvidence =
-            localPlayerIndexValid &&
-            localPlayerIndexHasLiveEvidence &&
-            !localIsDeadResolved &&
-            localHealthResolved > 0;
+        const int populationEngineMaxClients =
+            std::clamp(s_engineMaxClients.load(std::memory_order_relaxed), 0, 256);
+        const int populationSlotBudget =
+            std::clamp(s_playerSlotScanLimitStat.load(std::memory_order_relaxed), 0, 64);
+        const int populationSignOnState =
+            s_engineSignOnState.load(std::memory_order_relaxed);
+        const bool populationEngineInGame =
+            s_engineInGame.load(std::memory_order_relaxed);
+        const bool populationEngineMenu =
+            s_engineMenu.load(std::memory_order_relaxed);
+        const bool populationLiveByEngine =
+            populationEngineInGame &&
+            !populationEngineMenu &&
+            (populationSignOnState == 6 ||
+             (populationEngineMaxClients >= 2 && populationSlotBudget >= 32));
+        const bool populationLiveByShape =
+            !populationEngineMenu &&
+            populationSlotBudget >= 32 &&
+            highestEntityIndex >= 64 &&
+            g::clientBase &&
+            g::engine2Base;
+        const bool populationMapKnown =
+            !liveMapKey.empty();
+        const bool populationLiveByMap =
+            !populationEngineMenu &&
+            populationMapKnown &&
+            populationSlotBudget >= 32 &&
+            highestEntityIndex >= 64 &&
+            g::clientBase &&
+            g::engine2Base;
+        const bool populationLiveContext =
+            populationLiveByEngine || populationLiveByShape || populationLiveByMap;
         const bool localControllerPawnHandleValidForCount =
             localControllerPawnHandle != 0u &&
             localControllerPawnHandle != 0xFFFFFFFFu;
+        const bool localAliveEvidence =
+            populationLiveContext &&
+            (localPlayerIndexHasLiveEvidence ||
+             localPawnCoreLiveResolved) &&
+            !localIsDeadResolved &&
+            localHealthResolved > 0;
         const uint32_t localControllerPawnSlotForCount =
             localControllerPawnHandleValidForCount
             ? (localControllerPawnHandle & kEntityHandleMask)
@@ -485,10 +552,7 @@
                 s_lastLaunchUnderresolvedRefreshUs = 0;
             }
 
-            const bool liveMatchContext =
-                s_engineInGame.load(std::memory_order_relaxed) &&
-                !s_engineMenu.load(std::memory_order_relaxed) &&
-                s_engineSignOnState.load(std::memory_order_relaxed) == 6;
+            const bool liveMatchContext = populationLiveContext;
             const auto populationWarmupState =
                 static_cast<esp::SceneWarmupState>(s_sceneWarmupState.load(std::memory_order_relaxed));
             const uint64_t populationLastResetUs = s_lastSceneResetUs.load(std::memory_order_relaxed);
@@ -502,8 +566,10 @@
                 ? nowUs - populationWarmupEnteredUs
                 : 0;
             const bool populationGraceElapsed =
-                populationResetAgeUs >= 2500000u &&
-                populationWarmupAgeUs >= 1800000u;
+                (populationResetAgeUs >= 2500000u &&
+                 populationWarmupAgeUs >= 1800000u) ||
+                (populationMapKnown &&
+                 (populationResetAgeUs >= 700000u || populationWarmupAgeUs >= 700000u));
             const int observedPopulation = std::max(activeCount, resolvedLiveCount);
             const bool healthyPopulationSample =
                 liveMatchContext &&
@@ -592,7 +658,7 @@
                 watchdogEligible &&
                 resolvedLiveCount >= 2 &&
                 committedLiveCount >= 6 &&
-                committedLiveCount > resolvedLiveCount + 2;
+                committedLiveCount > resolvedLiveCount;
             const bool populationBroken =
                 hierarchyBlackout ||
                 coreBlackout ||

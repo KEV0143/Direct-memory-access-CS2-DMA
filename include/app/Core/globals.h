@@ -70,6 +70,7 @@ namespace g {
     inline bool& espSnaplines = espSettings.snaplines;
     inline bool& espSnaplineFromTop = espSettings.snaplineFromTop;
     inline bool& espVisibilityColoring = espSettings.visibilityColoring;
+    inline bool& espShowTeammates = espSettings.showTeammates;
     inline bool& espOffscreenArrows = espSettings.offscreenArrows;
     inline bool& espFlags = espSettings.flags;
     inline bool& espItem = espSettings.item;
@@ -104,6 +105,8 @@ namespace g {
     inline float& espOffscreenSize = espSettings.offscreenSize;
     inline bool& espPreviewOpen = espSettings.previewOpen;
     inline float& espNameFontSize = espSettings.nameFontSize;
+    inline float& espBoxThickness = espSettings.boxThickness;
+    inline float& espSkeletonThickness = espSettings.skeletonThickness;
 
     inline bool& radarEnabled = radarSettings.enabled;
     inline int& radarMode = radarSettings.mode;

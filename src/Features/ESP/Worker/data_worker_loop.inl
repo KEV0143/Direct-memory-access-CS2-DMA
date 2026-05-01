@@ -171,25 +171,38 @@ namespace {
                     warmupEnteredUs > 0 && watchdogNowUs >= warmupEnteredUs
                     ? watchdogNowUs - warmupEnteredUs
                     : 0;
+                const uint64_t lastLiveMapNameSeenUs =
+                    s_lastLiveMapNameSeenUs.load(std::memory_order_relaxed);
+                const bool liveMapRecentlySeen =
+                    lastLiveMapNameSeenUs > 0 &&
+                    watchdogNowUs >= lastLiveMapNameSeenUs &&
+                    (watchdogNowUs - lastLiveMapNameSeenUs) <= 15000000u;
                 const bool liveByEngine =
                     engineResolved &&
                     engineInGame &&
                     !engineMenu &&
-                    signOnState == 6;
-                const bool liveByShape =
-                    signOnState == 6 &&
-                    maxClients >= 2 &&
-                    playerSlotBudget >= 32 &&
-                    g::clientBase &&
-                    g::engine2Base;
+                    (signOnState == 6 || (maxClients >= 2 && playerSlotBudget >= 32));
                 const bool definitelyMenu =
                     engineResolved &&
                     engineMenu &&
                     !engineInGame &&
                     signOnState != 6;
+                const bool liveByShape =
+                    !definitelyMenu &&
+                    playerSlotBudget >= 32 &&
+                    (maxClients >= 2 || highestEntityIndex >= 64) &&
+                    g::clientBase &&
+                    g::engine2Base;
+                const bool liveByMap =
+                    !definitelyMenu &&
+                    liveMapRecentlySeen &&
+                    playerSlotBudget >= 32 &&
+                    highestEntityIndex >= 64 &&
+                    g::clientBase &&
+                    g::engine2Base;
                 const bool livePopulationExpected =
                     !definitelyMenu &&
-                    (liveByEngine || liveByShape) &&
+                    (liveByEngine || liveByShape || liveByMap) &&
                     g::clientBase &&
                     g::engine2Base;
                 const bool suspiciousFlatEntityRange =
@@ -199,10 +212,11 @@ namespace {
                     highestEntityIndex < 32;
                 const bool zeroPopulationObserved =
                     livePopulationExpected &&
-                    activePlayers == 0;
+                    activePlayers <= 1;
                 const bool zeroPopulationGraceElapsed =
                     sceneAgeUs >= 1800000u ||
                     warmupAgeUs >= 1800000u ||
+                    (liveMapRecentlySeen && (sceneAgeUs >= 700000u || warmupAgeUs >= 700000u)) ||
                     suspiciousFlatEntityRange ||
                     localIdentityMissing;
 

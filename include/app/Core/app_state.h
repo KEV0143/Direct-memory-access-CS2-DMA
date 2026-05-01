@@ -86,6 +86,7 @@ namespace app::state {
         bool snaplines = false;
         bool snaplineFromTop = false;
         bool visibilityColoring = true;
+        bool showTeammates = false;
         bool offscreenArrows = false;
         bool flags = true;
         bool item = false;
@@ -120,6 +121,8 @@ namespace app::state {
         float offscreenSize = 14.0f;
         bool previewOpen = false;
         float nameFontSize = 16.0f;
+        float boxThickness = 2.0f;
+        float skeletonThickness = 1.6f;
     };
 
     struct RadarSettings {
@@ -149,7 +152,7 @@ namespace app::state {
 
     struct WebRadarSettings {
         bool enabled = true;
-        int intervalMs = 4;
+        int intervalMs = 15;
         int port = 22006;
         std::string mapOverride;
         bool qrOpen = true;

@@ -27,6 +27,7 @@
         esp["Snaplines"] = g::espSnaplines;
         esp["SnapFromTop"] = g::espSnaplineFromTop;
         esp["VisibilityColoring"] = g::espVisibilityColoring;
+        esp["ShowTeammates"] = g::espShowTeammates;
         esp["OffscreenArrows"] = g::espOffscreenArrows;
         esp["Sound"] = g::espSound;
         esp["Flags"] = g::espFlags;
@@ -59,6 +60,8 @@
         esp["BombTimerX"] = g::espBombTimerX;
         esp["BombTimerY"] = g::espBombTimerY;
         esp["OffscreenSize"] = g::espOffscreenSize;
+        esp["BoxThickness"] = g::espBoxThickness;
+        esp["SkeletonThickness"] = g::espSkeletonThickness;
         SaveColor(esp, "BoxColor", g::espBoxColor);
         SaveColor(esp, "HealthColor", g::espHealthColor);
         SaveColor(esp, "VisibleColor", g::espVisibleColor);

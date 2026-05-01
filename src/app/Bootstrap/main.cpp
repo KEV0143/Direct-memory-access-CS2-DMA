@@ -28,6 +28,25 @@
 
 namespace
 {
+    struct TimerResolutionGuard
+    {
+        bool active = false;
+
+        TimerResolutionGuard()
+        {
+            active = (timeBeginPeriod(1) == TIMERR_NOERROR);
+        }
+
+        ~TimerResolutionGuard()
+        {
+            if (active)
+                timeEndPeriod(1);
+        }
+
+        TimerResolutionGuard(const TimerResolutionGuard&) = delete;
+        TimerResolutionGuard& operator=(const TimerResolutionGuard&) = delete;
+    };
+
     DWORD FindLocalPid(const char* processName)
     {
         HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
@@ -199,7 +218,8 @@ namespace
         console.PrintLine("GitHub", app::build_info::RepositoryUrl() + " [ " + app::build_info::VersionTag() + " ]");
     }
 
-    bool PromptToInstallVersionUpdate(const bootstrap::VersionUpdateInfo& updateInfo)
+    bool PromptToInstallVersionUpdate(const bootstrap::RuntimeConsole& console,
+                                      const bootstrap::VersionUpdateInfo& updateInfo)
     {
         HANDLE inputHandle = GetStdHandle(STD_INPUT_HANDLE);
         if (inputHandle == INVALID_HANDLE_VALUE)
@@ -207,16 +227,10 @@ namespace
         if (GetFileType(inputHandle) != FILE_TYPE_CHAR)
             return false;
 
-        std::cout
-            << "  | GitHub | New version available: "
-            << updateInfo.latestVersion
-            << " (current "
-            << updateInfo.currentVersion
-            << ")"
-            << '\n';
-        std::cout
-            << "  | GitHub | Install new version now? [Y/n]: "
-            << std::flush;
+        console.PrintLine(
+            "GitHub",
+            "New version available: " + updateInfo.latestVersion + " (current " + updateInfo.currentVersion + ")");
+        console.PrintPrompt("GitHub", "Install new version now? [Y/n]: ");
 
         std::string answer;
         if (!std::getline(std::cin, answer))
@@ -368,7 +382,7 @@ int main(int argc, char* argv[])
 {
     
     
-    timeBeginPeriod(1);
+    TimerResolutionGuard timerResolutionGuard;
 
     const bool verboseLogs = HasFlag(argc, argv, "--verbose");
     const bool offsetsSelfTest = HasFlag(argc, argv, "--offsets-self-test");
@@ -394,7 +408,7 @@ int main(int argc, char* argv[])
             console.PrintOk("GitHub", "Version check");
             if (versionUpdateInfo.updateAvailable) {
                 console.PrintLine("GitHub", "Update available | " + versionUpdateInfo.latestVersion + " | Current: " + versionUpdateInfo.currentVersion);
-                if (PromptToInstallVersionUpdate(versionUpdateInfo)) {
+                if (PromptToInstallVersionUpdate(console, versionUpdateInfo)) {
                     std::string openReleaseError;
                     if (bootstrap::OpenVersionUpdateReleasePage(versionUpdateInfo, &openReleaseError)) {
                         console.PrintOk("GitHub", "Open latest release");
@@ -567,30 +581,6 @@ int main(int argc, char* argv[])
     }
 
     console.PrintInfoOk("Waiting for cs2.exe");
-
-    
-    
-    
-    
-    
-    
-    
-    
-    {
-        g::clientBase = 0;
-        g::engine2Base = 0;
-        if (mem.vHandle)
-            VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_ALL, 1);
-        mem.ResetProcessState();
-        if (mem.vHandle && mem.AttachToProcess("cs2.exe", true)) {
-            if (mem.vHandle)
-                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_ALL, 1);
-            const uintptr_t freshClientBase = mem.GetBaseDaddy("client.dll");
-            const uintptr_t freshEngine2Base = mem.GetBaseDaddy("engine2.dll");
-            g::clientBase = freshClientBase;
-            g::engine2Base = freshEngine2Base;
-        }
-    }
 
     if (!overlay::Create(g::screenWidth, g::screenHeight)) {
         console.PrintErrorLine("D3D11 overlay creation failed");

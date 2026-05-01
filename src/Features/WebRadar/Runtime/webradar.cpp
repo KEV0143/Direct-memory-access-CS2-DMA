@@ -12,9 +12,11 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <format>
@@ -54,6 +56,96 @@ namespace
     bool IsValidWorldVec(const Vector3& v)
     {
         return IsFiniteVec(v) && (std::abs(v.x) > 1.0f || std::abs(v.y) > 1.0f);
+    }
+
+    void AppendJsonString(std::string& out, std::string_view value)
+    {
+        out.push_back('"');
+        for (const unsigned char c : value) {
+            switch (c) {
+            case '"':
+                out += "\\\"";
+                break;
+            case '\\':
+                out += "\\\\";
+                break;
+            case '\b':
+                out += "\\b";
+                break;
+            case '\f':
+                out += "\\f";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            default:
+                if (c < 0x20) {
+                    static constexpr char kHex[] = "0123456789abcdef";
+                    out += "\\u00";
+                    out.push_back(kHex[(c >> 4) & 0x0F]);
+                    out.push_back(kHex[c & 0x0F]);
+                } else {
+                    out.push_back(static_cast<char>(c));
+                }
+                break;
+            }
+        }
+        out.push_back('"');
+    }
+
+    template <typename T>
+    void AppendJsonInt(std::string& out, T value)
+    {
+        char buffer[32] = {};
+        const auto result = std::to_chars(buffer, buffer + sizeof(buffer), value);
+        if (result.ec == std::errc{})
+            out.append(buffer, result.ptr);
+    }
+
+    void AppendJsonFloat(std::string& out, float value)
+    {
+        if (!std::isfinite(value))
+            value = 0.0f;
+
+        char buffer[48] = {};
+        auto result = std::to_chars(buffer, buffer + sizeof(buffer), value, std::chars_format::fixed, 2);
+        if (result.ec != std::errc{}) {
+            out += "0";
+            return;
+        }
+
+        size_t len = static_cast<size_t>(result.ptr - buffer);
+        while (len > 1 && buffer[len - 1] == '0')
+            --len;
+        if (len > 1 && buffer[len - 1] == '.')
+            --len;
+        out.append(buffer, len);
+    }
+
+    void AppendJsonVec3(std::string& out, const Vector3& v)
+    {
+        out.push_back('[');
+        AppendJsonFloat(out, v.x);
+        out.push_back(',');
+        AppendJsonFloat(out, v.y);
+        out.push_back(',');
+        AppendJsonFloat(out, v.z);
+        out.push_back(']');
+    }
+
+    void AppendJsonVec2(std::string& out, float x, float y)
+    {
+        out.push_back('[');
+        AppendJsonFloat(out, x);
+        out.push_back(',');
+        AppendJsonFloat(out, y);
+        out.push_back(']');
     }
 
     const char* TeamDefaultModelName(int team)
@@ -154,6 +246,11 @@ namespace
         if (port < 1025 || port > 65535)
             return webradar::cfg::kDefaultListenPort;
         return static_cast<uint16_t>(port);
+    }
+
+    int RequestedProtocolVersion(const std::unordered_map<std::string, std::string>&)
+    {
+        return 2;
     }
 
     std::string UrlDecode(std::string_view encoded)
@@ -302,7 +399,14 @@ namespace webradar
 
 namespace
 {
-    constexpr int kWebRadarRealtimeIntervalMs = 4;
+    constexpr int kWebRadarRealtimeIntervalMs = cfg::kMinRealtimeIntervalMs;
+
+    double Ema(double current, double sample, double alpha)
+    {
+        if (!std::isfinite(current) || current <= 0.0)
+            return sample;
+        return current + (sample - current) * alpha;
+    }
 
     std::string HttpStatusText(int statusCode)
     {
@@ -394,12 +498,12 @@ namespace
         return SendAll(socketHandle, payload.data(), payload.size());
     }
 
-    bool HeaderContainsToken(
+    bool HeaderContainsValue(
         const std::unordered_map<std::string, std::string>& headers,
         const char* headerName,
-        const char* token)
+        const char* value)
     {
-        if (!headerName || !token)
+        if (!headerName || !value)
             return false;
 
         const auto it = headers.find(headerName);
@@ -407,7 +511,7 @@ namespace
             return false;
 
         const std::string haystack = ToLower(it->second);
-        const std::string needle = ToLower(token);
+        const std::string needle = ToLower(value);
         size_t start = 0;
         while (start < haystack.size()) {
             size_t end = haystack.find(',', start);
@@ -690,6 +794,7 @@ WEBRadar::WEBRadar()
     stats_.listenPort = cfg::kDefaultListenPort;
     stats_.statusText = "WEBRadar ready";
     latestPayloadJson_ = BuildFallbackLiveJson(settings_, "unknown", UnixNowMs());
+    latestPayloadJsonV2_ = BuildFallbackLiveJsonV2(settings_, "unknown", UnixNowMs());
 }
 
 WEBRadar::~WEBRadar()
@@ -742,7 +847,7 @@ void WEBRadar::Configure(bool enabled, int intervalMs, uint16_t listenPort, cons
         const std::string prevMapOverride = settings_.mapOverride;
 
         settings_.enabled = enabled;
-        settings_.intervalMs = std::clamp(intervalMs, kWebRadarRealtimeIntervalMs, 2000);
+        settings_.intervalMs = std::clamp(intervalMs, cfg::kMinRealtimeIntervalMs, cfg::kMaxRealtimeIntervalMs);
         settings_.listenPort = NormalizePort(listenPort);
         settings_.mapOverride = NormalizeMapName(mapOverride);
         stats_.enabled = settings_.enabled;
@@ -778,10 +883,12 @@ void WEBRadar::Configure(bool enabled, int intervalMs, uint16_t listenPort, cons
 
 void WEBRadar::UpdateSnapshot(const esp::WebRadarSnapshot& snapshot)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    latestSnapshot_ = snapshot;
-    hasSnapshot_ = true;
-    ++snapshotVersion_;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        latestSnapshot_ = snapshot;
+        hasSnapshot_ = true;
+        ++snapshotVersion_;
+    }
     cv_.notify_one();
 }
 
@@ -810,13 +917,15 @@ bool WEBRadar::HasActiveConsumers() const
 
 void WEBRadar::CloseStreamClients()
 {
-    std::vector<uintptr_t> clients;
+    std::vector<StreamClient> clients;
     {
         std::lock_guard<std::mutex> lock(streamMutex_);
+        streamGeneration_.fetch_add(1, std::memory_order_relaxed);
         clients.swap(streamClients_);
     }
 
-    for (const uintptr_t handleValue : clients) {
+    for (const StreamClient& client : clients) {
+        const uintptr_t handleValue = client.socketHandle;
         if (handleValue == 0)
             continue;
         const SOCKET socketHandle = static_cast<SOCKET>(handleValue);
@@ -874,7 +983,7 @@ void WEBRadar::PruneWebSocketClients()
     }
 }
 
-bool WEBRadar::RegisterWebSocketClient(uintptr_t socketHandleValue)
+bool WEBRadar::RegisterWebSocketClient(uintptr_t socketHandleValue, int protocolVersion)
 {
     if (socketHandleValue == 0)
         return false;
@@ -883,14 +992,21 @@ bool WEBRadar::RegisterWebSocketClient(uintptr_t socketHandleValue)
 
     auto client = std::make_unique<WebSocketClient>();
     client->socketHandle.store(socketHandleValue, std::memory_order_relaxed);
+    client->protocolVersion = protocolVersion >= 2 ? 2 : 1;
 
     uint64_t currentVersion = 0;
     {
         std::lock_guard<std::mutex> lock(mutex_);
+        if (client->protocolVersion < 2)
+            legacyPayloadDemandUntilMs_ = UnixNowMs() + 30000;
         currentVersion = latestPayloadVersion_;
     }
+    if (client->protocolVersion < 2)
+        cv_.notify_one();
 
-    client->thread = std::thread(&WEBRadar::WebSocketClientLoop, this, client.get(), currentVersion > 0 ? (currentVersion - 1) : 0);
+    const uint64_t firstSeenVersion =
+        client->protocolVersion >= 2 && currentVersion > 0 ? (currentVersion - 1) : currentVersion;
+    client->thread = std::thread(&WEBRadar::WebSocketClientLoop, this, client.get(), firstSeenVersion);
 
     {
         std::lock_guard<std::mutex> lock(wsMutex_);
@@ -920,11 +1036,10 @@ void WEBRadar::WebSocketClientLoop(WebSocketClient* client, uint64_t lastSeenVer
             if (!running_.load(std::memory_order_relaxed) || !client->active.load(std::memory_order_relaxed))
                 break;
 
+            payloadJson = client->protocolVersion >= 2 ? latestPayloadJsonV2_ : latestPayloadJson_;
             payloadVersion = latestPayloadVersion_;
-            if (payloadVersion == lastSeenVersion || latestPayloadJson_.empty())
+            if (payloadVersion == lastSeenVersion || payloadJson.empty())
                 continue;
-
-            payloadJson = latestPayloadJson_;
         }
 
         const uintptr_t handleValue = client->socketHandle.load(std::memory_order_relaxed);
@@ -935,6 +1050,7 @@ void WEBRadar::WebSocketClientLoop(WebSocketClient* client, uint64_t lastSeenVer
             client->active.store(false, std::memory_order_relaxed);
             break;
         }
+        RecordBytesOut(payloadJson.size());
 
         lastSeenVersion = payloadVersion;
     }
@@ -948,40 +1064,100 @@ void WEBRadar::WebSocketClientLoop(WebSocketClient* client, uint64_t lastSeenVer
     client->active.store(false, std::memory_order_relaxed);
 }
 
-void WEBRadar::BroadcastLivePayload(const std::string& payloadJson)
+void WEBRadar::BroadcastLivePayload(const std::string& payloadJsonV1, const std::string& payloadJsonV2)
 {
-    std::lock_guard<std::mutex> lock(streamMutex_);
-    
-    
-    for (size_t i = 0; i < streamClients_.size();) {
-        const SOCKET socketHandle = static_cast<SOCKET>(streamClients_[i]);
+    size_t bytesSent = 0;
+
+    std::vector<StreamClient> clients;
+    uint64_t generation = 0;
+    {
+        std::lock_guard<std::mutex> lock(streamMutex_);
+        generation = streamGeneration_.load(std::memory_order_relaxed);
+        clients.swap(streamClients_);
+    }
+
+    std::vector<StreamClient> survivors;
+    survivors.reserve(clients.size());
+
+    for (const StreamClient& client : clients) {
+        const SOCKET socketHandle = static_cast<SOCKET>(client.socketHandle);
+        if (socketHandle == INVALID_SOCKET)
+            continue;
+
+        bool connected = true;
         fd_set readSet;
         FD_ZERO(&readSet);
         FD_SET(socketHandle, &readSet);
         timeval tv = { 0, 0 };
         if (select(0, &readSet, nullptr, nullptr, &tv) > 0) {
-            
             char buf;
             const int r = recv(socketHandle, &buf, 1, MSG_PEEK);
-            if (r <= 0) {
-                shutdown(socketHandle, SD_BOTH);
-                closesocket(socketHandle);
-                streamClients_.erase(streamClients_.begin() + static_cast<std::ptrdiff_t>(i));
-                continue;
-            }
+            connected = (r > 0);
         }
-        ++i;
-    }
-    
-    for (size_t i = 0; i < streamClients_.size();) {
-        const SOCKET socketHandle = static_cast<SOCKET>(streamClients_[i]);
-        if (!SendSseEvent(socketHandle, "snapshot", payloadJson)) {
+
+        if (!connected) {
             shutdown(socketHandle, SD_BOTH);
             closesocket(socketHandle);
-            streamClients_.erase(streamClients_.begin() + static_cast<std::ptrdiff_t>(i));
             continue;
         }
-        ++i;
+
+        const std::string& payloadJson = client.protocolVersion >= 2 ? payloadJsonV2 : payloadJsonV1;
+        if (!payloadJson.empty()) {
+            if (!SendSseEvent(socketHandle, "snapshot", payloadJson)) {
+                shutdown(socketHandle, SD_BOTH);
+                closesocket(socketHandle);
+                continue;
+            }
+            bytesSent += payloadJson.size();
+        }
+
+        survivors.push_back(client);
+    }
+
+    if (!survivors.empty()) {
+        bool keepSurvivors = false;
+        if (running_.load(std::memory_order_relaxed)) {
+            std::lock_guard<std::mutex> lock(streamMutex_);
+            keepSurvivors = (streamGeneration_.load(std::memory_order_relaxed) == generation);
+            if (keepSurvivors)
+                streamClients_.insert(streamClients_.end(), survivors.begin(), survivors.end());
+        }
+
+        if (!keepSurvivors) {
+            for (const StreamClient& client : survivors) {
+                const SOCKET socketHandle = static_cast<SOCKET>(client.socketHandle);
+                if (socketHandle == INVALID_SOCKET)
+                    continue;
+                shutdown(socketHandle, SD_BOTH);
+                closesocket(socketHandle);
+            }
+        }
+    }
+
+    if (bytesSent > 0)
+        RecordBytesOut(bytesSent);
+}
+
+void WEBRadar::RecordBytesOut(size_t bytes)
+{
+    if (bytes == 0)
+        return;
+
+    const uint64_t nowMs = UnixNowMs();
+    std::lock_guard<std::mutex> lock(mutex_);
+    stats_.totalBytesOut += static_cast<uint64_t>(bytes);
+
+    if (bytesOutWindowUnixMs_ == 0)
+        bytesOutWindowUnixMs_ = nowMs;
+    bytesOutWindowBytes_ += static_cast<uint64_t>(bytes);
+
+    const uint64_t elapsedMs = nowMs > bytesOutWindowUnixMs_ ? (nowMs - bytesOutWindowUnixMs_) : 0;
+    if (elapsedMs >= 250) {
+        const double sampleBytesPerSec =
+            static_cast<double>(bytesOutWindowBytes_) * 1000.0 / static_cast<double>(elapsedMs);
+        stats_.bytesOutPerSec = Ema(stats_.bytesOutPerSec, sampleBytesPerSec, 0.25);
+        bytesOutWindowUnixMs_ = nowMs;
+        bytesOutWindowBytes_ = 0;
     }
 }
 
@@ -1008,6 +1184,22 @@ std::string WEBRadar::BuildStatusJson() const
 std::string WEBRadar::BuildFallbackLiveJson(const SettingsSnapshot& settings, const std::string& mapName, uint64_t nowMs) const
 {
     #include "webradar_parts/webradar_build_fallback_live_json_body.inl"
+}
+
+std::string WEBRadar::BuildFallbackLiveJsonV2(const SettingsSnapshot& settings, const std::string& mapName, uint64_t nowMs) const
+{
+    (void)settings;
+    nlohmann::json payload = {
+        {"v", 2},
+        {"seq", nowMs},
+        {"ts", nowMs},
+        {"map", mapName.empty() ? "unknown" : mapName},
+        {"lt", 0},
+        {"p", nlohmann::json::array()},
+        {"b", nlohmann::json::array({0, nlohmann::json::array({0.0f, 0.0f, 0.0f}), 0.0f, 40.0f, 0.0f, 10.0f})},
+        {"w", nlohmann::json::array()}
+    };
+    return payload.dump();
 }
 
 std::string WEBRadar::Trim(const std::string& text)

@@ -101,6 +101,12 @@ void bootstrap::RuntimeConsole::PrintMarkedLine(const std::string& label, const 
         << text << " [" << C(kColorGreen) << "*" << C(kColorReset) << "]\n";
 }
 
+void bootstrap::RuntimeConsole::PrintPrompt(const std::string& label, const std::string& text) const
+{
+    std::cout << C(kColorYellow) << "  | " << label << " | " << C(kColorReset)
+        << text << std::flush;
+}
+
 void bootstrap::RuntimeConsole::PrintInfoPending(const std::string& text, int phase) const
 {
     PrintPending("Info", text, phase);

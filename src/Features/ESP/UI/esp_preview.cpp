@@ -197,7 +197,7 @@ namespace
         
         if (g::espBox)
             PrvCornerBox(dl, boxLeft, boxTop, boxW, boxH,
-                         entityCol, boxH * 0.22f, 2.0f);
+                         entityCol, boxH * 0.22f, std::clamp(g::espBoxThickness, 0.5f, 4.0f));
 
         
         const float healthBarLeft = boxLeft - sideBarW - sideBarGap;
@@ -307,16 +307,18 @@ namespace
         
         if (g::espSkeleton) {
             ImU32 skelCol = (g::espVisibilityColoring && useVisColors) ? entityCol : Col4(g::espSkeletonColor);
+            const float skeletonThickness = std::clamp(g::espSkeletonThickness, 0.5f, 4.0f);
+            const float skeletonOutlineThickness = skeletonThickness + 1.4f;
             for (auto& p : kPairs) {
                 Vec2 a = BonePos2D(p.from, cx, boxTop, boneScale);
                 Vec2 b = BonePos2D(p.to, cx, boxTop, boneScale);
                 dl->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y),
-                            IM_COL32(0, 0, 0, 200), 3.0f);
+                            IM_COL32(0, 0, 0, 200), skeletonOutlineThickness);
             }
             for (auto& p : kPairs) {
                 Vec2 a = BonePos2D(p.from, cx, boxTop, boneScale);
                 Vec2 b = BonePos2D(p.to, cx, boxTop, boneScale);
-                dl->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), skelCol, 1.6f);
+                dl->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), skelCol, skeletonThickness);
             }
             if (g::espSkeletonDots) {
                 for (int j : kJoints) {

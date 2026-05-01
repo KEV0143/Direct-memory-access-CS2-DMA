@@ -2,6 +2,9 @@
     bool localTeamLiveResolved = false;
     int localControllerTeam = 0;
     uint32_t localControllerPawnHandle = 0;
+    int localPawnHealth = -1;
+    uint8_t localPawnLifeState = 0xFF;
+    bool localPawnCoreLiveResolved = false;
     Vector3 localPos = s_localPos;
     float sensValue = s_sensitivity;
     Vector3 minimapMins = s_minimapMins;
@@ -164,6 +167,10 @@
             s_engineInGame.load(std::memory_order_relaxed) &&
             !s_engineMenu.load(std::memory_order_relaxed) &&
             baseSignOnState == 6;
+        if (!engineMatchLikeBase &&
+            s_engineStatusResolved.load(std::memory_order_relaxed) &&
+            s_engineMenu.load(std::memory_order_relaxed))
+            s_lastLiveMapNameSeenUs.store(0, std::memory_order_relaxed);
         const bool highestEntityRefreshDue =
             s_lastHighestEntityRefreshUs == 0 ||
             (baseNowUs - s_lastHighestEntityRefreshUs) >= esp::intervals::kBaseHighestEntityRefreshUs;
@@ -250,6 +257,10 @@
         if (s_cbpLocalPawn) {
             if (ofs.C_BaseEntity_m_iTeamNum > 0)
                 mem.AddScatterReadRequest(handle, s_cbpLocalPawn + ofs.C_BaseEntity_m_iTeamNum, &liveLocalTeam, sizeof(liveLocalTeam));
+            if (ofs.C_BaseEntity_m_iHealth > 0)
+                mem.AddScatterReadRequest(handle, s_cbpLocalPawn + ofs.C_BaseEntity_m_iHealth, &localPawnHealth, sizeof(localPawnHealth));
+            if (ofs.C_BaseEntity_m_lifeState > 0)
+                mem.AddScatterReadRequest(handle, s_cbpLocalPawn + ofs.C_BaseEntity_m_lifeState, &localPawnLifeState, sizeof(localPawnLifeState));
             if (ofs.C_BasePlayerPawn_m_vOldOrigin > 0)
                 mem.AddScatterReadRequest(handle, s_cbpLocalPawn + ofs.C_BasePlayerPawn_m_vOldOrigin, &localPos, sizeof(localPos));
         }
@@ -304,6 +315,7 @@
                 liveMapKey = normalizedMap;
                 s_cachedLiveMapKey = normalizedMap;
                 s_lastLiveMapNameRefreshUs = baseNowUs;
+                s_lastLiveMapNameSeenUs.store(baseNowUs, std::memory_order_relaxed);
             }
         }
 
@@ -339,6 +351,8 @@
             liveSensitivity = 0.0f; rawPlantedC4Deref = 0; rawWeaponC4Deref = 0;
             localControllerPawnHandle = 0;
             localControllerTeam = 0;
+            localPawnHealth = -1;
+            localPawnLifeState = 0xFF;
             if (highestEntityRefreshForced)
                 highestEntityIndex = 0;
             memset(intervalCandidateValues, 0, sizeof(intervalCandidateValues));
@@ -356,6 +370,10 @@
             if (localPawn) {
                 if (ofs.C_BaseEntity_m_iTeamNum > 0)
                     mem.AddScatterReadRequest(handle, localPawn + ofs.C_BaseEntity_m_iTeamNum, &liveLocalTeam, sizeof(liveLocalTeam));
+                if (ofs.C_BaseEntity_m_iHealth > 0)
+                    mem.AddScatterReadRequest(handle, localPawn + ofs.C_BaseEntity_m_iHealth, &localPawnHealth, sizeof(localPawnHealth));
+                if (ofs.C_BaseEntity_m_lifeState > 0)
+                    mem.AddScatterReadRequest(handle, localPawn + ofs.C_BaseEntity_m_lifeState, &localPawnLifeState, sizeof(localPawnLifeState));
                 if (ofs.C_BasePlayerPawn_m_vOldOrigin > 0)
                     mem.AddScatterReadRequest(handle, localPawn + ofs.C_BasePlayerPawn_m_vOldOrigin, &localPos, sizeof(localPos));
             }
@@ -394,6 +412,12 @@
         if (localPawn && ofs.C_BaseEntity_m_iTeamNum > 0 && (liveLocalTeam == 2 || liveLocalTeam == 3)) {
             localTeam = liveLocalTeam;
             localTeamLiveResolved = true;
+        }
+        if (localPawn &&
+            localPawnHealth >= 0 &&
+            localPawnHealth <= 100 &&
+            localPawnLifeState <= 2) {
+            localPawnCoreLiveResolved = true;
         }
         if (localController && ofs.C_BaseEntity_m_iTeamNum > 0 && (localControllerTeam == 2 || localControllerTeam == 3)) {
             localTeam = localControllerTeam;

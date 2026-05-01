@@ -440,6 +440,7 @@ static void BumpSceneReset(uint64_t nowUs = 0)
 }
 
 static std::string s_activeMapKey;
+static std::atomic<uint64_t> s_lastLiveMapNameSeenUs{0};
 static float s_lastSavedMapRotation = 0.0f;
 static float s_lastSavedMapScale = 1.0f;
 static float s_lastSavedMapOffsetX = 0.0f;
@@ -646,6 +647,7 @@ static void ResetRuntimeState(bool publishClearedSnapshot = false)
         s_hasMinimapBounds = false;
         s_mapFingerprint = 0;
         ResetActiveMapState();
+        s_lastLiveMapNameSeenUs.store(0, std::memory_order_relaxed);
         s_localMaskResolved = false;
         s_lastWorldScanUs = 0;
         s_activePlayerCount.store(0, std::memory_order_relaxed);
@@ -718,8 +720,11 @@ static void ResetRuntimeState(bool publishClearedSnapshot = false)
 
         const int writeIdx = 1 - s_readIdx.load(std::memory_order_relaxed);
         memset(&s_entityBuf[writeIdx], 0, sizeof(EntitySnapshot));
-        if (publishClearedSnapshot)
+        if (publishClearedSnapshot) {
             s_readIdx.store(writeIdx, std::memory_order_release);
+            s_publishCount.fetch_add(1, std::memory_order_relaxed);
+            s_lastPublishUs.store(TickNowUs(), std::memory_order_relaxed);
+        }
     }
     ResetCameraSnapshot();
 }

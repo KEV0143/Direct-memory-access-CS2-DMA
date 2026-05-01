@@ -1,5 +1,7 @@
 if (g::espSkeleton) {
     const ImU32 skeletonRenderCol = g::espVisibilityColoring ? entityCol : skelCol;
+    const float skeletonThickness = std::clamp(g::espSkeletonThickness, 0.5f, 4.0f);
+    const float skeletonOutlineThickness = skeletonThickness + 1.4f;
     const int leftToeBoneId = selectToeBoneId(p, true);
     const int rightToeBoneId = selectToeBoneId(p, false);
     if (canRenderRealSkeleton) {
@@ -9,20 +11,20 @@ if (g::espSkeleton) {
             if (!boneScreenValid[from] || !boneScreenValid[to]) continue;
             const ImVec2 p1(boneScreen[from].x, boneScreen[from].y);
             const ImVec2 p2(boneScreen[to].x, boneScreen[to].y);
-            drawList->AddLine(p1, p2, IM_COL32(0, 0, 0, 180), 3.0f);
-            drawList->AddLine(p1, p2, skeletonRenderCol, 1.6f);
+            drawList->AddLine(p1, p2, IM_COL32(0, 0, 0, 180), skeletonOutlineThickness);
+            drawList->AddLine(p1, p2, skeletonRenderCol, skeletonThickness);
         }
         if (hasLeftToeBone && boneScreenValid[esp::FOOT_HEEL_L] && boneScreenValid[leftToeBoneId]) {
             const ImVec2 p1(boneScreen[esp::FOOT_HEEL_L].x, boneScreen[esp::FOOT_HEEL_L].y);
             const ImVec2 p2(boneScreen[leftToeBoneId].x, boneScreen[leftToeBoneId].y);
-            drawList->AddLine(p1, p2, IM_COL32(0, 0, 0, 180), 3.0f);
-            drawList->AddLine(p1, p2, skeletonRenderCol, 1.6f);
+            drawList->AddLine(p1, p2, IM_COL32(0, 0, 0, 180), skeletonOutlineThickness);
+            drawList->AddLine(p1, p2, skeletonRenderCol, skeletonThickness);
         }
         if (hasRightToeBone && boneScreenValid[esp::FOOT_HEEL_R] && boneScreenValid[rightToeBoneId]) {
             const ImVec2 p1(boneScreen[esp::FOOT_HEEL_R].x, boneScreen[esp::FOOT_HEEL_R].y);
             const ImVec2 p2(boneScreen[rightToeBoneId].x, boneScreen[rightToeBoneId].y);
-            drawList->AddLine(p1, p2, IM_COL32(0, 0, 0, 180), 3.0f);
-            drawList->AddLine(p1, p2, skeletonRenderCol, 1.6f);
+            drawList->AddLine(p1, p2, IM_COL32(0, 0, 0, 180), skeletonOutlineThickness);
+            drawList->AddLine(p1, p2, skeletonRenderCol, skeletonThickness);
         }
 
         if (g::espSkeletonDots) {

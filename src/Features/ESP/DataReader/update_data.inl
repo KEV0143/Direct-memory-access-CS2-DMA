@@ -215,6 +215,47 @@ bool esp::UpdateData()
 
     const uint64_t _stageEngineEnd = TickNowUs();
 #include "base_reads.inl"
+    {
+        static bool s_entityShapeLiveConfirmed = false;
+        static uint32_t s_entityShapeLiveStreak = 0;
+        static uint64_t s_lastEntityShapeTransitionUs = 0;
+        const uint64_t shapeNowUs = TickNowUs();
+        const bool definitelyMenuByEngine =
+            s_engineStatusResolved.load(std::memory_order_relaxed) &&
+            s_engineMenu.load(std::memory_order_relaxed) &&
+            !s_engineInGame.load(std::memory_order_relaxed) &&
+            s_engineSignOnState.load(std::memory_order_relaxed) != 6;
+        const bool entityShapeLive =
+            !definitelyMenuByEngine &&
+            g::clientBase &&
+            g::engine2Base &&
+            entityList != 0 &&
+            listEntry != 0 &&
+            playerSlotScanLimit >= 32 &&
+            highestEntityIndex >= 64;
+        if (entityShapeLive) {
+            if (s_entityShapeLiveStreak < 0xFFFFFFFFu)
+                ++s_entityShapeLiveStreak;
+        } else {
+            s_entityShapeLiveStreak = 0;
+            s_entityShapeLiveConfirmed = false;
+        }
+
+        const bool confirmedEntityShapeLive = s_entityShapeLiveStreak >= 2u;
+        const bool transitionCooldownElapsed =
+            s_lastEntityShapeTransitionUs == 0 ||
+            shapeNowUs <= s_lastEntityShapeTransitionUs ||
+            (shapeNowUs - s_lastEntityShapeTransitionUs) >= 3000000u;
+        if (confirmedEntityShapeLive &&
+            !s_entityShapeLiveConfirmed &&
+            transitionCooldownElapsed) {
+            s_entityShapeLiveConfirmed = true;
+            s_lastEntityShapeTransitionUs = shapeNowUs;
+            BumpSceneReset(shapeNowUs);
+            SetSceneWarmupState(esp::SceneWarmupState::HierarchyWarming, shapeNowUs);
+            refreshDmaCaches("entity_shape_match_enter", DmaRefreshTier::Repair, true);
+        }
+    }
     const uint64_t _stageBaseEnd = TickNowUs();
 #include "player_reads.inl"
     const uint64_t _stagePlayerEnd = TickNowUs();

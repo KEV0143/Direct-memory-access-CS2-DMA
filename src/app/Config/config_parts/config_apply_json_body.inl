@@ -24,6 +24,7 @@
         LoadBool(root, "ESP", "Snaplines", g::espSnaplines);
         LoadBool(root, "ESP", "SnapFromTop", g::espSnaplineFromTop);
         LoadBool(root, "ESP", "VisibilityColoring", g::espVisibilityColoring);
+        LoadBool(root, "ESP", "ShowTeammates", g::espShowTeammates);
         LoadBool(root, "ESP", "OffscreenArrows", g::espOffscreenArrows);
         LoadBool(root, "ESP", "Sound", g::espSound);
         LoadBool(root, "ESP", "Flags", g::espFlags);
@@ -57,6 +58,8 @@
         LoadFloat(root, "ESP", "BombTimerY", g::espBombTimerY);
         LoadDisabledItemIds(root, "ESP", "ItemHiddenIds", g::espItemEnabledMask);
         LoadFloat(root, "ESP", "OffscreenSize", g::espOffscreenSize);
+        LoadFloat(root, "ESP", "BoxThickness", g::espBoxThickness);
+        LoadFloat(root, "ESP", "SkeletonThickness", g::espSkeletonThickness);
         LoadColor(root, "ESP", "BoxColor", g::espBoxColor);
         LoadColor(root, "ESP", "HealthColor", g::espHealthColor);
         LoadColor(root, "ESP", "VisibleColor", g::espVisibleColor);

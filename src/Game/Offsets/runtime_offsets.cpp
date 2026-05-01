@@ -14,11 +14,12 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <mutex>
 #include <regex>
+#include <shared_mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
-#include <thread>
 #include <optional>
 #include <unordered_map>
 #include <unordered_set>
@@ -78,6 +79,20 @@ namespace
     #include "runtime_offsets_parts/runtime_offsets_remote_fields.inl"
 
     runtime_offsets::Values g_values = {};
+    std::shared_mutex g_valuesMutex;
+
+    void SetRuntimeValues(const runtime_offsets::Values& values)
+    {
+        std::unique_lock lock(g_valuesMutex);
+        g_values = values;
+    }
+
+    runtime_offsets::Values GetRuntimeValuesSnapshot()
+    {
+        std::shared_lock lock(g_valuesMutex);
+        return g_values;
+    }
+
     #include "runtime_offsets_parts/runtime_offsets_paths_helpers.inl"
 
     #include "runtime_offsets_parts/runtime_offsets_parse_helpers.inl"
@@ -669,7 +684,44 @@ namespace
         return oss.str();
     }
 
-    bool DownloadFile(const char* url, const std::filesystem::path& destination, std::string* error)
+    std::string WinHttpErrorText(const char* operation, DWORD errorCode)
+    {
+        std::string message = operation ? operation : "WinHTTP";
+        message += " failed";
+        if (errorCode != ERROR_SUCCESS)
+        {
+            std::string detail;
+            char* rawMessage = nullptr;
+            const DWORD length = FormatMessageA(
+                FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                nullptr,
+                errorCode,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                reinterpret_cast<LPSTR>(&rawMessage),
+                0,
+                nullptr);
+            if (length > 0 && rawMessage)
+            {
+                detail = Trim(std::string(rawMessage, length));
+                LocalFree(rawMessage);
+            }
+
+            message += " (error " + std::to_string(errorCode);
+            if (!detail.empty())
+                message += ": " + detail;
+            message += ")";
+        }
+        return message;
+    }
+
+    void AppendAttemptError(std::string& combined, int attempt, const std::string& attemptError)
+    {
+        if (!combined.empty())
+            combined += "; ";
+        combined += "try " + std::to_string(attempt) + ": " + attemptError;
+    }
+
+    bool DownloadFileOnce(const char* url, const std::filesystem::path& destination, std::string* error)
     {
         try
         {
@@ -705,7 +757,7 @@ namespace
             WINHTTP_NO_PROXY_BYPASS,
             0);
         if (!hSession) {
-            if (error) *error = "WinHttpOpen failed";
+            if (error) *error = WinHttpErrorText("WinHttpOpen", GetLastError());
             return false;
         }
 
@@ -713,7 +765,7 @@ namespace
         HINTERNET hConnect = WinHttpConnect(hSession, wHost.c_str(), port, 0);
         if (!hConnect) {
             WinHttpCloseHandle(hSession);
-            if (error) *error = "WinHttpConnect failed for " + hostStr;
+            if (error) *error = WinHttpErrorText("WinHttpConnect", GetLastError()) + " for " + hostStr;
             return false;
         }
 
@@ -722,9 +774,11 @@ namespace
         if (!hRequest) {
             WinHttpCloseHandle(hConnect);
             WinHttpCloseHandle(hSession);
-            if (error) *error = "WinHttpOpenRequest failed";
+            if (error) *error = WinHttpErrorText("WinHttpOpenRequest", GetLastError());
             return false;
         }
+
+        WinHttpSetTimeouts(hRequest, 5000, 5000, 8000, 8000);
 
         for (const std::wstring& header : BuildRequestHeaders()) {
             WinHttpAddRequestHeaders(
@@ -734,12 +788,20 @@ namespace
                 WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE);
         }
 
-        if (!WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) ||
-            !WinHttpReceiveResponse(hRequest, nullptr)) {
+        const BOOL sendOk = WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
+        DWORD requestError = sendOk ? ERROR_SUCCESS : GetLastError();
+        BOOL receiveOk = FALSE;
+        if (sendOk) {
+            receiveOk = WinHttpReceiveResponse(hRequest, nullptr);
+            if (!receiveOk)
+                requestError = GetLastError();
+        }
+        if (!sendOk || !receiveOk) {
             WinHttpCloseHandle(hRequest);
             WinHttpCloseHandle(hConnect);
             WinHttpCloseHandle(hSession);
-            if (error) *error = "Download failed for " + urlStr;
+            if (error)
+                *error = WinHttpErrorText(sendOk ? "WinHttpReceiveResponse" : "WinHttpSendRequest", requestError) + " for " + urlStr;
             return false;
         }
 
@@ -786,6 +848,28 @@ namespace
         return true;
     }
 
+    bool DownloadFile(const char* url, const std::filesystem::path& destination, std::string* error)
+    {
+        constexpr int kMaxAttempts = 3;
+        std::string combinedErrors;
+        for (int attempt = 1; attempt <= kMaxAttempts; ++attempt) {
+            std::string attemptError;
+            if (DownloadFileOnce(url, destination, &attemptError)) {
+                if (error)
+                    error->clear();
+                return true;
+            }
+
+            AppendAttemptError(combinedErrors, attempt, attemptError);
+            if (attempt < kMaxAttempts)
+                Sleep(static_cast<DWORD>(120 * attempt));
+        }
+
+        if (error)
+            *error = "Download failed for " + std::string(url ? url : "") + " (" + combinedErrors + ")";
+        return false;
+    }
+
     struct HttpTextResponse
     {
         DWORD statusCode = 0;
@@ -793,10 +877,10 @@ namespace
         std::string etag;
     };
 
-    bool HttpGetText(const std::string& url,
-                     const std::vector<std::wstring>& extraHeaders,
-                     HttpTextResponse& out,
-                     std::string* error)
+    bool HttpGetTextOnce(const std::string& url,
+                         const std::vector<std::wstring>& extraHeaders,
+                         HttpTextResponse& out,
+                         std::string* error)
     {
         std::string urlStr(url);
         const bool useHttps = (urlStr.rfind("https://", 0) == 0);
@@ -826,7 +910,7 @@ namespace
         if (!hSession)
         {
             if (error)
-                *error = "WinHttpOpen failed";
+                *error = WinHttpErrorText("WinHttpOpen", GetLastError());
             return false;
         }
 
@@ -836,7 +920,7 @@ namespace
         {
             WinHttpCloseHandle(hSession);
             if (error)
-                *error = "WinHttpConnect failed for " + hostStr;
+                *error = WinHttpErrorText("WinHttpConnect", GetLastError()) + " for " + hostStr;
             return false;
         }
 
@@ -847,9 +931,11 @@ namespace
             WinHttpCloseHandle(hConnect);
             WinHttpCloseHandle(hSession);
             if (error)
-                *error = "WinHttpOpenRequest failed";
+                *error = WinHttpErrorText("WinHttpOpenRequest", GetLastError());
             return false;
         }
+
+        WinHttpSetTimeouts(hRequest, 5000, 5000, 8000, 8000);
 
         for (const std::wstring& header : BuildRequestHeaders(extraHeaders))
         {
@@ -857,16 +943,22 @@ namespace
                 WinHttpAddRequestHeaders(hRequest, header.c_str(), static_cast<DWORD>(header.size()), WINHTTP_ADDREQ_FLAG_ADD | WINHTTP_ADDREQ_FLAG_REPLACE);
         }
 
-        const bool ok =
-            WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
-            WinHttpReceiveResponse(hRequest, nullptr);
+        const BOOL sendOk = WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
+        DWORD requestError = sendOk ? ERROR_SUCCESS : GetLastError();
+        BOOL receiveOk = FALSE;
+        if (sendOk) {
+            receiveOk = WinHttpReceiveResponse(hRequest, nullptr);
+            if (!receiveOk)
+                requestError = GetLastError();
+        }
+        const bool ok = sendOk && receiveOk;
         if (!ok)
         {
             WinHttpCloseHandle(hRequest);
             WinHttpCloseHandle(hConnect);
             WinHttpCloseHandle(hSession);
             if (error)
-                *error = "HTTP GET failed for " + urlStr;
+                *error = WinHttpErrorText(sendOk ? "WinHttpReceiveResponse" : "WinHttpSendRequest", requestError) + " for " + urlStr;
             return false;
         }
 
@@ -910,6 +1002,31 @@ namespace
         }
 
         return true;
+    }
+
+    bool HttpGetText(const std::string& url,
+                     const std::vector<std::wstring>& extraHeaders,
+                     HttpTextResponse& out,
+                     std::string* error)
+    {
+        constexpr int kMaxAttempts = 3;
+        std::string combinedErrors;
+        for (int attempt = 1; attempt <= kMaxAttempts; ++attempt) {
+            std::string attemptError;
+            if (HttpGetTextOnce(url, extraHeaders, out, &attemptError)) {
+                if (error)
+                    error->clear();
+                return true;
+            }
+
+            AppendAttemptError(combinedErrors, attempt, attemptError);
+            if (attempt < kMaxAttempts)
+                Sleep(static_cast<DWORD>(120 * attempt));
+        }
+
+        if (error)
+            *error = "HTTP GET failed for " + url + " (" + combinedErrors + ")";
+        return false;
     }
 
     std::string StripQuotes(std::string text)
@@ -1167,7 +1284,7 @@ namespace
 
     std::string BuildRawOutputUrl(const std::string& sourceFile)
     {
-        return "https://raw.githubusercontent.com/a2x/cs2-dumper/main/output/" + sourceFile;
+        return "https://raw.githubusercontent.com/KEV0143/Direct-memory-access-CS2-DMA/main/x64/Release/output/" + sourceFile;
     }
 
     std::filesystem::path GetPackagedOutputDirectory()
@@ -1503,14 +1620,7 @@ namespace
                                const std::filesystem::path& destination,
                                std::string* error)
     {
-        for (int attempt = 0; attempt < 2; ++attempt)
-        {
-            if (DownloadFile(url.c_str(), destination, error))
-                return true;
-            std::this_thread::sleep_for(std::chrono::milliseconds(250));
-        }
-
-        return false;
+        return DownloadFile(url.c_str(), destination, error);
     }
 
     bool DownloadOutputDirectoryFiles(const std::filesystem::path& directory,
@@ -1547,9 +1657,9 @@ namespace
     }
 }
 
-const runtime_offsets::Values& runtime_offsets::Get()
+runtime_offsets::Values runtime_offsets::Get()
 {
-    return g_values;
+    return GetRuntimeValuesSnapshot();
 }
 
 bool runtime_offsets::AutoUpdateFromGitHub(std::string* message, runtime_offsets::AutoUpdateReport* report)

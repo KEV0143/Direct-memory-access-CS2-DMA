@@ -2,7 +2,6 @@
 #include "../pch.h"
 #include "InputManager.h"
 #include "Registry.h"
-#include "Shellcode.h"
 #include "../nt/structs.h"
 #include <atomic>
 
@@ -66,7 +65,6 @@ private:
 	//shared pointer
 	std::shared_ptr<c_keys> key;
 	c_registry registry;
-	c_shellcode shellcode;
 
 
 public:
@@ -88,12 +86,6 @@ public:
 	* @return key class
 	*/
 	c_keys* GetKeyboard() { return key.get(); }
-
-	/**
-	* @brief Gets the shellcode object
-	* @return shellcode class
-	*/
-	c_shellcode GetShellcode() { return shellcode; }
 
 	/**
 	* brief Initializes the DMA
@@ -206,7 +198,7 @@ public:
 	 */
 	bool DumpMemory(uintptr_t address, std::string path);
 
-	/*This part is where all memory operations are done, such as read, write.*/
+	/*This part is where all memory operations are done.*/
 
 	/**
 	 * \brief Scans the process for the signature.
@@ -217,33 +209,6 @@ public:
 	 * \return address of signature
 	 */
 	uint64_t FindSignature(const char* signature, uint64_t range_start, uint64_t range_end, int PID = 0);
-
-	/**
-	 * \brief Writes memory to the process 
-	 * \param address The address to write to
-	 * \param buffer The buffer to write
-	 * \param size The size of the buffer
-	 * \return 
-	 */
-	bool Write(uintptr_t address, void* buffer, size_t size) const;
-	bool Write(uintptr_t address, void* buffer, size_t size, int pid) const;
-
-	/**
-	 * \brief Writes memory to the process using a template
-	 * \param address to write to
-	 * \param value the value you'll write to the address
-	 */
-	template <typename T>
-	void Write(void* address, T value)
-	{
-		Write(address, &value, sizeof(T));
-	}
-
-	template <typename T>
-	void Write(uintptr_t address, T value)
-	{
-		Write(address, &value, sizeof(T));
-	}
 
 	/**
 	* brief Reads memory from the process
@@ -261,19 +226,15 @@ public:
 	* @return the value read from the process
 	*/
 	template <typename T>
-	T Read(void* address)
-	{
-		T buffer { };
-		memset(&buffer, 0, sizeof(T));
-		Read(reinterpret_cast<uint64_t>(address), reinterpret_cast<void*>(&buffer), sizeof(T));
-
-		return buffer;
-	}
+	T Read(void* address) = delete;
 
 	template <typename T>
 	T Read(uint64_t address)
 	{
-		return Read<T>(reinterpret_cast<void*>(address));
+		T buffer { };
+		memset(&buffer, 0, sizeof(T));
+		Read(static_cast<uintptr_t>(address), reinterpret_cast<void*>(&buffer), sizeof(T));
+		return buffer;
 	}
 
 	/**
@@ -283,19 +244,15 @@ public:
 	* @return the value read from the process
 	*/
 	template <typename T>
-	T Read(void* address, int pid)
-	{
-		T buffer { };
-		memset(&buffer, 0, sizeof(T));
-		Read(reinterpret_cast<uint64_t>(address), reinterpret_cast<void*>(&buffer), sizeof(T), pid);
-
-		return buffer;
-	}
+	T Read(void* address, int pid) = delete;
 
 	template <typename T>
 	T Read(uint64_t address, int pid)
 	{
-		return Read<T>(reinterpret_cast<void*>(address), pid);
+		T buffer { };
+		memset(&buffer, 0, sizeof(T));
+		Read(static_cast<uintptr_t>(address), reinterpret_cast<void*>(&buffer), sizeof(T), pid);
+		return buffer;
 	}
 
 	/**
@@ -333,10 +290,10 @@ public:
 	void CloseScatterHandle(VMMDLL_SCATTER_HANDLE handle);
 
 	/**
-	 * \brief Adds a scatter read/write request to the handle
+	 * \brief Adds a scatter read request to the handle
 	 * \param handle the handle
-	 * \param address the address to read/write to 
-	 * \param buffer the buffer to read/write to
+	 * \param address the address to read from
+	 * \param buffer the buffer to read to
 	 * \param size the size of buffer
 	 */
 	void AddScatterReadRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t address, void* buffer, size_t size);
@@ -347,9 +304,6 @@ public:
 		AddScatterReadRequest(handle, address, reinterpret_cast<void*>(buffer), sizeof(T));
 	}
 		
-	void AddScatterWriteRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t address, void* buffer, size_t size);
-		
-
 	/**
 	 * \brief Executes all prepared scatter requests, note if you created a scatter handle with a pid
 	 * you'll need to specify the pid in the execute function. so we can clear the scatters from the handle.
@@ -357,7 +311,6 @@ public:
 	 * \param pid 
 	 */
 	bool ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid = 0);
-	void ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid = 0);
 	void SetScatterReadWarningSuppressed(bool suppressed);
 	void SetDirectReadWarningSuppressed(bool suppressed);
 

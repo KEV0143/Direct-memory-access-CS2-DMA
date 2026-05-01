@@ -13,8 +13,7 @@
     wc.hIconSm        = hIcon;
     RegisterClassExW(&wc);
 
-    static const std::string windowTitleUtf8 = app::build_info::RuntimeTitle();
-    static const std::wstring windowTitle(windowTitleUtf8.begin(), windowTitleUtf8.end());
+    static const std::wstring windowTitle = Utf8ToWide(app::build_info::RuntimeTitle());
 
     s_hwnd = CreateWindowExW(
         WS_EX_LAYERED | WS_EX_TOOLWINDOW,

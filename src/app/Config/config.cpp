@@ -159,7 +159,7 @@ namespace {
         g::radarSettings = snapshot.radar;
         g::webRadarSettings = snapshot.webRadar;
         g::uiSettings = snapshot.ui;
-        g::webRadarIntervalMs = 4;
+        g::webRadarIntervalMs = webradar::cfg::kMinRealtimeIntervalMs;
         g::vsyncEnabled = snapshot.screen.vsyncEnabled;
         g::fpsLimit = snapshot.screen.fpsLimit;
     }
@@ -500,7 +500,7 @@ namespace {
             if (app::state::IsKnifeItemId(id))
                 g::espItemEnabledMask.set(id, false);
         }
-        g::webRadarIntervalMs = 4;
+        g::webRadarIntervalMs = webradar::cfg::kMinRealtimeIntervalMs;
     }
 
     void ApplyLoadedConfig(const json& root)
@@ -536,6 +536,7 @@ namespace {
         LoadBool(ini, "ESP", "Snaplines", g::espSnaplines);
         LoadBool(ini, "ESP", "SnapFromTop", g::espSnaplineFromTop);
         LoadBool(ini, "ESP", "VisibilityColoring", g::espVisibilityColoring);
+        LoadBool(ini, "ESP", "ShowTeammates", g::espShowTeammates);
         LoadBool(ini, "ESP", "OffscreenArrows", g::espOffscreenArrows);
         LoadBool(ini, "ESP", "Sound", g::espSound);
         LoadBool(ini, "ESP", "Flags", g::espFlags);
@@ -569,6 +570,8 @@ namespace {
         LoadFloat(ini, "ESP", "BombTimerY", g::espBombTimerY);
         LoadDisabledItemIds(ini, "ESP", "ItemHiddenIds", g::espItemEnabledMask);
         LoadFloat(ini, "ESP", "OffscreenSize", g::espOffscreenSize);
+        LoadFloat(ini, "ESP", "BoxThickness", g::espBoxThickness);
+        LoadFloat(ini, "ESP", "SkeletonThickness", g::espSkeletonThickness);
         LoadColor(ini, "ESP", "BoxColor", g::espBoxColor);
         LoadColor(ini, "ESP", "HealthColor", g::espHealthColor);
         LoadColor(ini, "ESP", "VisibleColor", g::espVisibleColor);

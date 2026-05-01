@@ -72,6 +72,8 @@
 /data/de_ancient_night/radar.webp RCDATA "src/Features/WebRadar/Assets/data/de_ancient_night/radar.webp"
 /data/de_anubis/data.json RCDATA "src/Features/WebRadar/Assets/data/de_anubis/data.json"
 /data/de_anubis/radar.webp RCDATA "src/Features/WebRadar/Assets/data/de_anubis/radar.webp"
+/data/de_cache/data.json RCDATA "src/Features/WebRadar/Assets/data/de_cache/data.json"
+/data/de_cache/radar.webp RCDATA "src/Features/WebRadar/Assets/data/de_cache/radar.webp"
 /data/de_dust2/data.json RCDATA "src/Features/WebRadar/Assets/data/de_dust2/data.json"
 /data/de_dust2/radar.webp RCDATA "src/Features/WebRadar/Assets/data/de_dust2/radar.webp"
 /data/de_inferno/data.json RCDATA "src/Features/WebRadar/Assets/data/de_inferno/data.json"

@@ -133,7 +133,7 @@ namespace runtime_offsets
         std::ptrdiff_t CSkeletonInstance_m_modelState = 0;
     };
 
-    const Values& Get();
+    Values Get();
     StateView GetStateView();
     bool HasOffsetsFile();
     bool AutoUpdateFromGitHub(std::string* message = nullptr, AutoUpdateReport* report = nullptr);

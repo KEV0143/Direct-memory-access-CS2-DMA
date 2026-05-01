@@ -78,11 +78,14 @@ const STORAGE_KEY = "kevq_webradar_clau_style_v4";
 const SNAPSHOT_BUFFER_LIMIT = 10;
 const UI_RENDER_INTERVAL_MS = 40;
 const INITIAL_RENDER_DELAY_MS = 18;
+const POLLING_FALLBACK_INTERVAL_MS = 67;
 
 const S = {
   payload: null,
   renderPayload: null,
   pendingPayload: null,
+  lastPayloadAt: 0,
+  lastEntityPayloadAt: 0,
   currentMap: "",
   currentTransport: "idle",
   connectionState: "idle",
@@ -150,6 +153,14 @@ C4_ICON.addEventListener("load", () => drawOverlayCanvas());
 
 if (IS_ONLY_RADAR) {
   document.body.classList.add("only-radar");
+}
+
+function apiUrl(path, params = {}) {
+  const url = new URL(path, window.location.href);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, String(value));
+  }
+  return url.pathname + url.search;
 }
 
 const el = {
@@ -325,9 +336,26 @@ function pushRttSample(ms) {
 async function pingLoop() {
   try {
     const started = performance.now();
-    await fetch("./api/ping?t=" + Date.now(), { cache: "no-store", priority: "low" });
+    await fetch(apiUrl("./api/ping", { t: Date.now() }), { cache: "no-store", priority: "low" });
     pushRttSample(performance.now() - started);
   } catch {
+  }
+  const now = performance.now();
+  const staleFor = S.lastPayloadAt > 0 ? now - S.lastPayloadAt : 0;
+  if (!document.hidden && staleFor > 1500 && (S.socket || S.eventSource) && !S.pollingTimer) {
+    updateConnection("error");
+    if (S.socket) {
+      try {
+        S.socket.onopen = null;
+        S.socket.onmessage = null;
+        S.socket.onerror = null;
+        S.socket.onclose = null;
+        S.socket.close();
+      } catch {
+      }
+      S.socket = null;
+    }
+    startEventStream();
   }
   setTimeout(pingLoop, 1500);
 }
@@ -570,6 +598,23 @@ function clearMapAssets(mapName = "unknown") {
 
 function updateMapAssets(mapName) {
   if (!mapName || mapName === "unknown") {
+    const now = performance.now();
+    const canHoldCurrentMap =
+      S.currentMap &&
+      S.currentMap !== "unknown" &&
+      S.lastEntityPayloadAt > 0 &&
+      Number.isFinite(now) &&
+      (now - S.lastEntityPayloadAt) <= 5000;
+    if (canHoldCurrentMap) {
+      const mapLabel = normalizeMapLabel(S.currentMap);
+      if (el.metaMap.textContent !== mapLabel) {
+        el.metaMap.textContent = mapLabel;
+      }
+      if (el.radarMapName.textContent !== mapLabel) {
+        el.radarMapName.textContent = mapLabel;
+      }
+      return;
+    }
     clearMapAssets("unknown");
     return;
   }
@@ -629,8 +674,191 @@ function updateAdaptiveDelay() {
   S.renderDelayMs = clamp(S.renderDelayMs * 0.82 + target * 0.18, 12, 48);
 }
 
+const PLAYER_FLAGS_V2 = {
+  dead: 1 << 0,
+  scoped: 1 << 1,
+  flashed: 1 << 2,
+  defusing: 1 << 3,
+  hasDefuser: 1 << 4,
+  hasBomb: 1 << 5,
+  local: 1 << 6
+};
+
+const BOMB_FLAGS_V2 = {
+  planted: 1 << 0,
+  dropped: 1 << 1,
+  ticking: 1 << 2,
+  defusing: 1 << 3,
+  defused: 1 << 4
+};
+
+const WEAPON_ID_TO_ICON = {
+  1: "deagle",
+  2: "elite",
+  3: "fiveseven",
+  4: "glock",
+  7: "ak47",
+  8: "aug",
+  9: "awp",
+  10: "famas",
+  11: "g3sg1",
+  13: "galilar",
+  14: "m249",
+  16: "m4a1",
+  17: "mac10",
+  19: "p90",
+  23: "mp5sd",
+  24: "ump45",
+  25: "xm1014",
+  26: "bizon",
+  27: "mag7",
+  28: "negev",
+  29: "sawedoff",
+  30: "tec9",
+  31: "taser",
+  32: "p2000",
+  33: "mp7",
+  34: "mp9",
+  35: "nova",
+  36: "p250",
+  38: "scar20",
+  39: "sg556",
+  40: "ssg08",
+  42: "knife",
+  43: "flashbang",
+  44: "hegrenade",
+  45: "smokegrenade",
+  46: "molotov",
+  47: "decoy",
+  48: "incgrenade",
+  49: "c4",
+  59: "knife",
+  60: "m4a1_silencer",
+  61: "usp_silencer",
+  63: "cz75a",
+  64: "revolver"
+};
+
+const WORLD_MARKER_TYPE_TO_NAME = {
+  1: "smoke",
+  2: "inferno",
+  3: "decoy",
+  4: "explosive"
+};
+
+function weaponNameFromId(id) {
+  const weaponId = Number(id || 0);
+  if (weaponId >= 500 && weaponId <= 525) return "knife";
+  return WEAPON_ID_TO_ICON[weaponId] || "";
+}
+
+function compactVec3(value) {
+  const source = Array.isArray(value) ? value : [];
+  return {
+    x: Number(source[0] || 0),
+    y: Number(source[1] || 0),
+    z: Number(source[2] || 0)
+  };
+}
+
+function compactVec2(value) {
+  const source = Array.isArray(value) ? value : [];
+  return {
+    x: Number(source[0] || 0),
+    y: Number(source[1] || 0)
+  };
+}
+
+function normalizePayloadV2(payload) {
+  const seq = Number(payload.seq || 0);
+  const ts = Number(payload.ts || Date.now());
+  const localTeam = Number(payload.lt || 0);
+  const players = Array.isArray(payload.p) ? payload.p : [];
+  const worldMarkers = Array.isArray(payload.w) ? payload.w : [];
+  const bombRow = Array.isArray(payload.b) ? payload.b : [];
+  const bombFlags = Number(bombRow[0] || 0);
+  const bombTimerLength = clamp(Number(bombRow[3] || 40), 5, 90);
+  const bombDefuseLength = clamp(Number(bombRow[5] || 10), 1, 15);
+
+  return {
+    m_seq: seq,
+    m_ts: ts,
+    m_server_time: ts,
+    m_capture_time: ts,
+    m_map: String(payload.map || "unknown"),
+    m_local_team: localTeam,
+    m_updated_at: Date.now(),
+    m_players: players
+      .filter(row => Array.isArray(row))
+      .map(row => {
+        const idx = Number(row[0] || 0);
+        const team = Number(row[2] || 0);
+        const flags = Number(row[3] || 0);
+        const weaponId = Number(row[10] || 0);
+        const steamId = idx === 0 ? "local" : "player:" + idx;
+        const grenades = Array.isArray(row[12])
+          ? row[12].map(weaponNameFromId).filter(Boolean)
+          : [];
+
+        return {
+          m_idx: idx,
+          m_name: normalizeDisplayText(row[1], idx === 0 ? "Local Player" : ("Player " + idx)),
+          m_team: team,
+          m_color: idx % 6,
+          m_is_dead: (flags & PLAYER_FLAGS_V2.dead) !== 0,
+          m_eye_angle: Number(row[4] || 0),
+          m_position: compactVec3(row[5]),
+          m_health: Number(row[6] || 0),
+          m_armor: Number(row[7] || 0),
+          m_money: Number(row[8] || 0),
+          m_ping: Number(row[9] || 0),
+          m_scoped: (flags & PLAYER_FLAGS_V2.scoped) !== 0,
+          m_flashed: (flags & PLAYER_FLAGS_V2.flashed) !== 0,
+          m_defusing: (flags & PLAYER_FLAGS_V2.defusing) !== 0,
+          m_has_defuser: (flags & PLAYER_FLAGS_V2.hasDefuser) !== 0,
+          m_has_bomb: (flags & PLAYER_FLAGS_V2.hasBomb) !== 0,
+          m_weapon_id: weaponId,
+          m_weapon: weaponNameFromId(weaponId),
+          m_ammo_clip: Number(row[11] ?? -1),
+          m_grenades: grenades,
+          m_velocity: compactVec2(row[13]),
+          m_model_name: team === TEAM_CT ? "ctm_sas" : "tm_phoenix",
+          m_seq: seq,
+          m_ts: ts,
+          m_steam_id: steamId,
+          steamid: steamId,
+          m_is_local: (flags & PLAYER_FLAGS_V2.local) !== 0
+        };
+      }),
+    m_bomb: {
+      m_is_planted: (bombFlags & BOMB_FLAGS_V2.planted) !== 0,
+      m_is_dropped: (bombFlags & BOMB_FLAGS_V2.dropped) !== 0,
+      m_is_ticking: (bombFlags & BOMB_FLAGS_V2.ticking) !== 0,
+      m_is_defusing: (bombFlags & BOMB_FLAGS_V2.defusing) !== 0,
+      m_is_defused: (bombFlags & BOMB_FLAGS_V2.defused) !== 0,
+      m_blow_time: Number(bombRow[2] || 0),
+      m_timer_length: bombTimerLength,
+      m_defuse_time: Number(bombRow[4] || 0),
+      m_defuse_length: bombDefuseLength,
+      m_seq: seq,
+      m_ts: ts,
+      m_position: compactVec3(bombRow[1])
+    },
+    m_world_grenades: worldMarkers
+      .filter(row => Array.isArray(row) && WORLD_MARKER_TYPE_TO_NAME[Number(row[0] || 0)])
+      .map(row => ({
+        type: WORLD_MARKER_TYPE_TO_NAME[Number(row[0] || 0)],
+        position: compactVec3(row[1]),
+        life: Number(row[2] || 0)
+      }))
+  };
+}
+
 function sanitizePayload(payload) {
   if (!payload || typeof payload !== "object") return null;
+  if (Number(payload.v || 0) === 2) {
+    return normalizePayloadV2(payload);
+  }
   payload.m_players = Array.isArray(payload.m_players) ? payload.m_players : [];
   payload.m_bomb = payload.m_bomb && typeof payload.m_bomb === "object" ? payload.m_bomb : null;
   return payload;
@@ -695,6 +923,7 @@ function ingestSnapshot(payload, arrivalNow) {
 function resetSnapshotTimeline() {
   S.snapshots.length = 0;
   S.renderPayload = null;
+  S.lastEntityPayloadAt = 0;
   S.serverClockOffsetMs = NaN;
   S.minClockOffsetMs = Number.POSITIVE_INFINITY;
   S.arrivalJitterMs = 0;
@@ -1857,14 +2086,14 @@ function drawWorldGrenades(ctx, payload, mapData, overlayWidth, overlayHeight) {
 }
 
 function drawOverlayCanvas() {
-  const metrics = clearOverlay();
-  if (!metrics) return;
-
   const payload = S.renderPayload || S.payload;
   const mapData = payload && S.mapDataCache.get(payload.m_map);
   if (!payload || !mapData || !el.mapImage.complete) {
     return;
   }
+
+  const metrics = clearOverlay();
+  if (!metrics) return;
 
   const ctx = metrics.ctx;
   const overlayWidth = metrics.width;
@@ -2116,9 +2345,11 @@ function renderOverlay(payload = S.renderPayload || S.payload) {
   const players = payload && Array.isArray(payload.m_players) ? payload.m_players : [];
 
   if (!payload || !mapData || !el.mapImage.complete) {
-    hideUnusedMarkers(new Set());
-    if (S.bombMarker) {
-      S.bombMarker.state.active = false;
+    if (!shouldRetainVisualsOnInvalidFrame()) {
+      hideUnusedMarkers(new Set());
+      if (S.bombMarker) {
+        S.bombMarker.state.active = false;
+      }
     }
     return;
   }
@@ -2184,6 +2415,10 @@ function render() {
 }
 
 function animateScene(timestamp) {
+  if (document.hidden) {
+    S.animationHandle = window.requestAnimationFrame(animateScene);
+    return;
+  }
   if (!S.animationClock) {
     S.animationClock = timestamp;
   }
@@ -2195,6 +2430,75 @@ function animateScene(timestamp) {
   S.animationHandle = window.requestAnimationFrame(animateScene);
 }
 
+function payloadHasLiveEntities(payload) {
+  return !!payload && (
+    (Array.isArray(payload.m_players) && payload.m_players.length > 0) ||
+    !!(payload.m_bomb && (payload.m_bomb.m_is_planted || payload.m_bomb.m_is_dropped))
+  );
+}
+
+function countPayloadTeams(payload) {
+  const counts = { t: 0, ct: 0 };
+  const players = Array.isArray(payload?.m_players) ? payload.m_players : [];
+  for (const player of players) {
+    const team = Number(player?.m_team || 0);
+    if (team === TEAM_T) {
+      ++counts.t;
+    } else if (team === TEAM_CT) {
+      ++counts.ct;
+    }
+  }
+  return counts;
+}
+
+function isSameLiveMap(nextMap, prevMap) {
+  return nextMap === "unknown" || prevMap === "unknown" || nextMap === prevMap;
+}
+
+function shouldHoldTransientEmptyPayload(payload, arrivalNow) {
+  if (payloadHasLiveEntities(payload) || !payloadHasLiveEntities(S.payload)) return false;
+  if (!Number.isFinite(arrivalNow) || S.lastEntityPayloadAt <= 0) return false;
+  if ((arrivalNow - S.lastEntityPayloadAt) > 3500) return false;
+
+  const nextMap = String(payload?.m_map || "unknown");
+  const prevMap = String(S.payload?.m_map || "unknown");
+  return isSameLiveMap(nextMap, prevMap);
+}
+
+function shouldHoldTransientTeamCollapse(payload, arrivalNow) {
+  if (!payloadHasLiveEntities(payload) || !payloadHasLiveEntities(S.payload)) return false;
+  if (!Number.isFinite(arrivalNow) || S.lastEntityPayloadAt <= 0) return false;
+  if ((arrivalNow - S.lastEntityPayloadAt) > 3500) return false;
+
+  const nextMap = String(payload?.m_map || "unknown");
+  const prevMap = String(S.payload?.m_map || "unknown");
+  if (!isSameLiveMap(nextMap, prevMap)) return false;
+
+  const prev = countPayloadTeams(S.payload);
+  const next = countPayloadTeams(payload);
+  if (prev.t <= 0 || prev.ct <= 0) return false;
+  return (next.t <= 0 && next.ct > 0) || (next.ct <= 0 && next.t > 0);
+}
+
+function lastStableMapName() {
+  const currentMap = String(S.currentMap || "");
+  if (currentMap && currentMap !== "unknown") return currentMap;
+  const payloadMap = String(S.payload?.m_map || "");
+  if (payloadMap && payloadMap !== "unknown") return payloadMap;
+  return "";
+}
+
+function shouldRetainVisualsOnInvalidFrame() {
+  const now = performance.now();
+  return !!(
+    S.currentMap &&
+    S.currentMap !== "unknown" &&
+    S.lastEntityPayloadAt > 0 &&
+    Number.isFinite(now) &&
+    (now - S.lastEntityPayloadAt) <= 5000
+  );
+}
+
 function flushPendingPayload() {
   S.renderHandle = 0;
   const payload = sanitizePayload(S.pendingPayload);
@@ -2202,18 +2506,37 @@ function flushPendingPayload() {
   if (!payload || !payload.m_map || payload.m_map === "invalid") return;
 
   const arrivalNow = performance.now();
+  const hasLiveEntities = payloadHasLiveEntities(payload);
+  if (hasLiveEntities && (!payload.m_map || payload.m_map === "unknown")) {
+    const stableMap = lastStableMapName();
+    if (stableMap) {
+      payload.m_map = stableMap;
+    }
+  }
+  if (shouldHoldTransientTeamCollapse(payload, arrivalNow)) {
+    updateConnection("live");
+    S.currentTransport = S.eventSource ? "sse" : (S.socket ? "websocket" : "poll");
+    scheduleUiRender();
+    return;
+  }
+  if (!hasLiveEntities && shouldHoldTransientEmptyPayload(payload, arrivalNow)) {
+    updateConnection("live");
+    S.currentTransport = S.eventSource ? "sse" : (S.socket ? "websocket" : "poll");
+    scheduleUiRender();
+    return;
+  }
+
   const hasMapData = S.mapDataCache.has(payload.m_map);
   updateConnection("live");
-  S.currentTransport = S.socket ? "websocket" : "poll";
+  S.currentTransport = S.eventSource ? "sse" : (S.socket ? "websocket" : "poll");
   updateMapAssets(payload.m_map);
   const mapChanged = !!(S.payload && S.payload.m_map && S.payload.m_map !== payload.m_map);
   if (mapChanged) {
     resetSnapshotTimeline();
   }
-  const hasLiveEntities = payload.m_players.length > 0 ||
-    !!(payload.m_bomb && (payload.m_bomb.m_is_planted || payload.m_bomb.m_is_dropped));
   if (hasLiveEntities) {
     ingestSnapshot(payload, arrivalNow);
+    S.lastEntityPayloadAt = arrivalNow;
   } else {
     resetSnapshotTimeline();
   }
@@ -2240,6 +2563,7 @@ function schedulePayloadRender() {
 }
 
 function queuePayload(payload) {
+  S.lastPayloadAt = performance.now();
   S.pendingPayload = payload;
   schedulePayloadRender();
 }
@@ -2247,7 +2571,7 @@ function queuePayload(payload) {
 async function primeStatus() {
   if (S.statusPrimed) return;
   try {
-    const response = await fetch("./api/status?t=" + Date.now(), { cache: "no-store" });
+    const response = await fetch(apiUrl("./api/status", { t: Date.now() }), { cache: "no-store" });
     if (!response.ok) return;
     const status = await response.json();
     const mapName = String(status.active_map || "");
@@ -2268,13 +2592,62 @@ function stopPolling() {
   }
 }
 
-function connectWebSocket() {
-  if (!("WebSocket" in window)) {
+function stopEventStream() {
+  if (!S.eventSource) return;
+  try {
+    S.eventSource.close();
+  } catch {
+  }
+  S.eventSource = null;
+}
+
+function startEventStream() {
+  stopPolling();
+  stopEventStream();
+
+  if (!("EventSource" in window)) {
     startPolling();
     return;
   }
 
+  S.currentTransport = "sse";
+  updateConnection("connecting");
+
+  const stream = new EventSource(apiUrl("./api/stream", { pv: 2, t: Date.now() }));
+  S.eventSource = stream;
+
+  stream.onopen = () => {
+    if (S.eventSource !== stream) return;
+    S.reconnectDelay = 400;
+    updateConnection("live");
+  };
+
+  stream.addEventListener("snapshot", event => {
+    if (S.eventSource !== stream) return;
+    try {
+      queuePayload(JSON.parse(event.data));
+      updateConnection("live");
+    } catch (e) {
+      console.error("[WR] SSE parse error", e);
+    }
+  });
+
+  stream.onerror = () => {
+    if (S.eventSource !== stream) return;
+    stopEventStream();
+    updateConnection("error");
+    S.pollingTimer = window.setTimeout(startPolling, 900);
+  };
+}
+
+function connectWebSocket() {
+  if (!("WebSocket" in window)) {
+    startEventStream();
+    return;
+  }
+
   stopPolling();
+  stopEventStream();
   updateConnection("connecting");
 
   if (S.socket) {
@@ -2289,8 +2662,9 @@ function connectWebSocket() {
     S.socket = null;
   }
 
-  const protocol = window.location.protocol === "https:" ? "wss://" : "ws://";
-  const socket = new WebSocket(protocol + window.location.host + "/api/ws?t=" + Date.now());
+  const socketUrl = new URL(apiUrl("./api/ws", { pv: 2, t: Date.now() }), window.location.href);
+  socketUrl.protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const socket = new WebSocket(socketUrl.toString());
   S.socket = socket;
 
   socket.onopen = () => {
@@ -2318,23 +2692,26 @@ function connectWebSocket() {
     updateConnection("error");
     const delay = S.reconnectDelay;
     S.reconnectDelay = clamp(Math.round(delay * 1.5), 400, 5000);
-    S.pollingTimer = window.setTimeout(connectWebSocket, delay);
+    S.pollingTimer = window.setTimeout(startEventStream, delay);
   };
 }
 
 function startPolling() {
   stopPolling();
+  stopEventStream();
   S.currentTransport = "poll";
   const loop = async () => {
+    let nextDelay = POLLING_FALLBACK_INTERVAL_MS;
     try {
-      const response = await fetch("./api/live?t=" + Date.now(), { cache: "no-store" });
+      const response = await fetch(apiUrl("./api/live", { pv: 2, t: Date.now() }), { cache: "no-store" });
       if (!response.ok) throw new Error("bad response");
       queuePayload(await response.json());
       updateConnection("live");
     } catch {
+      nextDelay = 1000;
       updateConnection("error");
     }
-    S.pollingTimer = window.setTimeout(loop, 32);
+    S.pollingTimer = window.setTimeout(loop, nextDelay);
   };
   loop();
 }
@@ -2342,12 +2719,21 @@ function startPolling() {
 bindUi();
 render();
 primeStatus();
-connectWebSocket();
+startEventStream();
 pingLoop();
 S.animationHandle = window.requestAnimationFrame(animateScene);
 
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    resetSnapshotTimeline();
+    S.renderPayload = S.payload;
+    scheduleUiRender();
+  }
+});
+
 window.addEventListener("beforeunload", () => {
   stopPolling();
+  stopEventStream();
   if (S.socket) {
     try {
       S.socket.onopen = null;
@@ -2358,9 +2744,6 @@ window.addEventListener("beforeunload", () => {
     } catch {
     }
     S.socket = null;
-  }
-  if (S.eventSource) {
-    S.eventSource.close();
   }
   if (S.uiRenderTimer) {
     window.clearTimeout(S.uiRenderTimer);

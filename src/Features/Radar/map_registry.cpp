@@ -24,6 +24,7 @@ namespace
             { "de_nuke", "Nuke", -3453.0, 3715.0, -4281.0, 2887.0, -3453.0, 2887.0, 7.00, false, "/data/de_nuke/radar.webp", "/data/de_nuke/radar.webp" },
             { "de_overpass", "Overpass", -4831.0, 493.8, -3543.8, 1781.0, -4831.0, 1781.0, 5.20, false, "/data/de_overpass/radar.webp", "/data/de_overpass/radar.webp" },
             { "de_train", "Train", -2308.0, 1872.046848, -2102.046848, 2078.0, -2308.0, 2078.0, 4.082077, false, "/data/de_train/radar.webp", "/data/de_train/radar.webp" },
+            { "de_cache", "Cache", -2000.0, 3632.0, -2382.0, 3250.0, -2000.0, 3250.0, 5.50, false, "/data/de_cache/radar.webp", "/data/de_cache/radar.webp" },
             { "ar_baggage", "Baggage", -1838.0, 2360.4, -2340.4, 1858.0, -1838.0, 1858.0, 4.10, false, "/data/ar_baggage/radar.webp", "/data/ar_baggage/radar.webp" },
             { "ar_shoots", "Shoots", -2953.0, 2167.0, -2956.0, 2164.0, -2953.0, 2164.0, 5.00, false, "/data/ar_shoots/radar.webp", "/data/ar_shoots/radar.webp" },
             { "ar_shoots_night", "Shoots (Night)", -2953.0, 2167.0, -2956.0, 2164.0, -2953.0, 2164.0, 5.00, false, "/data/ar_shoots_night/radar.webp", "/data/ar_shoots_night/radar.webp" },

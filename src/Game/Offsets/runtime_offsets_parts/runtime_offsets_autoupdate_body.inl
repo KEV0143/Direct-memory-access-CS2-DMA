@@ -128,7 +128,7 @@
             if (!ParseOutputDirectory(remoteOutputDir, outParsedMap, &outError))
                 return false;
 
-            outSourceDescription = "GitHub output";
+            outSourceDescription = "KEV0143 GitHub output";
             outSelectedTimestamp = remoteTimestamp;
             outSelectedBuildNumber = remoteBuildNumber;
             outError.clear();

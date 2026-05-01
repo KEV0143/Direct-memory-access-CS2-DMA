@@ -25,6 +25,14 @@
       "images": { "radar": "/data/de_dust2/radar.webp", "background": "/data/de_dust2/radar.webp" }
     },
     {
+      "name": "de_cache",
+      "display_name": "Cache",
+      "origin": { "x": -2000.0, "y": 3250.0 },
+      "scale": 5.5,
+      "bounds": { "min_x": -2000.0, "max_x": 3632.0, "min_y": -2382.0, "max_y": 3250.0 },
+      "images": { "radar": "/data/de_cache/radar.webp", "background": "/data/de_cache/radar.webp" }
+    },
+    {
       "name": "de_nuke",
       "display_name": "Nuke",
       "origin": { "x": -3453.0, "y": 2887.0 },

@@ -587,6 +587,28 @@ namespace
         ImGui::PopID();
     }
 
+    void ThicknessRow(const char* id, const char* label, float* value, float minValue, float maxValue)
+    {
+        ImGui::PushID(id);
+        const float rowWidth = std::max(340.0f, ImGui::GetContentRegionAvail().x);
+        const float rowHeight = 38.0f;
+        const ImVec2 rowPos = Pixel(ImGui::GetCursorScreenPos().x, ImGui::GetCursorScreenPos().y);
+        const ImVec2 rowMax = Pixel(rowPos.x + rowWidth, rowPos.y + rowHeight);
+        ImDrawList* drawList = ImGui::GetWindowDrawList();
+        drawList->AddRectFilled(rowPos, rowMax, ColorU32(8, 17, 29, 238), 7.0f);
+        drawList->AddRect(rowPos, rowMax, ColorU32(41, 58, 82, 116), 7.0f, 0, 0.65f);
+        drawList->AddText(
+            ImVec2(rowPos.x + 12.0f, rowPos.y + (rowHeight - ImGui::GetFontSize()) * 0.5f),
+            ColorU32(226, 234, 246, 230),
+            label);
+        ImGui::SetCursorScreenPos(ImVec2(rowMax.x - kSliderWidth - 12.0f, rowPos.y + 8.0f));
+        ImGui::SetNextItemWidth(kSliderWidth);
+        ImGui::SliderFloat("##s", value, minValue, maxValue, "%.2f");
+        ImGui::SetCursorScreenPos(ImVec2(rowPos.x, rowMax.y + 7.0f));
+        ImGui::Dummy(ImVec2(rowWidth, 1.0f));
+        ImGui::PopID();
+    }
+
     void FlagSettingsRow(const char* id, const char* label, bool* toggle, float* color, float* size)
     {
         ImGui::PushID(id);
@@ -706,7 +728,9 @@ void ui::tabs::esp_sections::RenderCoreSection()
 
 void ui::tabs::esp_sections::RenderGeneralSection()
 {
-    DrawOptionRow("box", EspIcon::Box, "Corner Box", "Draw corner boxes around players", &g::espBox, g::espBoxColor, [] {});
+    DrawOptionRow("box", EspIcon::Box, "Corner Box", "Draw corner boxes around players", &g::espBox, g::espBoxColor, [] {
+        ThicknessRow("thick", "Thickness", &g::espBoxThickness, 0.5f, 4.0f);
+    });
     DrawOptionRow("health", EspIcon::Health, "Health Bar", "Show players health bar", &g::espHealth, g::espHealthColor, [] {
         ToggleSetting("value", "Show Value", &g::espHealthText);
     });
@@ -727,20 +751,20 @@ void ui::tabs::esp_sections::RenderOptionsGrid()
     };
 
     renderPair(
-        [] (float width) { DrawOptionRow("box", EspIcon::Box, "Corner Box", "", &g::espBox, g::espBoxColor, [] {}, true, width); },
+        [] (float width) { DrawOptionRow("box", EspIcon::Box, "Corner Box", "", &g::espBox, g::espBoxColor, [] {
+                ThicknessRow("thick", "Thickness", &g::espBoxThickness, 0.5f, 4.0f);
+            }, true, width); },
         [] (float width) { DrawOptionRow("skeleton", EspIcon::Skeleton, "Skeleton", "", &g::espSkeleton, g::espSkeletonColor, [] {
                 ToggleSetting("dots", "Show Dots", &g::espSkeletonDots);
+                ThicknessRow("thick", "Thickness", &g::espSkeletonThickness, 0.5f, 4.0f);
             }, true, width); });
 
     renderPair(
         [] (float width) { DrawOptionRow("health", EspIcon::Health, "Health Bar", "", &g::espHealth, g::espHealthColor, [] {
                 ToggleSetting("value", "Show Value", &g::espHealthText);
             }, true, width); },
-        [] (float width) { DrawOptionRow("snap", EspIcon::Snap, "Snap Lines", "", &g::espSnaplines, g::espSnaplineColor, [] {
-                ToggleSetting("top", "Snap From Top", &g::espSnaplineFromTop);
-                ImGui::Separator();
-                ToggleColorRow("arrows", "Screen Arrows", &g::espOffscreenArrows, g::espOffscreenColor);
-                ToggleSetting("sound", "Sound ESP", &g::espSound);
+        [] (float width) { DrawOptionRow("teammates", EspIcon::Flags, "Show Teammates", "", &g::espShowTeammates, nullptr, [] {
+                ImGui::TextDisabled("Uses the same ESP options as enemies.");
             }, true, width); });
 
     renderPair(
@@ -785,6 +809,14 @@ void ui::tabs::esp_sections::RenderOptionsGrid()
                 SizeRow("bmbtxtsz", "Text Size", &g::espBombTextSize, 0.0f, 24.0f);
             }, true, width); });
 
+    const float compactSnapWidth = std::min(columnWidth, 330.0f);
+    DrawOptionRow("snap", EspIcon::Snap, "Snap Lines", "", &g::espSnaplines, g::espSnaplineColor, [] {
+        ToggleSetting("top", "Snap From Top", &g::espSnaplineFromTop);
+        ImGui::Separator();
+        ToggleColorRow("arrows", "Screen Arrows", &g::espOffscreenArrows, g::espOffscreenColor);
+        ToggleSetting("sound", "Sound ESP", &g::espSound);
+    }, true, compactSnapWidth);
+
     if (!g::espOffscreenArrows)
         g::espSound = false;
 }
@@ -808,6 +840,7 @@ void ui::tabs::esp_sections::RenderPlayerVisualsSection()
 {
     DrawOptionRow("skeleton", EspIcon::Skeleton, "Skeleton", "Draw player skeleton", &g::espSkeleton, g::espSkeletonColor, [] {
         ToggleSetting("dots", "Show Dots", &g::espSkeletonDots);
+        ThicknessRow("thick", "Thickness", &g::espSkeletonThickness, 0.5f, 4.0f);
     });
 
     DrawOptionRow("snap", EspIcon::Snap, "Snap Lines", "Draw lines to players", &g::espSnaplines, g::espSnaplineColor, [] {

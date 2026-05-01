@@ -56,6 +56,10 @@
         localArmorResolved,
         localMoneyResolved,
         localHasDefuserResolved);
+    if (localPawnCoreLiveResolved) {
+        localIsDeadResolved = (localPawnHealth <= 0) || (localPawnLifeState != 0);
+        localHealthResolved = localIsDeadResolved ? 0 : std::clamp(localPawnHealth, 0, 100);
+    }
     if (localPlayerIndexValid && localPlayerIndexHasLiveEvidence) {
         localPawnResolved = pawns[localPlayerIndex] ? pawns[localPlayerIndex] : localPawnResolved;
         if (liveTeamReads[localPlayerIndex] &&

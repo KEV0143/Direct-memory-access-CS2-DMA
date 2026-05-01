@@ -15,6 +15,7 @@ public:
     void PrintFail(const std::string& label, const std::string& text) const;
     void PrintLine(const std::string& label, const std::string& text) const;
     void PrintMarkedLine(const std::string& label, const std::string& text) const;
+    void PrintPrompt(const std::string& label, const std::string& text) const;
     void PrintInfoPending(const std::string& text, int phase) const;
     void PrintInfoOk(const std::string& text) const;
     void PrintInfoOk(const std::string& text, int plusCount) const;

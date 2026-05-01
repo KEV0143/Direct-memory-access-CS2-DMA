@@ -274,9 +274,6 @@
     <ClCompile Include="src\vendor\DMALibrary\Memory\Registry.cpp">
       <Filter>Source Files\vendor\DMALibrary\Memory</Filter>
     </ClCompile>
-    <ClCompile Include="src\vendor\DMALibrary\Memory\Shellcode.cpp">
-      <Filter>Source Files\vendor\DMALibrary\Memory</Filter>
-    </ClCompile>
     <ClCompile Include="src\vendor\DMALibrary\pch.cpp">
       <Filter>Source Files\vendor\DMALibrary</Filter>
     </ClCompile>

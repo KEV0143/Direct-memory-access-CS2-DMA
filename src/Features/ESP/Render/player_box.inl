@@ -2,8 +2,9 @@
 if (g::espBox) {
     float cornerLen = boxHeight * 0.25f;
     if (cornerLen < 5.0f) cornerLen = 5.0f;
+    const float boxThickness = std::clamp(g::espBoxThickness, 0.5f, 4.0f);
     DrawCornerBox(drawList, boxLeft, boxTop, boxWidth, boxHeight,
-                  entityCol, IM_COL32(0, 0, 0, 220), cornerLen, 2.0f);
+                  entityCol, IM_COL32(0, 0, 0, 220), cornerLen, boxThickness);
 }
 
 if (g::espBombInfo && p.hasBomb && !bombState.dropped && !bombState.planted) {

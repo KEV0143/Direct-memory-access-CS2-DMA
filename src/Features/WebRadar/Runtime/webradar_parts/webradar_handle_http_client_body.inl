@@ -19,8 +19,8 @@
         return SendHttpResponse(socketHandle, 200, "image/x-icon", "");
 
     if (request.path == "/api/ws") {
-        const bool isUpgrade = HeaderContainsToken(request.headers, "connection", "upgrade") &&
-            HeaderContainsToken(request.headers, "upgrade", "websocket");
+        const bool isUpgrade = HeaderContainsValue(request.headers, "connection", "upgrade") &&
+            HeaderContainsValue(request.headers, "upgrade", "websocket");
         const auto keyIt = request.headers.find("sec-websocket-key");
         const auto versionIt = request.headers.find("sec-websocket-version");
         const bool versionOk = (versionIt != request.headers.end() && Trim(versionIt->second) == "13");
@@ -43,7 +43,7 @@
             stats_.lastRequestUnixMs = UnixNowMs();
         }
 
-        if (!RegisterWebSocketClient(socketHandleValue)) {
+        if (!RegisterWebSocketClient(socketHandleValue, RequestedProtocolVersion(request.query))) {
             std::lock_guard<std::mutex> lock(mutex_);
             ++stats_.failedPackets;
             return false;
@@ -56,23 +56,37 @@
 
     if (request.path == "/api/live") {
         std::string body;
+        const int protocolVersion = RequestedProtocolVersion(request.query);
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            body = latestPayloadJson_;
+            if (protocolVersion < 2)
+                legacyPayloadDemandUntilMs_ = UnixNowMs() + 5000;
+            body = protocolVersion >= 2 ? latestPayloadJsonV2_ : latestPayloadJson_;
             ++stats_.servedRequests;
+            ++stats_.livePollRequests;
             stats_.lastRequestUnixMs = UnixNowMs();
         }
-        return SendHttpResponseEx(socketHandle, 200, "application/json; charset=utf-8", body, "no-store", false);
+        if (protocolVersion < 2)
+            cv_.notify_one();
+        const bool sent = SendHttpResponseEx(socketHandle, 200, "application/json; charset=utf-8", body, "no-store", false);
+        if (sent)
+            RecordBytesOut(body.size());
+        return sent;
     }
 
     if (request.path == "/api/stream") {
         std::string body;
+        const int protocolVersion = RequestedProtocolVersion(request.query);
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            body = latestPayloadJson_;
+            if (protocolVersion < 2)
+                legacyPayloadDemandUntilMs_ = UnixNowMs() + 30000;
+            body = protocolVersion >= 2 ? latestPayloadJsonV2_ : latestPayloadJson_;
             ++stats_.servedRequests;
             stats_.lastRequestUnixMs = UnixNowMs();
         }
+        if (protocolVersion < 2)
+            cv_.notify_one();
 
         const DWORD streamSendTimeoutMs = 600;
         setsockopt(socketHandle, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&streamSendTimeoutMs), sizeof(streamSendTimeoutMs));
@@ -87,10 +101,11 @@
             ++stats_.failedPackets;
             return false;
         }
+        RecordBytesOut(body.size());
 
         {
             std::lock_guard<std::mutex> lock(streamMutex_);
-            streamClients_.push_back(socketHandleValue);
+            streamClients_.push_back(StreamClient{ socketHandleValue, protocolVersion >= 2 ? 2 : 1 });
         }
 
         if (keepOpen)

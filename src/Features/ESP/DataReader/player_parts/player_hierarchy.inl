@@ -144,6 +144,63 @@
         }
 
         if (hierarchyRefreshDue && playerRefreshSlotCount > 0) {
+            auto validateControllersForRefresh = [&]() {
+                for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
+                    const int i = playerRefreshSlots[slotIdx];
+                    if (!isLikelyGamePointer(controllers[i]))
+                        controllers[i] = 0;
+                }
+            };
+            auto retryMissingControllersWithFallback = [&]() {
+                if (kEntitySlotSizeFallback == kEntitySlotSize)
+                    return;
+                bool queuedFallback = false;
+                for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
+                    const int i = playerRefreshSlots[slotIdx];
+                    if (controllers[i])
+                        continue;
+                    const int controllerSlot = i + 1;
+                    mem.AddScatterReadRequest(handle,
+                        listEntry + static_cast<uintptr_t>(kEntitySlotSizeFallback) *
+                            static_cast<uintptr_t>(controllerSlot & kEntitySlotMask),
+                        &controllers[i], sizeof(uintptr_t));
+                    queuedFallback = true;
+                }
+                if (queuedFallback) {
+                    if (!executeOptionalScatterRead())
+                        logUpdateDataIssue("scatter_5_6_fallback", "controller_array_fallback_stride_failed");
+                    validateControllersForRefresh();
+                }
+            };
+            auto validatePawnsForRefresh = [&]() {
+                for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
+                    const int i = playerRefreshSlots[slotIdx];
+                    if (!isLikelyGamePointer(pawns[i]))
+                        pawns[i] = 0;
+                }
+            };
+            auto retryMissingPawnsWithFallback = [&]() {
+                if (kEntitySlotSizeFallback == kEntitySlotSize)
+                    return;
+                bool queuedFallback = false;
+                for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
+                    const int i = playerRefreshSlots[slotIdx];
+                    if (pawns[i] || !pawnEntries[i] || !isValidPawnHandle(pawnHandles[i]))
+                        continue;
+                    const uint32_t slot = pawnHandles[i] & kEntitySlotMask;
+                    mem.AddScatterReadRequest(handle,
+                        pawnEntries[i] + static_cast<uintptr_t>(kEntitySlotSizeFallback) *
+                            static_cast<uintptr_t>(slot),
+                        &pawns[i], sizeof(uintptr_t));
+                    queuedFallback = true;
+                }
+                if (queuedFallback) {
+                    if (!executeOptionalScatterRead())
+                        logUpdateDataIssue("scatter_9_fallback", "pawn_pointer_fallback_stride_failed");
+                    validatePawnsForRefresh();
+                }
+            };
+
             bool hadCachedControllerReads = false;
             for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
                 const int i = playerRefreshSlots[slotIdx];
@@ -158,11 +215,7 @@
                 logUpdateDataIssue("scatter_5_6", "controller_array_unavailable_using_cached_controllers");
             }
 
-            for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
-                const int i = playerRefreshSlots[slotIdx];
-                if (!isLikelyGamePointer(controllers[i]))
-                    controllers[i] = 0;
-            }
+            validateControllersForRefresh();
             if (!s_controllerCacheWarmed || forceFullPlayerDiscoverySweep) {
                 bool anyDiscoveryRetry = false;
                 for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
@@ -177,11 +230,7 @@
                 }
                 if (anyDiscoveryRetry)
                     executeOptionalScatterRead();
-                for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
-                    const int i = playerRefreshSlots[slotIdx];
-                    if (!isLikelyGamePointer(controllers[i]))
-                        controllers[i] = 0;
-                }
+                validateControllersForRefresh();
             } else {
                 bool anyControllerRepair = false;
                 for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
@@ -196,13 +245,10 @@
                 }
                 if (anyControllerRepair) {
                     executeOptionalScatterRead();
-                    for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
-                        const int i = playerRefreshSlots[slotIdx];
-                        if (!isLikelyGamePointer(controllers[i]))
-                            controllers[i] = 0;
-                    }
+                    validateControllersForRefresh();
                 }
             }
+            retryMissingControllersWithFallback();
 
             {
                 bool anyNew = false;
@@ -396,11 +442,7 @@
                 }
             }
 
-            for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
-                const int i = playerRefreshSlots[slotIdx];
-                if (!isLikelyGamePointer(pawns[i]))
-                    pawns[i] = 0;
-            }
+            validatePawnsForRefresh();
             {
                 bool anyPawnRepair = false;
                 for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
@@ -415,17 +457,14 @@
                 }
                 if (anyPawnRepair) {
                     executeOptionalScatterRead();
-                    for (int slotIdx = 0; slotIdx < playerRefreshSlotCount; ++slotIdx) {
-                        const int i = playerRefreshSlots[slotIdx];
-                        if (!isLikelyGamePointer(pawns[i]))
-                            pawns[i] = 0;
-                    }
+                    validatePawnsForRefresh();
                 }
             }
+            retryMissingPawnsWithFallback();
 
             {
-                constexpr uint64_t kHierarchyStableMissingHoldUs = 1800000u;
-                constexpr uint64_t kHierarchyResetMissingHoldUs = 3000000u;
+                constexpr uint64_t kHierarchyStableMissingHoldUs = 2800000u;
+                constexpr uint64_t kHierarchyResetMissingHoldUs = 4200000u;
                 constexpr uint16_t kHierarchyStableMissingThreshold = 48u;
                 constexpr uint16_t kHierarchyResetMissingThreshold = 96u;
                 const uint64_t recentResetUs = s_lastSceneResetUs.load(std::memory_order_relaxed);

@@ -548,4 +548,4 @@
     } else {
         SetSubsystemUnknown(RuntimeSubsystem::World);
     }
-    uint16_t localWeaponIdResolved = 0;
+    uint16_t localWeaponIdResolved = s_localWeaponId;

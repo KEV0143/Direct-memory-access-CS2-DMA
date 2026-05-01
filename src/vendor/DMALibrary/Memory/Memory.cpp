@@ -8,19 +8,14 @@
 #include <cwctype>
 #include <chrono>
 #include <functional>
+#include <limits>
+#include <mutex>
 #include <random>
 #include <TlHelp32.h>
 
 namespace {
-	std::atomic<bool> g_memoryWriteBlockedLogged = false;
-	std::atomic<bool> g_scatterWriteBlockedLogged = false;
-
-	void LogWriteBlockedOnce(std::atomic<bool>& flag, const char* operation)
-	{
-		bool expected = false;
-		if (flag.compare_exchange_strong(expected, true, std::memory_order_relaxed))
-			LOG("[WARN] %s blocked: DMA transport is enforced read-only.\n", operation);
-	}
+	std::mutex g_runtimeLibraryMutex;
+	std::mutex g_fixCr3Mutex;
 
 	std::mt19937_64& ReadJitterRng()
 	{
@@ -112,6 +107,32 @@ namespace {
 		return (tempPath / "KevqDMA_mmap.txt").string();
 	}
 
+	std::wstring Utf8ToWide(const std::string& text)
+	{
+		if (text.empty())
+			return {};
+
+		const int required = MultiByteToWideChar(
+			CP_UTF8,
+			0,
+			text.data(),
+			static_cast<int>(text.size()),
+			nullptr,
+			0);
+		if (required <= 0)
+			return std::wstring(text.begin(), text.end());
+
+		std::wstring wide(static_cast<size_t>(required), L'\0');
+		MultiByteToWideChar(
+			CP_UTF8,
+			0,
+			text.data(),
+			static_cast<int>(text.size()),
+			wide.data(),
+			required);
+		return wide;
+	}
+
 	bool IsUsableMemMapCache(const std::string& path)
 	{
 		WIN32_FILE_ATTRIBUTE_DATA attrs = {};
@@ -132,6 +153,8 @@ namespace {
 
 bool Memory::EnsureRuntimeLibrariesLoaded()
 {
+	std::lock_guard<std::mutex> lock(g_runtimeLibraryMutex);
+
 	if (modules.VMM && modules.FTD3XX && modules.LEECHCORE)
 		return true;
 
@@ -490,6 +513,8 @@ static bool s_fixCr3PluginsInitialized = false;
 
 void Memory::CloseDma()
 {
+	std::lock_guard<std::mutex> lock(g_fixCr3Mutex);
+
 	PROCESS_INITIALIZED = FALSE;
 	current_process = {};
 	if (vHandle) {
@@ -807,12 +832,12 @@ uintptr_t Memory::GetImportTableAddress(std::string import, std::string process,
 	return addr;
 }
 
-uint64_t cbSize = 0x80000;
+std::atomic<uint64_t> cbSize = 0x80000;
 //callback for VfsFileListU
 VOID cbAddFile(_Inout_ HANDLE h, _In_ LPCSTR uszName, _In_ ULONG64 cb, _In_opt_ PVMMDLL_VFS_FILELIST_EXINFO pExInfo)
 {
 	if (strcmp(uszName, "dtb.txt") == 0)
-		cbSize = cb;
+		cbSize.store(cb, std::memory_order_relaxed);
 }
 
 struct Info
@@ -826,6 +851,8 @@ struct Info
 
 bool Memory::FixCr3()
 {
+	std::lock_guard<std::mutex> lock(g_fixCr3Mutex);
+
 	auto to_lower = [](std::string s) {
 		std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 		return s;
@@ -883,15 +910,25 @@ bool Memory::FixCr3()
 	//have to sleep a little or we try reading the file before the plugin initializes fully
 	std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
-	while (true)
+	const auto progressDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+	bool progressReady = false;
+	while (std::chrono::steady_clock::now() < progressDeadline)
 	{
 		BYTE bytes[4] = {0};
 		DWORD i = 0;
 		auto nt = VMMDLL_VfsReadW(this->vHandle, const_cast<LPWSTR>(L"\\misc\\procinfo\\progress_percent.txt"), bytes, 3, &i, 0);
-		if (nt == VMMDLL_STATUS_SUCCESS && atoi(reinterpret_cast<LPSTR>(bytes)) == 100)
+		if (nt == VMMDLL_STATUS_SUCCESS && atoi(reinterpret_cast<LPSTR>(bytes)) == 100) {
+			progressReady = true;
 			break;
+		}
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
+	}
+
+	if (!progressReady)
+	{
+		LOG("[WARN] CR3 plugin progress timed out.\n");
+		return false;
 	}
 
 	VMMDLL_VFS_FILELIST2 VfsFileList;
@@ -899,21 +936,36 @@ bool Memory::FixCr3()
 	VfsFileList.h = 0;
 	VfsFileList.pfnAddDirectory = 0;
 	VfsFileList.pfnAddFile = cbAddFile; //dumb af callback who made this system
+	cbSize.store(0x80000, std::memory_order_relaxed);
 
 	const bool result = VMMDLL_VfsListU(this->vHandle, const_cast<LPSTR>("\\misc\\procinfo\\"), &VfsFileList);
 	if (!result)
 		return false;
 
 	//read the data from the txt and parse it
-	const size_t buffer_size = cbSize;
-	std::unique_ptr<BYTE[]> bytes(new BYTE[buffer_size]);
+	const uint64_t dtbTextSize = cbSize.load(std::memory_order_relaxed);
+	if (dtbTextSize == 0 || dtbTextSize > 16ULL * 1024ULL * 1024ULL)
+	{
+		LOG("[WARN] Invalid CR3 DTB list size: %llu.\n", static_cast<unsigned long long>(dtbTextSize));
+		return false;
+	}
+
+	const size_t buffer_size = static_cast<size_t>(dtbTextSize) + 1u;
+	std::vector<BYTE> bytes(buffer_size, 0);
 	DWORD j = 0;
-	auto nt = VMMDLL_VfsReadW(this->vHandle, const_cast<LPWSTR>(L"\\misc\\procinfo\\dtb.txt"), bytes.get(), buffer_size - 1, &j, 0);
+	auto nt = VMMDLL_VfsReadW(
+		this->vHandle,
+		const_cast<LPWSTR>(L"\\misc\\procinfo\\dtb.txt"),
+		bytes.data(),
+		static_cast<DWORD>(buffer_size - 1u),
+		&j,
+		0);
 	if (nt != VMMDLL_STATUS_SUCCESS)
 		return false;
 
 	std::vector<uint64_t> possible_dtbs = { };
-	std::string lines(reinterpret_cast<char*>(bytes.get()));
+	const size_t textSize = std::min(static_cast<size_t>(j), buffer_size - 1u);
+	std::string lines(reinterpret_cast<char*>(bytes.data()), textSize);
 	std::istringstream iss(lines);
 	std::string line = "";
 
@@ -954,7 +1006,8 @@ bool Memory::DumpMemory(uintptr_t address, std::string path)
 {
 	LOG("[!] Memory dumping currently does not rebuild the IAT table, imports will be missing from the dump.\n");
 	IMAGE_DOS_HEADER dos { };
-	Read(address, &dos, sizeof(IMAGE_DOS_HEADER));
+	if (!Read(address, &dos, sizeof(IMAGE_DOS_HEADER)))
+		return false;
 
 	//Check if memory has a PE 
 	if (dos.e_magic != 0x5A4D) //Check if it starts with MZ
@@ -963,8 +1016,15 @@ bool Memory::DumpMemory(uintptr_t address, std::string path)
 		return false;
 	}
 
-	IMAGE_NT_HEADERS64 nt;
-	Read(address + dos.e_lfanew, &nt, sizeof(IMAGE_NT_HEADERS64));
+	if (dos.e_lfanew <= 0 || dos.e_lfanew > 0x100000)
+	{
+		LOG("[-] Invalid PE header offset\n");
+		return false;
+	}
+
+	IMAGE_NT_HEADERS64 nt { };
+	if (!Read(address + static_cast<uintptr_t>(dos.e_lfanew), &nt, sizeof(IMAGE_NT_HEADERS64)))
+		return false;
 
 	//Sanity check
 	if (nt.Signature != IMAGE_NT_SIGNATURE || nt.OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
@@ -974,13 +1034,37 @@ bool Memory::DumpMemory(uintptr_t address, std::string path)
 	}
 	//Shouldn't change ever. so const 
 	const size_t target_size = nt.OptionalHeader.SizeOfImage;
+	if (target_size == 0 || target_size > static_cast<size_t>(std::numeric_limits<DWORD>::max()))
+	{
+		LOG("[-] Invalid PE image size\n");
+		return false;
+	}
+	if (static_cast<size_t>(dos.e_lfanew) + sizeof(IMAGE_NT_HEADERS64) > target_size)
+	{
+		LOG("[-] PE headers exceed image bounds\n");
+		return false;
+	}
+
+	const size_t sectionHeadersOffset =
+		static_cast<size_t>(dos.e_lfanew) +
+		FIELD_OFFSET(IMAGE_NT_HEADERS64, OptionalHeader) +
+		nt.FileHeader.SizeOfOptionalHeader;
+	const size_t sectionHeadersSize =
+		static_cast<size_t>(nt.FileHeader.NumberOfSections) * sizeof(IMAGE_SECTION_HEADER);
+	if (sectionHeadersOffset > target_size || sectionHeadersSize > target_size - sectionHeadersOffset)
+	{
+		LOG("[-] PE section headers exceed image bounds\n");
+		return false;
+	}
+
 	//Crashes if we don't make it a ptr :(
 	auto target = std::unique_ptr<uint8_t[]>(new uint8_t[target_size]);
 
 	//Read whole modules memory
-	Read(address, target.get(), target_size);
-	auto nt_header = (PIMAGE_NT_HEADERS64)(target.get() + dos.e_lfanew);
-	auto sections = (PIMAGE_SECTION_HEADER)(target.get() + dos.e_lfanew + FIELD_OFFSET(IMAGE_NT_HEADERS, OptionalHeader) + nt.FileHeader.SizeOfOptionalHeader);
+	if (!Read(address, target.get(), target_size))
+		return false;
+	auto nt_header = reinterpret_cast<PIMAGE_NT_HEADERS64>(target.get() + dos.e_lfanew);
+	auto sections = reinterpret_cast<PIMAGE_SECTION_HEADER>(target.get() + sectionHeadersOffset);
 
 	for (size_t i = 0; i < nt.FileHeader.NumberOfSections; i++, sections++)
 	{
@@ -990,8 +1074,14 @@ bool Memory::DumpMemory(uintptr_t address, std::string path)
 		sections->SizeOfRawData = sections->Misc.VirtualSize;
 	}
 
-	auto debug = (PIMAGE_DEBUG_DIRECTORY)(target.get() + nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG].VirtualAddress);
-	debug->PointerToRawData = debug->AddressOfRawData;
+	const auto& debugDirectory = nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
+	if (debugDirectory.VirtualAddress != 0 &&
+		target_size >= sizeof(IMAGE_DEBUG_DIRECTORY) &&
+		static_cast<size_t>(debugDirectory.VirtualAddress) <= target_size - sizeof(IMAGE_DEBUG_DIRECTORY))
+	{
+		auto debug = reinterpret_cast<PIMAGE_DEBUG_DIRECTORY>(target.get() + debugDirectory.VirtualAddress);
+		debug->PointerToRawData = debug->AddressOfRawData;
+	}
 
 	// IAT rebuild removed — not used
 
@@ -1000,7 +1090,8 @@ bool Memory::DumpMemory(uintptr_t address, std::string path)
 	//Build new import Table
 
 	//Dump file
-	const auto dumped_file = CreateFileW(std::wstring(path.begin(), path.end()).c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_COMPRESSED, NULL);
+	const auto widePath = Utf8ToWide(path);
+	const auto dumped_file = CreateFileW(widePath.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_COMPRESSED, NULL);
 	if (dumped_file == INVALID_HANDLE_VALUE)
 	{
 		LOG("[!] Failed creating file: %i\n", GetLastError());
@@ -1039,7 +1130,9 @@ static const char* hexdigits =
 
 static uint8_t GetByte(const char* hex)
 {
-	return static_cast<uint8_t>((hexdigits[hex[0]] << 4) | (hexdigits[hex[1]]));
+	const auto hi = static_cast<unsigned char>(hex[0]);
+	const auto lo = static_cast<unsigned char>(hex[1]);
+	return static_cast<uint8_t>((hexdigits[hi] << 4) | hexdigits[lo]);
 }
 
 uint64_t Memory::FindSignature(const char* signature, uint64_t range_start, uint64_t range_end, int PID)
@@ -1076,25 +1169,6 @@ uint64_t Memory::FindSignature(const char* signature, uint64_t range_start, uint
 	}
 
 	return first_match;
-}
-
-bool Memory::Write(uintptr_t address, void* buffer, size_t size) const
-{
-	UNREFERENCED_PARAMETER(address);
-	UNREFERENCED_PARAMETER(buffer);
-	UNREFERENCED_PARAMETER(size);
-	LogWriteBlockedOnce(g_memoryWriteBlockedLogged, "Memory::Write");
-	return false;
-}
-
-bool Memory::Write(uintptr_t address, void* buffer, size_t size, int pid) const
-{
-	UNREFERENCED_PARAMETER(address);
-	UNREFERENCED_PARAMETER(buffer);
-	UNREFERENCED_PARAMETER(size);
-	UNREFERENCED_PARAMETER(pid);
-	LogWriteBlockedOnce(g_memoryWriteBlockedLogged, "Memory::Write(pid)");
-	return false;
 }
 
 bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
@@ -1173,15 +1247,6 @@ void Memory::AddScatterReadRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t addres
 	}
 }
 
-void Memory::AddScatterWriteRequest(VMMDLL_SCATTER_HANDLE handle, uint64_t address, void* buffer, size_t size)
-{
-	UNREFERENCED_PARAMETER(handle);
-	UNREFERENCED_PARAMETER(address);
-	UNREFERENCED_PARAMETER(buffer);
-	UNREFERENCED_PARAMETER(size);
-	LogWriteBlockedOnce(g_scatterWriteBlockedLogged, "Memory::AddScatterWriteRequest");
-}
-
 bool Memory::ExecuteReadScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
 {
 	if (!handle)
@@ -1239,11 +1304,4 @@ void Memory::SetScatterReadWarningSuppressed(bool suppressed)
 void Memory::SetDirectReadWarningSuppressed(bool suppressed)
 {
 	DIRECT_WARN_SUPPRESSED.store(suppressed, std::memory_order_relaxed);
-}
-
-void Memory::ExecuteWriteScatter(VMMDLL_SCATTER_HANDLE handle, int pid)
-{
-	UNREFERENCED_PARAMETER(handle);
-	UNREFERENCED_PARAMETER(pid);
-	LogWriteBlockedOnce(g_scatterWriteBlockedLogged, "Memory::ExecuteWriteScatter");
 }

@@ -123,6 +123,22 @@ void ui::tabs::webradar_sections::RenderDebugSection(const webradar::RuntimeStat
     ImGui::Text("HTTP Requests Served: %llu", static_cast<unsigned long long>(runtimeStats.servedRequests));
     ImGui::Text("Server Errors: %llu", static_cast<unsigned long long>(runtimeStats.failedPackets));
     ImGui::Text("Entities in Last Snapshot: %zu", runtimeStats.lastPayloadRows);
+    ImGui::Separator();
+    ImGui::Text("Payload: %zu B | legacy %zu B | avg %.0f B | max %zu B",
+        runtimeStats.lastPayloadBytes,
+        runtimeStats.lastLegacyPayloadBytes,
+        runtimeStats.avgPayloadBytes,
+        runtimeStats.maxPayloadBytes);
+    ImGui::Text("Send: %.1f / %.1f Hz | Out %.1f KB/s",
+        runtimeStats.sendHz,
+        runtimeStats.targetHz,
+        runtimeStats.bytesOutPerSec / 1024.0);
+    ImGui::Text("Serialize: avg %.0f us | peak %llu us",
+        runtimeStats.serializeUsAvg,
+        static_cast<unsigned long long>(runtimeStats.serializeUsPeak));
+    ImGui::Text("Coalesced: %llu | Poll: %llu",
+        static_cast<unsigned long long>(runtimeStats.coalescedFrames),
+        static_cast<unsigned long long>(runtimeStats.livePollRequests));
     ImGui::Text("Last Update: %s", ui::menu_utils::FormatUnixMs(runtimeStats.lastUpdateUnixMs).c_str());
     ImGui::Text("Last Request: %s", ui::menu_utils::FormatUnixMs(runtimeStats.lastRequestUnixMs).c_str());
 }
