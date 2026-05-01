@@ -27,6 +27,8 @@
         esp["Snaplines"] = g::espSnaplines;
         esp["SnapFromTop"] = g::espSnaplineFromTop;
         esp["VisibilityColoring"] = g::espVisibilityColoring;
+        esp["VisibleOnly"] = g::espVisibleOnly;
+        esp["ShowTeammates"] = g::espShowTeammates;
         esp["OffscreenArrows"] = g::espOffscreenArrows;
         esp["Sound"] = g::espSound;
         esp["Flags"] = g::espFlags;

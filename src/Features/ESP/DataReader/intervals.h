@@ -15,7 +15,7 @@ namespace esp::intervals {
     constexpr uint64_t kPlayerStatusAuxUs     = 40000;
     constexpr uint64_t kPlayerDefuserAuxUs    = 100000;
     constexpr uint64_t kPlayerEyeAuxUs        = 40000;
-    constexpr uint64_t kPlayerVisibilityAuxUs = 30000;
+    constexpr uint64_t kPlayerVisibilityAuxUs = 6000;
     constexpr uint64_t kPlayerSpectatorAuxUs  = 250000;
 
     constexpr uint64_t kInventoryActiveWeaponLaneUs      = 10000;

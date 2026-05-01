@@ -86,6 +86,8 @@ namespace app::state {
         bool snaplines = false;
         bool snaplineFromTop = false;
         bool visibilityColoring = true;
+        bool visibleOnly = false;
+        bool showTeammates = false;
         bool offscreenArrows = false;
         bool flags = true;
         bool item = false;

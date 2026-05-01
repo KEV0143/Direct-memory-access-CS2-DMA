@@ -70,6 +70,8 @@ namespace g {
     inline bool& espSnaplines = espSettings.snaplines;
     inline bool& espSnaplineFromTop = espSettings.snaplineFromTop;
     inline bool& espVisibilityColoring = espSettings.visibilityColoring;
+    inline bool& espVisibleOnly = espSettings.visibleOnly;
+    inline bool& espShowTeammates = espSettings.showTeammates;
     inline bool& espOffscreenArrows = espSettings.offscreenArrows;
     inline bool& espFlags = espSettings.flags;
     inline bool& espItem = espSettings.item;

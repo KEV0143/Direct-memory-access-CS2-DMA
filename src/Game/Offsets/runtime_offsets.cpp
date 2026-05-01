@@ -48,15 +48,6 @@ namespace
         std::ptrdiff_t runtime_offsets::Values::*member;
     };
 
-    struct OutputDirectoryCandidate
-    {
-        std::filesystem::path directory;
-        std::string label;
-        std::string timestamp;
-        int buildNumber = 0;
-        bool hasRequiredFiles = false;
-    };
-
     struct OffsetState
     {
         runtime_offsets::PatchInfo offsetsPatch = {};
@@ -1165,106 +1156,6 @@ namespace
         }
     }
 
-    std::string BuildRawOutputUrl(const std::string& sourceFile)
-    {
-        return "https://raw.githubusercontent.com/a2x/cs2-dumper/main/output/" + sourceFile;
-    }
-
-    std::filesystem::path GetPackagedOutputDirectory()
-    {
-        const auto exeDir = GetExeDirectory();
-        if (exeDir.empty())
-            return {};
-        return exeDir / "output";
-    }
-
-    std::filesystem::path GetProjectOutputDirectory()
-    {
-        const auto projectRoot = FindProjectRoot();
-        if (projectRoot.empty())
-            return {};
-        return projectRoot / "output";
-    }
-
-    std::filesystem::path NormalizeDirectoryPath(const std::filesystem::path& path)
-    {
-        if (path.empty())
-            return {};
-
-        std::error_code ec;
-        const auto absolutePath = std::filesystem::absolute(path, ec);
-        if (ec)
-            return path.lexically_normal();
-
-        return absolutePath.lexically_normal();
-    }
-
-    std::filesystem::path ReadOverrideDirectoryPath(const std::filesystem::path& filePath)
-    {
-        try
-        {
-            if (filePath.empty() || !std::filesystem::exists(filePath))
-                return {};
-
-            std::ifstream file(filePath, std::ios::in | std::ios::binary);
-            if (!file.is_open())
-                return {};
-
-            std::ostringstream buffer;
-            buffer << file.rdbuf();
-            const std::string raw = Trim(buffer.str());
-            if (raw.empty())
-                return {};
-
-            return std::filesystem::path(raw);
-        }
-        catch (...)
-        {
-            return {};
-        }
-    }
-
-    std::filesystem::path FindLegacyOffsetsSourceDirectory()
-    {
-        char envBuffer[MAX_PATH * 4] = {};
-        const DWORD envLen = GetEnvironmentVariableA(
-            "KEVQDMA_OFFSETS_LOCAL_DIR",
-            envBuffer,
-            static_cast<DWORD>(sizeof(envBuffer)));
-        if (envLen > 0 && envLen < sizeof(envBuffer))
-        {
-            const std::filesystem::path envPath = Trim(std::string(envBuffer, envLen));
-            if (!envPath.empty())
-                return envPath;
-        }
-
-        const auto offsetsDir = GetOffsetsDirectory();
-        const auto newOverrideFile = offsetsDir / "offsets_source.txt";
-        const auto newOverridePath = ReadOverrideDirectoryPath(newOverrideFile);
-        if (!newOverridePath.empty())
-            return newOverridePath;
-
-        const auto legacyProfilesDir = GetLegacyProfilesDirectory();
-        const auto projectRoot = FindProjectRoot();
-        const std::filesystem::path legacyOverrideFiles[] = {
-            legacyProfilesDir / "offsets_source.txt",
-            projectRoot / "sdk" / "offsets_source.txt",
-            projectRoot / "include" / "sdk" / "offsets_source.txt",
-        };
-
-        for (const auto& legacyFile : legacyOverrideFiles)
-        {
-            const auto legacyPath = ReadOverrideDirectoryPath(legacyFile);
-            if (legacyPath.empty())
-                continue;
-
-            CopyFileToTargetIfPresent(legacyFile, newOverrideFile);
-            return legacyPath;
-        }
-
-        return {};
-    }
-
     std::unordered_set<std::string> CollectRemoteSourceFiles()
     {
         std::unordered_set<std::string> requiredFiles;
@@ -1286,7 +1177,7 @@ namespace
             if (!std::filesystem::exists(sourcePath))
             {
                 if (error)
-                    *error = "Missing local dump file: " + sourcePath.string();
+                    *error = "Missing dump file: " + sourcePath.string();
                 return false;
             }
 
@@ -1295,39 +1186,6 @@ namespace
         }
 
         return true;
-    }
-
-    bool HasRequiredOutputFiles(const std::filesystem::path& directory)
-    {
-        if (directory.empty() || !std::filesystem::exists(directory))
-            return false;
-
-        const auto requiredFiles = CollectRemoteSourceFiles();
-        for (const std::string& sourceFile : requiredFiles)
-        {
-            if (!std::filesystem::exists(directory / sourceFile))
-                return false;
-        }
-
-        return true;
-    }
-
-    std::string ReadFileText(const std::filesystem::path& filePath)
-    {
-        try
-        {
-            std::ifstream file(filePath, std::ios::in | std::ios::binary);
-            if (!file.is_open())
-                return {};
-
-            std::ostringstream buffer;
-            buffer << file.rdbuf();
-            return buffer.str();
-        }
-        catch (...)
-        {
-            return {};
-        }
     }
 
     std::string CanonicalizeTimestamp(const std::string& text)
@@ -1356,149 +1214,6 @@ namespace
         return canonical.str();
     }
 
-    std::string ReadOutputDirectoryTimestamp(const std::filesystem::path& directory)
-    {
-        if (directory.empty() || !std::filesystem::exists(directory))
-            return {};
-
-        const std::string infoText = ReadFileText(directory / "info.json");
-        if (!infoText.empty())
-        {
-            static const std::regex kInfoTimestampRegex(R"json("timestamp"\s*:\s*"([^"]+)")json");
-            std::smatch match;
-            if (std::regex_search(infoText, match, kInfoTimestampRegex))
-            {
-                const std::string canonical = CanonicalizeTimestamp(match[1].str());
-                if (!canonical.empty())
-                    return canonical;
-            }
-
-            const std::string canonical = CanonicalizeTimestamp(infoText);
-            if (!canonical.empty())
-                return canonical;
-        }
-
-        for (const char* headerFile : { "offsets.hpp", "client_dll.hpp" })
-        {
-            const std::string headerText = ReadFileText(directory / headerFile);
-            const std::string canonical = CanonicalizeTimestamp(headerText);
-            if (!canonical.empty())
-                return canonical;
-        }
-
-        return {};
-    }
-
-    int ReadOutputDirectoryBuildNumber(const std::filesystem::path& directory)
-    {
-        if (directory.empty() || !std::filesystem::exists(directory))
-            return 0;
-
-        const std::string infoText = ReadFileText(directory / "info.json");
-        if (infoText.empty())
-            return 0;
-
-        static const std::regex kBuildRegex(R"json("build_number"\s*:\s*(\d+))json");
-        std::smatch match;
-        if (!std::regex_search(infoText, match, kBuildRegex))
-            return 0;
-
-        try
-        {
-            return std::stoi(match[1].str());
-        }
-        catch (...)
-        {
-            return 0;
-        }
-    }
-
-    void AddOutputDirectoryCandidate(std::vector<OutputDirectoryCandidate>& candidates,
-                                     std::unordered_set<std::string>& seenDirectories,
-                                     const std::filesystem::path& directory,
-                                     const char* label)
-    {
-        const auto normalizedDirectory = NormalizeDirectoryPath(directory);
-        if (normalizedDirectory.empty())
-            return;
-
-        const std::string key = normalizedDirectory.generic_string();
-        if (!seenDirectories.insert(key).second)
-            return;
-
-        OutputDirectoryCandidate candidate;
-        candidate.directory = normalizedDirectory;
-        candidate.label = label;
-        candidate.hasRequiredFiles = HasRequiredOutputFiles(normalizedDirectory);
-        if (candidate.hasRequiredFiles)
-        {
-            candidate.timestamp = ReadOutputDirectoryTimestamp(normalizedDirectory);
-            candidate.buildNumber = ReadOutputDirectoryBuildNumber(normalizedDirectory);
-        }
-
-        candidates.push_back(candidate);
-    }
-
-    std::vector<OutputDirectoryCandidate> CollectLocalOutputCandidates()
-    {
-        std::vector<OutputDirectoryCandidate> candidates;
-        std::unordered_set<std::string> seenDirectories;
-
-        AddOutputDirectoryCandidate(
-            candidates,
-            seenDirectories,
-            FindLegacyOffsetsSourceDirectory(),
-            "override output");
-        AddOutputDirectoryCandidate(
-            candidates,
-            seenDirectories,
-            GetProjectOutputDirectory(),
-            "project output");
-        AddOutputDirectoryCandidate(
-            candidates,
-            seenDirectories,
-            GetPackagedOutputDirectory(),
-            "packaged output");
-
-        return candidates;
-    }
-
-    const OutputDirectoryCandidate* FindPreferredLocalOutputCandidate(
-        const std::vector<OutputDirectoryCandidate>& candidates)
-    {
-        const OutputDirectoryCandidate* bestCandidate = nullptr;
-        for (const auto& candidate : candidates)
-        {
-            if (!candidate.hasRequiredFiles)
-                continue;
-
-            if (bestCandidate == nullptr)
-            {
-                bestCandidate = &candidate;
-                continue;
-            }
-
-            if (!candidate.timestamp.empty() &&
-                (bestCandidate->timestamp.empty() || candidate.timestamp > bestCandidate->timestamp))
-            {
-                bestCandidate = &candidate;
-            }
-        }
-
-        return bestCandidate;
-    }
-
-    std::string DescribeOutputDirectoryCandidate(const OutputDirectoryCandidate& candidate)
-    {
-        const std::string folderName =
-            candidate.directory.filename().empty()
-            ? candidate.directory.generic_string()
-            : candidate.directory.filename().generic_string();
-        return folderName.empty()
-            ? candidate.label
-            : (candidate.label + " (" + folderName + ")");
-    }
-
     bool DownloadFileWithRetry(const std::string& url,
                                const std::filesystem::path& destination,
                                std::string* error)
@@ -1513,37 +1228,128 @@ namespace
         return false;
     }
 
-    bool DownloadOutputDirectoryFiles(const std::filesystem::path& directory,
-                                      bool includeInfoJson,
-                                      std::string* error)
+    struct UpstreamRef
     {
-        auto sourceFiles = CollectRemoteSourceFiles();
-        if (includeInfoJson)
-            sourceFiles.insert("info.json");
+        std::string repo;       // e.g. "a2x/cs2-dumper" or "fork-user/cs2-dumper"
+        std::string ref;        // "main" or PR head SHA
+        std::string label;      // human-readable: "main" or "PR #1234 by fork-user"
+        std::string timestamp;  // canonical from output/info.json
+        int buildNumber = 0;
+    };
 
-        for (const std::string& sourceFile : sourceFiles)
-        {
-            if (!DownloadFileWithRetry(BuildRawOutputUrl(sourceFile), directory / sourceFile, error))
-                return false;
-        }
-
-        return true;
+    std::string BuildRawOutputUrl(const UpstreamRef& ref, std::string_view fileName)
+    {
+        return "https://raw.githubusercontent.com/" + ref.repo + "/" + ref.ref + "/output/" +
+               std::string(fileName);
     }
 
-    bool DownloadOutputInfoFile(const std::filesystem::path& directory, std::string* error)
+    bool FetchRefInfoJson(UpstreamRef& ref, std::string* error)
+    {
+        HttpTextResponse response = {};
+        if (!HttpGetText(BuildRawOutputUrl(ref, "info.json"), {}, response, error))
+            return false;
+
+        const json info = json::parse(response.body, nullptr, false);
+        if (info.is_discarded() || !info.is_object())
+        {
+            if (error)
+                *error = "info.json is not a valid object for " + ref.label;
+            return false;
+        }
+
+        const auto tsIt = info.find("timestamp");
+        if (tsIt != info.end() && tsIt->is_string())
+            ref.timestamp = CanonicalizeTimestamp(tsIt->get<std::string>());
+
+        const auto bnIt = info.find("build_number");
+        if (bnIt != info.end())
+        {
+            if (bnIt->is_number_integer())
+                ref.buildNumber = bnIt->get<int>();
+            else if (bnIt->is_number_unsigned())
+                ref.buildNumber = static_cast<int>(bnIt->get<unsigned>());
+        }
+
+        return !ref.timestamp.empty();
+    }
+
+    void AppendOpenPullRequestRefs(std::vector<UpstreamRef>& refs, std::string* error)
+    {
+        HttpTextResponse response = {};
+        const std::vector<std::wstring> headers = {
+            L"Accept: application/vnd.github+json",
+            L"X-GitHub-Api-Version: 2022-11-28"
+        };
+        if (!HttpGetText(
+                "https://api.github.com/repos/a2x/cs2-dumper/pulls?state=open&per_page=100",
+                headers,
+                response,
+                error))
+        {
+            return;
+        }
+
+        const json pulls = json::parse(response.body, nullptr, false);
+        if (pulls.is_discarded() || !pulls.is_array())
+        {
+            if (error)
+                *error = "PR list is not a valid array";
+            return;
+        }
+
+        for (const auto& pr : pulls)
+        {
+            if (!pr.is_object())
+                continue;
+            const auto headIt = pr.find("head");
+            if (headIt == pr.end() || !headIt->is_object())
+                continue;
+            const auto repoIt = headIt->find("repo");
+            if (repoIt == headIt->end() || !repoIt->is_object())
+                continue;
+            const auto fullNameIt = repoIt->find("full_name");
+            const auto shaIt = headIt->find("sha");
+            if (fullNameIt == repoIt->end() || !fullNameIt->is_string())
+                continue;
+            if (shaIt == headIt->end() || !shaIt->is_string())
+                continue;
+
+            int number = 0;
+            const auto numberIt = pr.find("number");
+            if (numberIt != pr.end() && numberIt->is_number_integer())
+                number = numberIt->get<int>();
+            else if (numberIt != pr.end() && numberIt->is_number_unsigned())
+                number = static_cast<int>(numberIt->get<unsigned>());
+
+            const std::string repo = fullNameIt->get<std::string>();
+            const std::string sha = shaIt->get<std::string>();
+            const std::string author = repo.substr(0, repo.find('/'));
+            std::string label = "PR #" + std::to_string(number) + " by " + author;
+            refs.push_back(UpstreamRef{ repo, sha, std::move(label), {}, 0 });
+        }
+    }
+
+    bool DownloadHeadersFromRef(const UpstreamRef& ref,
+                                const std::filesystem::path& destDir,
+                                std::string* error)
     {
         try
         {
-            std::filesystem::create_directories(directory);
+            std::filesystem::create_directories(destDir);
         }
         catch (...)
         {
             if (error)
-                *error = "Cannot create temporary output directory: " + directory.string();
+                *error = "Cannot create temp dir " + destDir.string();
             return false;
         }
 
-        return DownloadFileWithRetry(BuildRawOutputUrl("info.json"), directory / "info.json", error);
+        for (const std::string& fileName : CollectRemoteSourceFiles())
+        {
+            if (!DownloadFileWithRetry(BuildRawOutputUrl(ref, fileName), destDir / fileName, error))
+                return false;
+        }
+        return true;
     }
 }
 
@@ -1555,17 +1361,6 @@ const runtime_offsets::Values& runtime_offsets::Get()
 bool runtime_offsets::AutoUpdateFromGitHub(std::string* message, runtime_offsets::AutoUpdateReport* report)
 {
     #include "runtime_offsets_parts/runtime_offsets_autoupdate_body.inl"
-}
-
-bool runtime_offsets::HasOffsetsFile()
-{
-    std::error_code ec;
-    const auto jsonPath = FindOffsetsJsonPath(false);
-    if (!jsonPath.empty() && std::filesystem::exists(jsonPath, ec))
-        return true;
-
-    return !FindLegacyOffsetsPath("offsets.json").empty() ||
-           !FindLegacyOffsetsPath("offsets.ini").empty();
 }
 
 bool runtime_offsets::Load(std::string* message)

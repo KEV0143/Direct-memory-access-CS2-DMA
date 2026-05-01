@@ -333,7 +333,6 @@ namespace esp {
 
     void Draw();
 
-    float       GetSensitivity();
     uint64_t    GetPublishCount();
     bool        GetWebRadarSnapshot(WebRadarSnapshot* outSnapshot);
 }

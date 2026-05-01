@@ -536,6 +536,8 @@ namespace {
         LoadBool(ini, "ESP", "Snaplines", g::espSnaplines);
         LoadBool(ini, "ESP", "SnapFromTop", g::espSnaplineFromTop);
         LoadBool(ini, "ESP", "VisibilityColoring", g::espVisibilityColoring);
+        LoadBool(ini, "ESP", "VisibleOnly", g::espVisibleOnly);
+        LoadBool(ini, "ESP", "ShowTeammates", g::espShowTeammates);
         LoadBool(ini, "ESP", "OffscreenArrows", g::espOffscreenArrows);
         LoadBool(ini, "ESP", "Sound", g::espSound);
         LoadBool(ini, "ESP", "Flags", g::espFlags);

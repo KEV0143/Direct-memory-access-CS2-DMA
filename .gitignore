@@ -2,3 +2,6 @@
 *.obj
 *.tlog
 x64/obj/
+/.vs
+*.exe
+*.user

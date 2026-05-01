@@ -1,5 +1,4 @@
 #include <Windows.h>
-#include <TlHelp32.h>
 #include <timeapi.h>
 #pragma comment(lib, "winmm.lib")
 #include <DMALibrary/Memory/Memory.h>
@@ -17,7 +16,6 @@
 #include <algorithm>
 #include <cctype>
 #include <atomic>
-#include <ctime>
 #include <conio.h>
 #include <cstring>
 #include <format>
@@ -28,34 +26,6 @@
 
 namespace
 {
-    DWORD FindLocalPid(const char* processName)
-    {
-        HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if (snap == INVALID_HANDLE_VALUE)
-            return 0;
-
-        PROCESSENTRY32W pe = {};
-        pe.dwSize = sizeof(pe);
-
-        const int nameLen = MultiByteToWideChar(CP_UTF8, 0, processName, -1, nullptr, 0);
-        std::wstring wName(nameLen, L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, processName, -1, wName.data(), nameLen);
-        if (!wName.empty() && wName.back() == L'\0')
-            wName.pop_back();
-
-        DWORD pid = 0;
-        if (Process32FirstW(snap, &pe)) {
-            do {
-                if (_wcsicmp(pe.szExeFile, wName.c_str()) == 0) {
-                    pid = pe.th32ProcessID;
-                    break;
-                }
-            } while (Process32NextW(snap, &pe));
-        }
-        CloseHandle(snap);
-        return pid;
-    }
-
     bool HasFlag(int argc, char* argv[], const char* flag)
     {
         for (int i = 1; i < argc; ++i) {
@@ -136,28 +106,6 @@ namespace
         return std::format("{} ({:03d})", patch.patchVersion, lastThreeDigits);
     }
 
-    std::string BuildGamePatchDisplay(const runtime_offsets::AutoUpdateReport& report)
-    {
-        const std::string patchDisplay = BuildPatchDisplay(report.currentPatch);
-        if (patchDisplay.empty())
-            return {};
-
-        std::string result = patchDisplay;
-        if (report.currentPatch.clientVersion > 0)
-            result += " | ClientVersion: " + std::to_string(report.currentPatch.clientVersion);
-        if (report.currentPatch.sourceRevision > 0)
-            result += " | SourceRevision: " + std::to_string(report.currentPatch.sourceRevision);
-        if (!report.currentPatchVersionDate.empty() && !report.currentPatchVersionTime.empty())
-            result += " | Steam raw: " + report.currentPatchVersionDate + " " + report.currentPatchVersionTime;
-        return result;
-    }
-
-    std::string BuildOffsetCheckLabel(const runtime_offsets::AutoUpdateReport& report)
-    {
-        (void)report;
-        return "Offset check update";
-    }
-
     std::string BuildPatchTransitionDisplay(const runtime_offsets::AutoUpdateReport& report)
     {
         const runtime_offsets::PatchInfo& previous = report.previousOffsetsPatch;
@@ -235,55 +183,6 @@ namespace
             [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
 
         return answer.empty() || answer == "y" || answer == "yes";
-    }
-
-    std::string BuildOffsetTimestampDisplay(const std::string& canonicalTimestamp)
-    {
-        if (canonicalTimestamp.size() < 14)
-            return canonicalTimestamp;
-
-        auto parsePart = [&](size_t start, size_t len) -> int {
-            int value = 0;
-            for (size_t i = 0; i < len; ++i)
-            {
-                const char ch = canonicalTimestamp[start + i];
-                if (ch < '0' || ch > '9')
-                    return -1;
-                value = (value * 10) + (ch - '0');
-            }
-            return value;
-        };
-
-        std::tm utcTm = {};
-        utcTm.tm_year = parsePart(0, 4) - 1900;
-        utcTm.tm_mon = parsePart(4, 2) - 1;
-        utcTm.tm_mday = parsePart(6, 2);
-        utcTm.tm_hour = parsePart(8, 2);
-        utcTm.tm_min = parsePart(10, 2);
-        utcTm.tm_sec = parsePart(12, 2);
-        if (utcTm.tm_year < 70 || utcTm.tm_mon < 0 || utcTm.tm_mday <= 0)
-            return canonicalTimestamp;
-
-        const std::time_t utcTime = _mkgmtime(&utcTm);
-        if (utcTime == static_cast<std::time_t>(-1))
-            return canonicalTimestamp;
-
-        std::tm localTm = {};
-        localtime_s(&localTm, &utcTime);
-        return std::format(
-            "{:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d} UTC | local {:04d}-{:02d}-{:02d} {:02d}:{:02d}:{:02d}",
-            utcTm.tm_year + 1900,
-            utcTm.tm_mon + 1,
-            utcTm.tm_mday,
-            utcTm.tm_hour,
-            utcTm.tm_min,
-            utcTm.tm_sec,
-            localTm.tm_year + 1900,
-            localTm.tm_mon + 1,
-            localTm.tm_mday,
-            localTm.tm_hour,
-            localTm.tm_min,
-            localTm.tm_sec);
     }
 
     std::string BuildCompactOffsetTimestampDisplay(const std::string& canonicalTimestamp)
@@ -366,8 +265,6 @@ namespace
 
 int main(int argc, char* argv[])
 {
-    
-    
     timeBeginPeriod(1);
 
     const bool verboseLogs = HasFlag(argc, argv, "--verbose");
@@ -420,7 +317,7 @@ int main(int argc, char* argv[])
         return SafeAutoUpdateOffsets(&autoUpdateMessage, &autoUpdateReport);
     });
 
-    const std::string offsetCheckLabel = BuildOffsetCheckLabel(autoUpdateReport);
+    const std::string offsetCheckLabel = "Offset check update";
     if (updateOk) {
         console.PrintInfoOk(offsetCheckLabel, autoUpdateReport.offsetsUpdated ? 3 : 1);
 
@@ -439,7 +336,7 @@ int main(int argc, char* argv[])
     } else {
         console.PrintInfoFail(offsetCheckLabel);
         if (!autoUpdateMessage.empty())
-        console.PrintInfoLine(autoUpdateMessage);
+            console.PrintInfoLine(autoUpdateMessage);
     }
 
     std::string runtimeOffsetMessage;
@@ -513,8 +410,6 @@ int main(int argc, char* argv[])
             }
         });
 
-        
-        
         int attempt = 0;
         while (true) {
             if (GetAsyncKeyState(VK_END) & 1) {
@@ -526,13 +421,9 @@ int main(int argc, char* argv[])
                 return 1;
             }
 
-            
-            
-            
             if (attempt > 0 && (attempt % 6) == 0) {
                 mem.CloseDma();
                 if (!mem.InitDma(true, false)) {
-                    
                     mem.CloseDma();
                     mem.InitDma(false, false);
                 }
@@ -546,8 +437,7 @@ int main(int argc, char* argv[])
             }
 
             if (mem.vHandle && mem.AttachToProcess("cs2.exe", true)) {
-                if (mem.vHandle)
-                    VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_ALL, 1);
+                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_ALL, 1);
                 g::clientBase = mem.GetBaseDaddy("client.dll");
                 g::engine2Base = mem.GetBaseDaddy("engine2.dll");
                 if (g::clientBase && g::engine2Base)
@@ -567,30 +457,6 @@ int main(int argc, char* argv[])
     }
 
     console.PrintInfoOk("Waiting for cs2.exe");
-
-    
-    
-    
-    
-    
-    
-    
-    
-    {
-        g::clientBase = 0;
-        g::engine2Base = 0;
-        if (mem.vHandle)
-            VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_ALL, 1);
-        mem.ResetProcessState();
-        if (mem.vHandle && mem.AttachToProcess("cs2.exe", true)) {
-            if (mem.vHandle)
-                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_ALL, 1);
-            const uintptr_t freshClientBase = mem.GetBaseDaddy("client.dll");
-            const uintptr_t freshEngine2Base = mem.GetBaseDaddy("engine2.dll");
-            g::clientBase = freshClientBase;
-            g::engine2Base = freshEngine2Base;
-        }
-    }
 
     if (!overlay::Create(g::screenWidth, g::screenHeight)) {
         console.PrintErrorLine("D3D11 overlay creation failed");

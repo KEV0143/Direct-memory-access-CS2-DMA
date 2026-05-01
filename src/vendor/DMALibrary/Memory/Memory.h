@@ -2,7 +2,6 @@
 #include "../pch.h"
 #include "InputManager.h"
 #include "Registry.h"
-#include "Shellcode.h"
 #include "../nt/structs.h"
 #include <atomic>
 
@@ -66,7 +65,6 @@ private:
 	//shared pointer
 	std::shared_ptr<c_keys> key;
 	c_registry registry;
-	c_shellcode shellcode;
 
 
 public:
@@ -88,12 +86,6 @@ public:
 	* @return key class
 	*/
 	c_keys* GetKeyboard() { return key.get(); }
-
-	/**
-	* @brief Gets the shellcode object
-	* @return shellcode class
-	*/
-	c_shellcode GetShellcode() { return shellcode; }
 
 	/**
 	* brief Initializes the DMA
@@ -129,7 +121,7 @@ public:
 	* brief Gets the process id of the process
 	* @param process_name the name of the process
 	* @return the process id of the process
-	*/
+	d*/
 	DWORD GetPidFromName(const std::string& process_name);
 
 	/**
@@ -217,34 +209,6 @@ public:
 	 * \return address of signature
 	 */
 	uint64_t FindSignature(const char* signature, uint64_t range_start, uint64_t range_end, int PID = 0);
-
-	/**
-	 * \brief Writes memory to the process 
-	 * \param address The address to write to
-	 * \param buffer The buffer to write
-	 * \param size The size of the buffer
-	 * \return 
-	 */
-	bool Write(uintptr_t address, void* buffer, size_t size) const;
-	bool Write(uintptr_t address, void* buffer, size_t size, int pid) const;
-
-	/**
-	 * \brief Writes memory to the process using a template
-	 * \param address to write to
-	 * \param value the value you'll write to the address
-	 */
-	template <typename T>
-	void Write(void* address, T value)
-	{
-		Write(address, &value, sizeof(T));
-	}
-
-	template <typename T>
-	void Write(uintptr_t address, T value)
-	{
-		Write(address, &value, sizeof(T));
-	}
-
 	/**
 	* brief Reads memory from the process
 	* @param address The address to read from

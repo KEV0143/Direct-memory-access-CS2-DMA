@@ -186,6 +186,83 @@ namespace {
                     if (!liveLocalPawn)
                         cachedLocalSceneNode = 0;
 
+
+                    if (cameraHandle &&
+                        ofs.C_CSPlayerPawn_m_entitySpottedState > 0 &&
+                        ofs.EntitySpottedState_t_m_bSpottedByMask > 0) {
+                        uintptr_t snapshotPawns[64] = {};
+                        for (int i = 0; i < 64; ++i)
+                            snapshotPawns[i] = s_livePawnPointers[i].load(std::memory_order_relaxed);
+                        const int snapMaskBit = s_liveLocalMaskBit.load(std::memory_order_relaxed);
+                        const int snapMaskSlotBit = s_liveLocalMaskSlotBit.load(std::memory_order_relaxed);
+                        const int snapHandleSlotBit = s_liveLocalHandleSlotBit.load(std::memory_order_relaxed);
+                        const int snapControllerMaskBit = s_liveLocalControllerMaskBit.load(std::memory_order_relaxed);
+                        const bool snapMaskResolved = s_liveLocalMaskResolved.load(std::memory_order_relaxed);
+
+                        const std::ptrdiff_t spottedFlagOffsetCam =
+                            (ofs.EntitySpottedState_t_m_bSpotted > 0)
+                            ? ofs.EntitySpottedState_t_m_bSpotted
+                            : (ofs.EntitySpottedState_t_m_bSpottedByMask - 4);
+
+                        uint32_t visMasks[64][2] = {};
+                        uint8_t visFlags[64] = {};
+                        bool queuedVis = false;
+                        for (int i = 0; i < 64; ++i) {
+                            if (!snapshotPawns[i] || snapshotPawns[i] == liveLocalPawn)
+                                continue;
+                            mem.AddScatterReadRequest(
+                                cameraHandle,
+                                snapshotPawns[i] + ofs.C_CSPlayerPawn_m_entitySpottedState +
+                                    ofs.EntitySpottedState_t_m_bSpottedByMask,
+                                reinterpret_cast<void*>(&visMasks[i]),
+                                sizeof(uint32_t) * 2);
+                            if (spottedFlagOffsetCam >= 0) {
+                                mem.AddScatterReadRequest(
+                                    cameraHandle,
+                                    snapshotPawns[i] + ofs.C_CSPlayerPawn_m_entitySpottedState +
+                                        spottedFlagOffsetCam,
+                                    &visFlags[i],
+                                    sizeof(uint8_t));
+                            }
+                            queuedVis = true;
+                        }
+
+                        if (queuedVis && mem.ExecuteReadScatter(cameraHandle)) {
+                            auto bitSet = [](uint64_t mask, int bit) -> bool {
+                                return bit >= 0 && bit < 64 && (mask & (1ULL << bit)) != 0ULL;
+                            };
+                            for (int i = 0; i < 64; ++i) {
+                                if (!snapshotPawns[i] || snapshotPawns[i] == liveLocalPawn)
+                                    continue;
+                                const uint64_t mask =
+                                    (static_cast<uint64_t>(visMasks[i][1]) << 32) |
+                                    static_cast<uint64_t>(visMasks[i][0]);
+                                bool visible = false;
+                                if (mask != 0ULL) {
+                                    visible =
+                                        bitSet(mask, snapMaskBit) ||
+                                        bitSet(mask, snapMaskBit - 1) ||
+                                        bitSet(mask, snapMaskBit + 1) ||
+                                        bitSet(mask, snapMaskSlotBit) ||
+                                        bitSet(mask, snapMaskSlotBit - 1) ||
+                                        bitSet(mask, snapMaskSlotBit + 1) ||
+                                        bitSet(mask, snapHandleSlotBit) ||
+                                        bitSet(mask, snapHandleSlotBit - 1) ||
+                                        bitSet(mask, snapHandleSlotBit + 1) ||
+                                        bitSet(mask, snapControllerMaskBit) ||
+                                        bitSet(mask, snapControllerMaskBit - 1) ||
+                                        bitSet(mask, snapControllerMaskBit + 1);
+                                }
+                                if (!visible && !snapMaskResolved && visFlags[i] != 0)
+                                    visible = true;
+                                s_liveVisible[i].store(visible ? 2 : 1, std::memory_order_relaxed);
+                                s_liveVisibilityUpdatedUs[i].store(nowUs, std::memory_order_relaxed);
+                            }
+                        } else if (queuedVis) {
+                            recreateCameraHandle();
+                        }
+                    }
+
                     if (gotMatrix)
                         consecutiveViewMisses = 0;
                     else

@@ -11,7 +11,7 @@
             return false;
         }
 
-        Values localValues = {};
+        Values cachedValues = {};
         std::vector<std::string> missingKeys;
         std::vector<std::string> invalidKeys;
         std::error_code ec;
@@ -23,20 +23,16 @@
         {
             json root;
             if (TryParseOffsetsJsonFile(jsonPath, root))
-            {
-                LoadValuesFromJson(root, localValues, &missingKeys, &invalidKeys);
-            }
+                LoadValuesFromJson(root, cachedValues, &missingKeys, &invalidKeys);
             else
-            {
                 invalidJson = true;
-            }
         }
         else
         {
             const auto legacyIniPath = FindLegacyOffsetsPath("offsets.ini");
             if (!legacyIniPath.empty())
             {
-                LoadValuesFromLegacyIni(ParseLegacyIniFile(legacyIniPath), localValues, &missingKeys, &invalidKeys);
+                LoadValuesFromLegacyIni(ParseLegacyIniFile(legacyIniPath), cachedValues, &missingKeys, &invalidKeys);
                 loadedFromLegacyIni = true;
             }
         }
@@ -46,7 +42,8 @@
             !storedState.lastSeenPatch.patchVersion.empty()
             ? storedState.lastSeenPatch
             : storedState.offsetsPatch;
-        if (report) {
+        if (report)
+        {
             report->previousOffsetsPatch = storedState.offsetsPatch;
             report->previousLastSeenPatch = storedState.lastSeenPatch;
         }
@@ -59,162 +56,129 @@
         if (report && hasCurrentPatch && !patchBaseline.patchVersion.empty())
             report->patchChanged = !PatchInfoEquals(patchBaseline, currentPatch.patch);
 
-        const auto localOutputCandidates = CollectLocalOutputCandidates();
-        const auto* preferredLocalCandidate = FindPreferredLocalOutputCandidate(localOutputCandidates);
-        const bool hasLocalDump = preferredLocalCandidate != nullptr;
-        const std::string localTimestamp = hasLocalDump
-            ? preferredLocalCandidate->timestamp
-            : std::string();
-        const int localBuildNumber = hasLocalDump
-            ? preferredLocalCandidate->buildNumber
-            : 0;
+        std::vector<UpstreamRef> candidates;
+        candidates.push_back(UpstreamRef{ "a2x/cs2-dumper", "main", "a2x/cs2-dumper@main", {}, 0 });
+        std::string prListError;
+        AppendOpenPullRequestRefs(candidates, &prListError);
 
-        std::unordered_map<std::string, std::ptrdiff_t> parsedMap;
-        std::string error;
-        const auto tempRoot = std::filesystem::temp_directory_path() / "kevqdma_offsets";
-        const auto remoteInfoDir = tempRoot / "remote_info";
-        std::string remoteTimestamp;
-        int remoteBuildNumber = 0;
+        UpstreamRef* best = nullptr;
+        for (auto& ref : candidates)
         {
-            std::error_code ec;
-            std::filesystem::remove_all(remoteInfoDir, ec);
-        }
-        if (DownloadOutputInfoFile(remoteInfoDir, &error))
-        {
-            remoteTimestamp = ReadOutputDirectoryTimestamp(remoteInfoDir);
-            remoteBuildNumber = ReadOutputDirectoryBuildNumber(remoteInfoDir);
-        }
-        error.clear();
-
-        const bool currentPatchKnown = hasCurrentPatch && currentPatch.patchBuildNumber > 0;
-        const bool localMatchesCurrentPatch =
-            currentPatchKnown &&
-            localBuildNumber > 0 &&
-            localBuildNumber == currentPatch.patchBuildNumber;
-        const bool remoteMatchesCurrentPatch =
-            currentPatchKnown &&
-            remoteBuildNumber > 0 &&
-            remoteBuildNumber == currentPatch.patchBuildNumber;
-        bool useLocalDump = hasLocalDump;
-        if (!hasLocalDump)
-        {
-            useLocalDump = false;
-        }
-        else if (localMatchesCurrentPatch)
-        {
-            useLocalDump = true;
-        }
-        else if (remoteMatchesCurrentPatch)
-        {
-            useLocalDump = false;
-        }
-        else
-        {
-            useLocalDump = true;
+            std::string err;
+            if (!FetchRefInfoJson(ref, &err))
+                continue;
+            if (best == nullptr || ref.timestamp > best->timestamp)
+                best = &ref;
         }
 
-        auto tryLoadRemoteOutput = [&](std::unordered_map<std::string, std::ptrdiff_t>& outParsedMap,
-                                       std::string& outSourceDescription,
-                                       std::string& outSelectedTimestamp,
-                                       int& outSelectedBuildNumber,
-                                       std::string& outError) -> bool {
-            const auto remoteOutputDir = tempRoot / "remote_output";
+        const bool cacheRequiredOk =
+            jsonExistedBeforeSync &&
+            !invalidJson &&
+            ValidateLoadedValues(cachedValues, true).empty();
+
+        if (best == nullptr)
+        {
+            if (cacheRequiredOk)
             {
-                std::error_code ec;
-                std::filesystem::remove_all(remoteOutputDir, ec);
-            }
-            if (!DownloadOutputDirectoryFiles(remoteOutputDir, true, &outError))
-                return false;
-            if (!ParseOutputDirectory(remoteOutputDir, outParsedMap, &outError))
-                return false;
-
-            outSourceDescription = "GitHub output";
-            outSelectedTimestamp = remoteTimestamp;
-            outSelectedBuildNumber = remoteBuildNumber;
-            outError.clear();
-            return true;
-        };
-
-        std::string sourceDescription = "local dump";
-        std::string selectedSourceTimestamp = localTimestamp;
-        int selectedSourceBuildNumber = localBuildNumber;
-        if (useLocalDump)
-        {
-            if (!ParseOutputDirectory(preferredLocalCandidate->directory, parsedMap, &error))
-            {
-                const std::string localError = error;
-                if (!tryLoadRemoteOutput(parsedMap, sourceDescription, selectedSourceTimestamp, selectedSourceBuildNumber, error))
+                if (report)
                 {
-                    if (message)
+                    report->offsetSource = storedState.selectedSource;
+                    report->offsetSourceTimestamp = storedState.selectedSourceTimestamp;
+                    report->offsetSourceBuildNumber = storedState.selectedSourceBuildNumber;
+                    if (hasCurrentPatch)
                     {
-                        std::ostringstream oss;
-                        oss << "Offset sync failed from "
-                            << DescribeOutputDirectoryCandidate(*preferredLocalCandidate)
-                            << ": " << localError;
-                        if (!error.empty())
-                            oss << ". Remote fallback failed: " << error;
-                        oss << ". Using local offsets.";
-                        *message = oss.str();
+                        report->currentPatchVersionDate = currentPatch.versionDate;
+                        report->currentPatchVersionTime = currentPatch.versionTime;
                     }
-                    return false;
                 }
+                if (message)
+                    *message = "Offset sync: upstream unreachable" +
+                               (prListError.empty() ? std::string() : (" (" + prListError + ")")) +
+                               ". Using cached offsets.";
+                return false;
             }
-            else
-            {
-                sourceDescription = DescribeOutputDirectoryCandidate(*preferredLocalCandidate);
-            }
-        }
-        else
-        {
-            if (!tryLoadRemoteOutput(parsedMap, sourceDescription, selectedSourceTimestamp, selectedSourceBuildNumber, error))
-            {
-                if (hasLocalDump && ParseOutputDirectory(preferredLocalCandidate->directory, parsedMap, &error))
-                {
-                    sourceDescription = DescribeOutputDirectoryCandidate(*preferredLocalCandidate) + " fallback";
-                    selectedSourceTimestamp = localTimestamp;
-                    selectedSourceBuildNumber = localBuildNumber;
-                }
-                else
-                {
-                    if (message)
-                        *message = error.empty()
-                            ? "Offset sync failed. Using local offsets."
-                            : ("Offset sync failed: " + error + ". Using local offsets.");
-                    return false;
-                }
-            }
-        }
-
-        Values updated = {};
-        if (!ExtractRequiredValues(parsedMap, updated, &error))
-        {
             if (message)
-                *message = error.empty()
-                    ? "Offset sync failed. Using local offsets."
-                    : ("Offset sync failed: " + error + ". Using local offsets.");
+                *message = "Offset sync failed: upstream unreachable and no usable cache.";
             return false;
         }
-        ExtractOptionalValues(parsedMap, updated);
 
-        const size_t changedKeys = CountValueDifferences(localValues, updated);
+        const std::string sourceDescription = best->label;
+        const std::string selectedSourceTimestamp = best->timestamp;
+        const int selectedSourceBuildNumber = best->buildNumber;
+
+        const bool selectedSourceUnchanged =
+            !storedState.selectedSourceTimestamp.empty() &&
+            selectedSourceTimestamp == storedState.selectedSourceTimestamp &&
+            sourceDescription == storedState.selectedSource;
+
+        Values updated = cachedValues;
+        bool fetchedNewHeaders = false;
+
+        if (!selectedSourceUnchanged || !cacheRequiredOk)
+        {
+            const auto tempRoot = std::filesystem::temp_directory_path() / "kevqdma_offsets" / "remote_output";
+            {
+                std::error_code rec;
+                std::filesystem::remove_all(tempRoot, rec);
+            }
+
+            std::string error;
+            if (!DownloadHeadersFromRef(*best, tempRoot, &error))
+            {
+                if (cacheRequiredOk)
+                {
+                    if (message)
+                        *message = "Offset sync: download from " + sourceDescription +
+                                   " failed (" + error + "). Using cached offsets.";
+                    return false;
+                }
+                if (message)
+                    *message = "Offset sync failed: " + error + ".";
+                return false;
+            }
+
+            std::unordered_map<std::string, std::ptrdiff_t> parsedMap;
+            if (!ParseOutputDirectory(tempRoot, parsedMap, &error))
+            {
+                if (message)
+                    *message = "Offset sync failed: " + error + ".";
+                return false;
+            }
+
+            Values fresh = {};
+            if (!ExtractRequiredValues(parsedMap, fresh, &error))
+            {
+                if (message)
+                    *message = "Offset sync failed: " + error + ".";
+                return false;
+            }
+            ExtractOptionalValues(parsedMap, fresh);
+            updated = fresh;
+            fetchedNewHeaders = true;
+        }
+
+        const size_t changedKeys = CountValueDifferences(cachedValues, updated);
         const bool needsNormalization = !missingKeys.empty() || !invalidKeys.empty() || invalidJson;
         const bool needsWrite =
             changedKeys > 0 ||
             needsNormalization ||
             !jsonExistedBeforeSync ||
             loadedFromLegacyIni;
+
         const bool sourcePredatesCurrentPatch =
             hasCurrentPatch &&
             !selectedSourceTimestamp.empty() &&
             SourceTimestampDefinitelyPredatesCurrentPatch(selectedSourceTimestamp, currentPatch);
+        const bool currentPatchKnown = hasCurrentPatch && currentPatch.patchBuildNumber > 0;
         const bool offsetsCompatibleWithCurrentPatch =
             currentPatchKnown &&
             selectedSourceBuildNumber > 0 &&
             selectedSourceBuildNumber == currentPatch.patchBuildNumber &&
             !sourcePredatesCurrentPatch;
+
         if (report)
         {
-            report->offsetsUpdated = needsWrite;
+            report->offsetsUpdated = needsWrite && fetchedNewHeaders;
             report->offsetSource = sourceDescription;
             report->offsetSourceTimestamp = selectedSourceTimestamp;
             report->offsetSourceBuildNumber = selectedSourceBuildNumber;
@@ -224,20 +188,20 @@
             report->offsetsCompatibleWithCurrentPatch = offsetsCompatibleWithCurrentPatch;
         }
 
+        OffsetState nextState = storedState;
+        if (hasCurrentPatch)
+            nextState.lastSeenPatch = currentPatch.patch;
+        if (offsetsCompatibleWithCurrentPatch)
+            nextState.offsetsPatch = currentPatch.patch;
+        nextState.selectedSource = sourceDescription;
+        nextState.selectedSourceTimestamp = selectedSourceTimestamp;
+        nextState.remoteOutputTimestamp = selectedSourceTimestamp;
+        nextState.selectedSourceBuildNumber = selectedSourceBuildNumber;
+
         if (!needsWrite)
         {
             CleanupObsoleteOffsetsIniFiles();
-            OffsetState nextState = storedState;
-            if (hasCurrentPatch)
-                nextState.lastSeenPatch = currentPatch.patch;
-            if (offsetsCompatibleWithCurrentPatch)
-                nextState.offsetsPatch = currentPatch.patch;
-            nextState.selectedSource = sourceDescription;
-            nextState.selectedSourceTimestamp = selectedSourceTimestamp;
-            nextState.remoteOutputTimestamp = remoteTimestamp;
-            nextState.selectedSourceBuildNumber = selectedSourceBuildNumber;
             WriteOffsetState(jsonPath, nextState);
-
             if (message)
             {
                 std::ostringstream oss;
@@ -251,43 +215,30 @@
             return true;
         }
 
-        OffsetState nextState = storedState;
-        if (hasCurrentPatch)
-            nextState.lastSeenPatch = currentPatch.patch;
-        if (offsetsCompatibleWithCurrentPatch)
-            nextState.offsetsPatch = currentPatch.patch;
-        nextState.selectedSource = sourceDescription;
-        nextState.selectedSourceTimestamp = selectedSourceTimestamp;
-        nextState.remoteOutputTimestamp = remoteTimestamp;
-        nextState.selectedSourceBuildNumber = selectedSourceBuildNumber;
         if (!WriteOffsetsJson(jsonPath, updated, &nextState))
         {
             if (message)
-                *message = "Offset sync failed: cannot write " + jsonPath.string() + ". Using local offsets.";
+                *message = "Offset sync failed: cannot write " + jsonPath.string() + ".";
             return false;
         }
-
         CleanupObsoleteOffsetsIniFiles();
-        const bool savedState = true;
 
         if (message)
         {
             std::ostringstream oss;
-            oss << "Offset sync: auto-applied " << changedKeys << " updated key(s) from " << sourceDescription << ".";
+            oss << "Offset sync: applied " << changedKeys << " updated key(s) from " << sourceDescription << ".";
             if (needsNormalization)
                 oss << " Local file was normalized.";
             else if (loadedFromLegacyIni)
                 oss << " Legacy offsets.ini was migrated to offsets.json.";
             else if (!jsonExistedBeforeSync)
                 oss << " Local offsets.json was created.";
-            if (!remoteTimestamp.empty())
-                oss << " Remote timestamp: " << remoteTimestamp << ".";
+            if (!selectedSourceTimestamp.empty())
+                oss << " Source timestamp: " << selectedSourceTimestamp << ".";
             if (hasCurrentPatch && !currentPatch.patch.patchVersion.empty())
                 oss << " Patch " << currentPatch.patch.patchVersion << ".";
             else if (!steamPatchError.empty())
                 oss << " Steam patch lookup unavailable.";
-            if (!savedState)
-                oss << " Offsets state manifest could not be saved.";
             *message = oss.str();
         }
         return true;
@@ -295,12 +246,12 @@
     catch (const std::exception& e)
     {
         if (message)
-            *message = std::string("Offset sync failed: ") + e.what() + ". Using local offsets.";
+            *message = std::string("Offset sync failed: ") + e.what() + ". Using cached offsets.";
         return false;
     }
     catch (...)
     {
         if (message)
-            *message = "Offset sync failed. Using local offsets.";
+            *message = "Offset sync failed. Using cached offsets.";
         return false;
     }

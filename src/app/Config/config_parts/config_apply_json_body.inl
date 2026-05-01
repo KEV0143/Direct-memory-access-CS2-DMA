@@ -24,6 +24,8 @@
         LoadBool(root, "ESP", "Snaplines", g::espSnaplines);
         LoadBool(root, "ESP", "SnapFromTop", g::espSnaplineFromTop);
         LoadBool(root, "ESP", "VisibilityColoring", g::espVisibilityColoring);
+        LoadBool(root, "ESP", "VisibleOnly", g::espVisibleOnly);
+        LoadBool(root, "ESP", "ShowTeammates", g::espShowTeammates);
         LoadBool(root, "ESP", "OffscreenArrows", g::espOffscreenArrows);
         LoadBool(root, "ESP", "Sound", g::espSound);
         LoadBool(root, "ESP", "Flags", g::espFlags);

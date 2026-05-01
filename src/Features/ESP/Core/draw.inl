@@ -192,8 +192,21 @@ void esp::Draw()
                 continue;
             if (snap.localPawn != 0 && p.pawn == snap.localPawn)
                 continue;
-            if ((localTeam == 2 || localTeam == 3) && p.team == localTeam)
+            if (!g::espShowTeammates && (localTeam == 2 || localTeam == 3) && p.team == localTeam)
                 continue;
+            if (g::espVisibleOnly) {
+                bool effectiveVisible = p.visible;
+                const uint64_t liveUpdatedUs = s_liveVisibilityUpdatedUs[i].load(std::memory_order_relaxed);
+                if (liveUpdatedUs > 0 &&
+                    nowUs >= liveUpdatedUs &&
+                    (nowUs - liveUpdatedUs) <= kLiveVisibilityFreshnessUs) {
+                    const uint8_t live = s_liveVisible[i].load(std::memory_order_relaxed);
+                    if (live == 2) effectiveVisible = true;
+                    else if (live == 1) effectiveVisible = false;
+                }
+                if (!effectiveVisible)
+                    continue;
+            }
 
             const esp::PlayerData& prevP = prevPlayers[i];
             const bool canBlendSnapshots =
@@ -429,6 +442,16 @@ void esp::Draw()
                 validBoneSegmentCount >= 5;
 
             bool isVisibleNow = p.visible;
+            {
+                const uint64_t liveUpdatedUs = s_liveVisibilityUpdatedUs[i].load(std::memory_order_relaxed);
+                if (liveUpdatedUs > 0 &&
+                    nowUs >= liveUpdatedUs &&
+                    (nowUs - liveUpdatedUs) <= kLiveVisibilityFreshnessUs) {
+                    const uint8_t live = s_liveVisible[i].load(std::memory_order_relaxed);
+                    if (live == 2) isVisibleNow = true;
+                    else if (live == 1) isVisibleNow = false;
+                }
+            }
             if (!isVisibleNow && !localMaskResolved && p.spottedMask != 0ULL) {
                 const bool onScreen169 =
                     boxLeft < (screenW - 1.0f) &&

@@ -702,6 +702,10 @@ void ui::tabs::esp_sections::RenderCoreSection()
         columnWidth,
         [](float width) { DrawOptionRow("enable", EspIcon::Enable, "Enable ESP", "Enable or disable all ESP features", &g::espEnabled, nullptr, [] {}, false, width); },
         [](float width) { DrawOptionRow("preview", EspIcon::Preview, "ESP Preview", "Show ESP elements preview", &g::espPreviewOpen, nullptr, [] {}, false, width); });
+    RenderEspGridPair(
+        columnWidth,
+        [](float width) { DrawOptionRow("teammates", EspIcon::Flags, "Show Teammates", "Render ESP for players on your team", &g::espShowTeammates, nullptr, [] {}, false, width); },
+        [](float) {});
 }
 
 void ui::tabs::esp_sections::RenderGeneralSection()
@@ -716,6 +720,7 @@ void ui::tabs::esp_sections::RenderGeneralSection()
 
     DrawOptionRow("vis", EspIcon::Visibility, "Visibility Colors", "Color code by visibility", &g::espVisibilityColoring, g::espVisibleColor, [] {
         ColorRow("occ", "Occluded", g::espHiddenColor);
+        ToggleSetting("visonly", "Visible Only", &g::espVisibleOnly);
     });
 }
 
@@ -760,6 +765,7 @@ void ui::tabs::esp_sections::RenderOptionsGrid()
     renderPair(
         [] (float width) { DrawOptionRow("vis", EspIcon::Visibility, "Visibility Colors", "", &g::espVisibilityColoring, g::espVisibleColor, [] {
                 ColorRow("occ", "Occluded", g::espHiddenColor);
+                ToggleSetting("visonly", "Visible Only", &g::espVisibleOnly);
             }, true, width); },
         [] (float width) { DrawOptionRow("world", EspIcon::World, "World ESP", "", &g::espWorld, g::espWorldColor, [] {
                 ToggleSetting("smoke", "Smoke Timer", &g::espWorldSmokeTimer);

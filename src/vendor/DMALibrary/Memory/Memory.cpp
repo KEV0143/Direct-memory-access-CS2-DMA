@@ -1078,25 +1078,6 @@ uint64_t Memory::FindSignature(const char* signature, uint64_t range_start, uint
 	return first_match;
 }
 
-bool Memory::Write(uintptr_t address, void* buffer, size_t size) const
-{
-	UNREFERENCED_PARAMETER(address);
-	UNREFERENCED_PARAMETER(buffer);
-	UNREFERENCED_PARAMETER(size);
-	LogWriteBlockedOnce(g_memoryWriteBlockedLogged, "Memory::Write");
-	return false;
-}
-
-bool Memory::Write(uintptr_t address, void* buffer, size_t size, int pid) const
-{
-	UNREFERENCED_PARAMETER(address);
-	UNREFERENCED_PARAMETER(buffer);
-	UNREFERENCED_PARAMETER(size);
-	UNREFERENCED_PARAMETER(pid);
-	LogWriteBlockedOnce(g_memoryWriteBlockedLogged, "Memory::Write(pid)");
-	return false;
-}
-
 bool Memory::Read(uintptr_t address, void* buffer, size_t size) const
 {
 	ApplyDirectReadJitter();

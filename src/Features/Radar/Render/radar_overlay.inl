@@ -205,7 +205,7 @@ if (g::radarEnabled) {
             continue;
         if (snap.localPawn != 0 && p.pawn == snap.localPawn)
             continue;
-        if ((localTeam == 2 || localTeam == 3) && p.team == localTeam)
+        if (!g::espShowTeammates && (localTeam == 2 || localTeam == 3) && p.team == localTeam)
             continue;
         const Vector3& radarPosPredicted = p.position;
 

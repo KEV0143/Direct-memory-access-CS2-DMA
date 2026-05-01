@@ -135,7 +135,6 @@ namespace runtime_offsets
 
     const Values& Get();
     StateView GetStateView();
-    bool HasOffsetsFile();
     bool AutoUpdateFromGitHub(std::string* message = nullptr, AutoUpdateReport* report = nullptr);
     bool Load(std::string* message = nullptr);
 }

@@ -469,16 +469,18 @@ void ui::RenderEspPreview()
         DrawPlayerSilhouette(dl, cx2, boxTop, boxW, boxH, boneScale,
                              visCol, true, winPos.y + ph - 22);
 
-        
+
         float cx3 = winPos.x + thirdW * 2.5f;
         ImU32 hidCol = Col4(g::espHiddenColor);
-        DrawPlayerSilhouette(dl, cx3, boxTop, boxW, boxH, boneScale,
-                             hidCol, true, winPos.y + ph - 22);
+        if (!g::espVisibleOnly) {
+            DrawPlayerSilhouette(dl, cx3, boxTop, boxW, boxH, boneScale,
+                                 hidCol, true, winPos.y + ph - 22);
+        }
 
-        
+
         const char* defLabel = "Default";
         const char* visLabel = "Visible";
-        const char* hidLabel = "Hidden";
+        const char* hidLabel = g::espVisibleOnly ? "Hidden (off)" : "Hidden";
         ImVec2 dlSize = ImGui::CalcTextSize(defLabel);
         ImVec2 vlSize = ImGui::CalcTextSize(visLabel);
         ImVec2 hlSize = ImGui::CalcTextSize(hidLabel);
@@ -487,7 +489,8 @@ void ui::RenderEspPreview()
         TextShadow(dl, ImVec2(cx1 - dlSize.x * 0.5f, labelY),
                    IM_COL32(180, 180, 180, 255), defLabel);
         TextShadow(dl, ImVec2(cx2 - vlSize.x * 0.5f, labelY), visCol, visLabel);
-        TextShadow(dl, ImVec2(cx3 - hlSize.x * 0.5f, labelY), hidCol, hidLabel);
+        const ImU32 hidLabelCol = g::espVisibleOnly ? IM_COL32(110, 110, 110, 220) : hidCol;
+        TextShadow(dl, ImVec2(cx3 - hlSize.x * 0.5f, labelY), hidLabelCol, hidLabel);
     } else {
         
         const float boxH = ph * 0.44f;

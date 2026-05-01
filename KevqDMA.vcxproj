@@ -206,7 +206,6 @@
     <ClCompile Include="src\vendor\DMALibrary\Memory\InputManager.cpp" />
     <ClCompile Include="src\vendor\DMALibrary\Memory\Memory.cpp" />
     <ClCompile Include="src\vendor\DMALibrary\Memory\Registry.cpp" />
-    <ClCompile Include="src\vendor\DMALibrary\Memory\Shellcode.cpp" />
     <ClCompile Include="src\vendor\DMALibrary\pch.cpp" />
     <ClCompile Include="src\vendor\imgui\backends\imgui_impl_dx11.cpp" />
     <ClCompile Include="src\vendor\imgui\backends\imgui_impl_win32.cpp" />
