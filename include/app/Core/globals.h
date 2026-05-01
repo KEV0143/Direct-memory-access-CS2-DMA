@@ -106,6 +106,7 @@ namespace g {
     inline float& espOffscreenSize = espSettings.offscreenSize;
     inline bool& espPreviewOpen = espSettings.previewOpen;
     inline float& espNameFontSize = espSettings.nameFontSize;
+    inline float& espThickness = espSettings.thickness;
 
     inline bool& radarEnabled = radarSettings.enabled;
     inline int& radarMode = radarSettings.mode;

@@ -197,7 +197,7 @@ namespace
         
         if (g::espBox)
             PrvCornerBox(dl, boxLeft, boxTop, boxW, boxH,
-                         entityCol, boxH * 0.22f, 2.0f);
+                         entityCol, boxH * 0.22f, 2.0f * g::espThickness);
 
         
         const float healthBarLeft = boxLeft - sideBarW - sideBarGap;
@@ -307,16 +307,18 @@ namespace
         
         if (g::espSkeleton) {
             ImU32 skelCol = (g::espVisibilityColoring && useVisColors) ? entityCol : Col4(g::espSkeletonColor);
+            const float prvSkelInner = 1.6f * g::espThickness;
+            const float prvSkelOuter = prvSkelInner + 1.4f;
             for (auto& p : kPairs) {
                 Vec2 a = BonePos2D(p.from, cx, boxTop, boneScale);
                 Vec2 b = BonePos2D(p.to, cx, boxTop, boneScale);
                 dl->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y),
-                            IM_COL32(0, 0, 0, 200), 3.0f);
+                            IM_COL32(0, 0, 0, 200), prvSkelOuter);
             }
             for (auto& p : kPairs) {
                 Vec2 a = BonePos2D(p.from, cx, boxTop, boneScale);
                 Vec2 b = BonePos2D(p.to, cx, boxTop, boneScale);
-                dl->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), skelCol, 1.6f);
+                dl->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, b.y), skelCol, prvSkelInner);
             }
             if (g::espSkeletonDots) {
                 for (int j : kJoints) {

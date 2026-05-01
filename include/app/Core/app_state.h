@@ -122,6 +122,7 @@ namespace app::state {
         float offscreenSize = 14.0f;
         bool previewOpen = false;
         float nameFontSize = 16.0f;
+        float thickness = 1.0f;
     };
 
     struct RadarSettings {

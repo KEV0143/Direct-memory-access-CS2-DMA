@@ -75,6 +75,7 @@
         SaveColor(esp, "WorldColor", g::espWorldColor);
         SaveColor(esp, "BombColor", g::espBombColor);
         SaveColor(esp, "SoundColor", g::espSoundColor);
+        esp["Thickness"] = g::espThickness;
         {
             json hiddenIds = json::array();
             for (size_t itemId = 1; itemId < 1200; ++itemId) {

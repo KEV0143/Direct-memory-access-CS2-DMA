@@ -73,6 +73,7 @@
         LoadColor(root, "ESP", "WorldColor", g::espWorldColor);
         LoadColor(root, "ESP", "BombColor", g::espBombColor);
         LoadColor(root, "ESP", "SoundColor", g::espSoundColor);
+        LoadFloat(root, "ESP", "Thickness", g::espThickness);
 
         LoadBool(root, "Radar", "Enabled", g::radarEnabled);
         LoadInt(root, "Radar", "Mode", g::radarMode);
