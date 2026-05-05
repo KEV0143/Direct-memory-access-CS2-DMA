@@ -127,6 +127,8 @@ namespace {
             static auto zeroPopulationSince = Clock::time_point::max();
             static uint8_t zeroPopulationStage = 0;
             static uint64_t lastZeroPopulationHardUs = 0;
+            static uint64_t lastHighPopulationUs = 0;
+            static int prevActivePlayers = 0;
             bool populationWatchdogRecovery = false;
             {
                 const uint64_t watchdogNowUs = TickNowUs();
@@ -193,6 +195,15 @@ namespace {
                     (maxClients >= 2 || highestEntityIndex >= 64) &&
                     g::clientBase &&
                     g::engine2Base;
+                const bool entityShapeReady =
+                    playerSlotBudget >= 32 &&
+                    highestEntityIndex >= 64;
+                const bool engineTransitionLimbo =
+                    !definitelyMenu &&
+                    !engineInGame &&
+                    maxClients <= 1 &&
+                    highestEntityIndex >= 0 &&
+                    highestEntityIndex < 64;
                 const bool liveByMap =
                     !definitelyMenu &&
                     liveMapRecentlySeen &&
@@ -200,9 +211,33 @@ namespace {
                     highestEntityIndex >= 64 &&
                     g::clientBase &&
                     g::engine2Base;
+                if (activePlayers >= 5)
+                    lastHighPopulationUs = watchdogNowUs;
+                if (engineTransitionLimbo) {
+                    lastHighPopulationUs = 0;
+                    prevActivePlayers = 0;
+                }
+                const bool liveByRecentHistory =
+                    !definitelyMenu &&
+                    !engineTransitionLimbo &&
+                    (engineInGame || maxClients >= 2 || entityShapeReady) &&
+                    lastHighPopulationUs > 0 &&
+                    watchdogNowUs >= lastHighPopulationUs &&
+                    (watchdogNowUs - lastHighPopulationUs) <= 15000000u &&
+                    g::clientBase &&
+                    g::engine2Base;
+                const bool liveByEarlyEngine =
+                    !definitelyMenu &&
+                    !engineTransitionLimbo &&
+                    engineResolved &&
+                    engineInGame &&
+                    !engineMenu &&
+                    g::clientBase &&
+                    g::engine2Base;
                 const bool livePopulationExpected =
                     !definitelyMenu &&
-                    (liveByEngine || liveByShape || liveByMap) &&
+                    !engineTransitionLimbo &&
+                    (liveByEngine || liveByShape || liveByMap || liveByRecentHistory || liveByEarlyEngine) &&
                     g::clientBase &&
                     g::engine2Base;
                 const bool suspiciousFlatEntityRange =
@@ -210,6 +245,10 @@ namespace {
                     playerSlotBudget >= 32 &&
                     highestEntityIndex > 0 &&
                     highestEntityIndex < 32;
+                const bool suddenDropFromLive =
+                    prevActivePlayers >= 2 &&
+                    activePlayers == 0 &&
+                    liveByRecentHistory;
                 const bool zeroPopulationObserved =
                     livePopulationExpected &&
                     activePlayers <= 1;
@@ -217,23 +256,29 @@ namespace {
                     sceneAgeUs >= 1800000u ||
                     warmupAgeUs >= 1800000u ||
                     (liveMapRecentlySeen && (sceneAgeUs >= 700000u || warmupAgeUs >= 700000u)) ||
+                    liveByRecentHistory ||
                     suspiciousFlatEntityRange ||
                     localIdentityMissing;
 
-                if (zeroPopulationObserved) {
+                if (engineTransitionLimbo) {
+                    zeroPopulationSince = Clock::time_point::max();
+                    zeroPopulationStage = 0;
+                    lastZeroPopulationHardUs = 0;
+                } else if (zeroPopulationObserved) {
                     if (zeroPopulationSince == Clock::time_point::max())
                         zeroPopulationSince = now;
 
                     const auto zeroAge = now - zeroPopulationSince;
                     const bool canAct = zeroPopulationGraceElapsed && !s_dmaRecovering.load(std::memory_order_relaxed);
-                    if (canAct && zeroPopulationStage < 1u && zeroAge >= std::chrono::milliseconds(900)) {
+                    if (canAct && zeroPopulationStage < 1u &&
+                        (zeroAge >= std::chrono::milliseconds(300) || suddenDropFromLive)) {
                         zeroPopulationStage = 1u;
                         SetSceneWarmupState(esp::SceneWarmupState::HierarchyWarming, watchdogNowUs);
                         RefreshDmaCaches(
                             suspiciousFlatEntityRange ? "zero_players_flat_entity_probe" : "zero_players_live_probe",
                             DmaRefreshTier::Probe);
                     }
-                    if (canAct && zeroPopulationStage < 2u && zeroAge >= std::chrono::milliseconds(2400)) {
+                    if (canAct && zeroPopulationStage < 2u && zeroAge >= std::chrono::milliseconds(800)) {
                         zeroPopulationStage = 2u;
                         ResetRuntimeState(true);
                         SetSceneWarmupState(esp::SceneWarmupState::HierarchyWarming, watchdogNowUs);
@@ -242,7 +287,7 @@ namespace {
                             DmaRefreshTier::Repair,
                             true);
                     }
-                    if (canAct && zeroPopulationStage < 3u && zeroAge >= std::chrono::milliseconds(5200)) {
+                    if (canAct && zeroPopulationStage < 3u && zeroAge >= std::chrono::milliseconds(2000)) {
                         zeroPopulationStage = 3u;
                         ResetRuntimeState(true);
                         SetSceneWarmupState(
@@ -260,10 +305,10 @@ namespace {
                     } else if (canAct &&
                                !suspiciousFlatEntityRange &&
                                zeroPopulationStage >= 3u &&
-                               zeroAge >= std::chrono::milliseconds(9000) &&
+                               zeroAge >= std::chrono::milliseconds(4000) &&
                                (lastZeroPopulationHardUs == 0 ||
                                 watchdogNowUs <= lastZeroPopulationHardUs ||
-                                (watchdogNowUs - lastZeroPopulationHardUs) >= 8000000u)) {
+                                (watchdogNowUs - lastZeroPopulationHardUs) >= 6000000u)) {
                         lastZeroPopulationHardUs = watchdogNowUs;
                         SetSceneWarmupState(esp::SceneWarmupState::Recovery, watchdogNowUs);
                         RequestDmaRecovery("zero_players_live_retry");
@@ -275,6 +320,7 @@ namespace {
                     if (activePlayers > 0)
                         lastZeroPopulationHardUs = 0;
                 }
+                prevActivePlayers = activePlayers;
             }
             const bool localIdentityWatchdog =
                 zeroPlayerSince != Clock::time_point::max() &&

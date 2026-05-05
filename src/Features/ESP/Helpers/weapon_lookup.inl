@@ -66,7 +66,7 @@ namespace {
         { 44, "HE",         "hegrenade",       "j", "HE",  WeaponSlotKind::Utility, 30 },
         { 45, "Smoke",      "smokegrenade",    "k", "SM",  WeaponSlotKind::Utility, 30 },
         { 46, "Molotov",    "molotov",         "l", "ML",  WeaponSlotKind::Utility, 30 },
-        { 47, "Decoy",      "decoy",        nullptr, "DC", WeaponSlotKind::Utility, 30 },
+        { 47, "Decoy",      "decoy",           "j", "DC", WeaponSlotKind::Utility, 30 },
         { 48, "Incendiary", "incgrenade",      "n", "IN",  WeaponSlotKind::Utility, 30 },
         { 49, "C4",         "c4",              "o", "C4",  WeaponSlotKind::Objective, 30 },
         { 57, "Healthshot", "health",       nullptr, "HP", WeaponSlotKind::Gear, 30 },
@@ -107,6 +107,15 @@ static const char* WeaponIconFromItemId(uint16_t id)
     if (const WeaponLookupEntry* entry = FindWeaponLookupEntry(id))
         return entry->iconGlyph;
     return nullptr;
+}
+
+static ImFont* PickWeaponIconFont(float requestedSize)
+{
+    if (requestedSize <= 14.5f && g::fontWeaponIconsSmall)
+        return g::fontWeaponIconsSmall;
+    if (requestedSize >= 20.5f && g::fontWeaponIconsLarge)
+        return g::fontWeaponIconsLarge;
+    return g::fontWeaponIcons;
 }
 
 static const char* WeaponIconFallbackTokenFromItemId(uint16_t id)

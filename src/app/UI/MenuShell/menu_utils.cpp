@@ -14,6 +14,7 @@
 #include <format>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -302,24 +303,24 @@ bool ui::menu_utils::RenderQrCode(const std::string& text, float size)
 
     using qrcodegen::QrCode;
 
-    static std::string cachedText;
-    static std::unique_ptr<QrCode> cachedCode;
+    static std::unordered_map<std::string, std::unique_ptr<QrCode>> cachedCodes;
 
-    if (cachedText != text || !cachedCode) {
+    auto it = cachedCodes.find(text);
+    if (it == cachedCodes.end()) {
         try {
-            cachedCode = std::make_unique<QrCode>(QrCode::encodeText(text.c_str(), QrCode::Ecc::MEDIUM));
+            it = cachedCodes.emplace(text, std::make_unique<QrCode>(QrCode::encodeText(text.c_str(), QrCode::Ecc::MEDIUM))).first;
         } catch (...) {
-            cachedCode.reset();
+            it = cachedCodes.end();
         }
-        cachedText = text;
     }
 
-    if (!cachedCode) {
+    if (it == cachedCodes.end() || !it->second) {
         ImGui::Dummy(ImVec2(size, size));
         return false;
     }
 
-    const int moduleCount = cachedCode->getSize();
+    const QrCode& code = *it->second;
+    const int moduleCount = code.getSize();
     if (moduleCount <= 0) {
         ImGui::Dummy(ImVec2(size, size));
         return false;
@@ -344,7 +345,7 @@ bool ui::menu_utils::RenderQrCode(const std::string& text, float size)
 
     for (int y = 0; y < moduleCount; ++y) {
         for (int x = 0; x < moduleCount; ++x) {
-            if (!cachedCode->getModule(x, y))
+            if (!code.getModule(x, y))
                 continue;
 
             const ImVec2 cellMin(start.x + qzOffset + x * moduleSize, start.y + qzOffset + y * moduleSize);

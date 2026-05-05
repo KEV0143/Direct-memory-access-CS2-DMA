@@ -204,6 +204,11 @@ static int s_worldMarkerCount = 0;
 static BombState s_bombState = {};
 static SpectatorEntry s_spectators[64] = {};
 static int s_spectatorCount = 0;
+static uintptr_t s_localPawnFarewellPtr = 0;
+static uint32_t s_localPawnFarewellHandle = 0;
+static uint64_t s_localPawnFarewellExpiryUs = 0;
+static uint32_t s_localPawnHandleLastSeen = 0;
+static constexpr uint64_t kLocalPawnFarewellWindowUs = 5000000;
 static uint64_t s_lastWorldScanUs = 0;
 static constexpr int kMaxTrackedWorldEntities = 8191;
 static constexpr int kMaxTrackedWorldBlocks = (kMaxTrackedWorldEntities >> 9) + 1;
@@ -621,6 +626,10 @@ static void ResetRuntimeState(bool publishClearedSnapshot = false)
         s_bombState = {};
         s_spectatorCount = 0;
         memset(s_spectators, 0, sizeof(s_spectators));
+        s_localPawnFarewellPtr = 0;
+        s_localPawnFarewellHandle = 0;
+        s_localPawnFarewellExpiryUs = 0;
+        s_localPawnHandleLastSeen = 0;
         s_worldMarkerCount = 0;
         s_localPawn = 0;
         memset(s_localName, 0, sizeof(s_localName));
@@ -842,6 +851,45 @@ static void RequestDmaRecovery(const char* reason)
     }
 }
 
+static std::atomic<uint32_t> s_pendingRefreshFlags{0};
+static std::atomic<bool> s_dmaAdminThreadStarted{false};
+static std::atomic<bool> s_dmaAdminThreadStop{false};
+
+static void DmaAdminThreadFn()
+{
+    while (!s_dmaAdminThreadStop.load(std::memory_order_relaxed)) {
+        const uint32_t flags = s_pendingRefreshFlags.exchange(0, std::memory_order_acq_rel);
+        if (flags && mem.vHandle && !s_dmaRecovering.load(std::memory_order_relaxed)) {
+            const bool wantFull = (flags & 0x4u) != 0u;
+            const bool wantRepair = (flags & 0x2u) != 0u;
+            const bool wantProbe = (flags & 0x1u) != 0u;
+            if (wantFull) {
+                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_MEM, 1);
+                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_TLB, 1);
+                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_MEDIUM, 1);
+                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_FAST, 1);
+            } else if (wantRepair) {
+                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_FAST, 1);
+                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_TLB, 1);
+                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_MEM_PARTIAL, 1);
+                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_MEDIUM, 1);
+            } else if (wantProbe) {
+                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_FAST, 1);
+                VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_TLB_PARTIAL, 1);
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+}
+
+static void EnsureDmaAdminThread()
+{
+    bool expected = false;
+    if (s_dmaAdminThreadStarted.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+        std::thread(DmaAdminThreadFn).detach();
+    }
+}
+
 static void RefreshDmaCaches(const char* reason, DmaRefreshTier tier = DmaRefreshTier::Probe, bool force = false)
 {
     static uint64_t s_lastProbeRefreshUs = 0;
@@ -866,31 +914,21 @@ static void RefreshDmaCaches(const char* reason, DmaRefreshTier tier = DmaRefres
         s_lastProbeRefreshUs = nowUs;
     }
 
+    EnsureDmaAdminThread();
+    uint32_t bit = 0;
     switch (tier) {
-    case DmaRefreshTier::Probe:
-        VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_FAST, 1);
-        VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_TLB_PARTIAL, 1);
-        break;
-    case DmaRefreshTier::Repair:
-        VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_FAST, 1);
-        VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_TLB, 1);
-        VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_MEM_PARTIAL, 1);
-        VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_MEDIUM, 1);
-        break;
-    case DmaRefreshTier::Full:
-        VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_MEM, 1);
-        VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_TLB, 1);
-        VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_MEDIUM, 1);
-        VMMDLL_ConfigSet(mem.vHandle, VMMDLL_OPT_REFRESH_FREQ_FAST, 1);
-        break;
+    case DmaRefreshTier::Probe: bit = 0x1u; break;
+    case DmaRefreshTier::Repair: bit = 0x2u; break;
+    case DmaRefreshTier::Full: bit = 0x4u; break;
     }
+    s_pendingRefreshFlags.fetch_or(bit, std::memory_order_acq_rel);
 
     const char* tierLabel =
         tier == DmaRefreshTier::Full ? "full" :
         tier == DmaRefreshTier::Repair ? "repair" :
         "probe";
     RecordDmaEvent(tierLabel, reason);
-    DmaLogPrintf("[INFO] DMA cache refresh (%s) [%s]", reason ? reason : "transition", tierLabel);
+    DmaLogPrintf("[INFO] DMA cache refresh queued (%s) [%s]", reason ? reason : "transition", tierLabel);
 }
 
 void esp::RequestCacheRefresh()

@@ -282,43 +282,71 @@
     };
 
     auto collectGrenadesForSlot = [&](int idx, auto& grenadeIdsOut, int& grenadeCountOut) {
-        grenadeCountOut = 0;
-        memset(grenadeIdsOut, 0, sizeof(grenadeIdsOut));
+        uint16_t previousGrenadeIds[esp::PlayerData::kMaxGrenades] = {};
+        const int previousGrenadeCount = std::clamp(grenadeCountOut, 0, esp::PlayerData::kMaxGrenades);
+        for (int g = 0; g < previousGrenadeCount; ++g)
+            previousGrenadeIds[g] = grenadeIdsOut[g];
+
+        uint16_t resolvedGrenadeIds[esp::PlayerData::kMaxGrenades] = {};
+        int resolvedGrenadeCount = 0;
         if (idx < 0 || idx >= 64)
             return;
 
         auto appendGrenade = [&](uint16_t weaponId) {
             if (weaponId < 43u || weaponId > 48u)
                 return;
-            if (grenadeCountOut >= esp::PlayerData::kMaxGrenades)
+            if (resolvedGrenadeCount >= esp::PlayerData::kMaxGrenades)
                 return;
-            grenadeIdsOut[grenadeCountOut++] = weaponId;
+            resolvedGrenadeIds[resolvedGrenadeCount++] = weaponId;
         };
 
         const int inventorySlotCount = getInventorySlotCount(idx);
-        for (int slot = 0; slot < inventorySlotCount && grenadeCountOut < esp::PlayerData::kMaxGrenades; ++slot)
+        bool inventoryHadEvidence = inventorySlotCount > 0 && inventoryWeaponHandleArrays[idx] != 0;
+        for (int slot = 0; slot < inventorySlotCount && resolvedGrenadeCount < esp::PlayerData::kMaxGrenades; ++slot) {
+            if (inventoryWeaponHandles[idx][slot] ||
+                inventoryWeapons[idx][slot] ||
+                inventoryWeaponIds[idx][slot]) {
+                inventoryHadEvidence = true;
+            }
             appendGrenade(inventoryWeaponIds[idx][slot]);
+        }
 
         const uint16_t activeWeaponId = (weaponIds[idx] < 20000u) ? weaponIds[idx] : 0u;
-        if (activeWeaponId < 43u || activeWeaponId > 48u)
-            return;
-
-        const uint32_t activeHandle = activeWeaponHandles[idx];
-        const uintptr_t activeEntity = activeWeapons[idx];
-        bool activeAlreadyRepresented = false;
-        for (int slot = 0; slot < inventorySlotCount; ++slot) {
-            if (activeHandle && activeHandle != 0xFFFFFFFFu &&
-                inventoryWeaponHandles[idx][slot] == activeHandle) {
-                activeAlreadyRepresented = true;
-                break;
+        if (activeWeaponId >= 43u && activeWeaponId <= 48u) {
+            const uint32_t activeHandle = activeWeaponHandles[idx];
+            const uintptr_t activeEntity = activeWeapons[idx];
+            bool activeAlreadyRepresented = false;
+            for (int slot = 0; slot < inventorySlotCount; ++slot) {
+                if (activeHandle && activeHandle != 0xFFFFFFFFu &&
+                    inventoryWeaponHandles[idx][slot] == activeHandle) {
+                    activeAlreadyRepresented = true;
+                    break;
+                }
+                if (activeEntity && inventoryWeapons[idx][slot] == activeEntity) {
+                    activeAlreadyRepresented = true;
+                    break;
+                }
+                if (inventoryWeaponIds[idx][slot] == activeWeaponId) {
+                    activeAlreadyRepresented = true;
+                    break;
+                }
             }
-            if (activeEntity && inventoryWeapons[idx][slot] == activeEntity) {
-                activeAlreadyRepresented = true;
-                break;
-            }
+            if (!activeAlreadyRepresented)
+                appendGrenade(activeWeaponId);
         }
-        if (!activeAlreadyRepresented)
-            appendGrenade(activeWeaponId);
+
+        if (!inventoryHadEvidence && previousGrenadeCount > 0) {
+            grenadeCountOut = previousGrenadeCount;
+            memset(grenadeIdsOut, 0, sizeof(grenadeIdsOut));
+            for (int g = 0; g < previousGrenadeCount; ++g)
+                grenadeIdsOut[g] = previousGrenadeIds[g];
+            return;
+        }
+
+        grenadeCountOut = resolvedGrenadeCount;
+        memset(grenadeIdsOut, 0, sizeof(grenadeIdsOut));
+        for (int g = 0; g < resolvedGrenadeCount; ++g)
+            grenadeIdsOut[g] = resolvedGrenadeIds[g];
     };
 
     bool localHasBombResolved = false;
@@ -537,8 +565,14 @@
             static uint64_t s_lastPopulationWatchdogHardUs = 0;
             static int s_expectedActivePopulation = 0;
             static uint64_t s_expectedActivePopulationUs = 0;
+            static int s_emaActivePopulationScaled = 0;
             static uint64_t s_launchUnderresolvedSinceUs = 0;
             static uint64_t s_lastLaunchUnderresolvedRefreshUs = 0;
+            static uint32_t s_missingFewStreak = 0;
+            static uint64_t s_missingFewSinceUs = 0;
+            static uint64_t s_lastMissingFewRefreshUs = 0;
+            static int s_stableLowPopulationValue = 0;
+            static uint64_t s_stableLowPopulationSinceUs = 0;
             const uint64_t watchdogResetSerial = s_sceneResetSerial.load(std::memory_order_relaxed);
             if (s_populationWatchdogResetSerial != watchdogResetSerial) {
                 s_populationWatchdogResetSerial = watchdogResetSerial;
@@ -548,8 +582,14 @@
                 s_lastPopulationWatchdogHardUs = 0;
                 s_expectedActivePopulation = 0;
                 s_expectedActivePopulationUs = 0;
+                s_emaActivePopulationScaled = 0;
                 s_launchUnderresolvedSinceUs = 0;
                 s_lastLaunchUnderresolvedRefreshUs = 0;
+                s_missingFewStreak = 0;
+                s_missingFewSinceUs = 0;
+                s_lastMissingFewRefreshUs = 0;
+                s_stableLowPopulationValue = 0;
+                s_stableLowPopulationSinceUs = 0;
             }
 
             const bool liveMatchContext = populationLiveContext;
@@ -578,13 +618,49 @@
                 observedPopulation <= 64 &&
                 playerResolvedSlotCount >= 2;
             if (healthyPopulationSample) {
+                const int observedScaled = observedPopulation * 100;
+                if (s_emaActivePopulationScaled == 0)
+                    s_emaActivePopulationScaled = observedScaled;
+                else
+                    s_emaActivePopulationScaled =
+                        (s_emaActivePopulationScaled * 9 + observedScaled) / 10;
+
                 if (observedPopulation > s_expectedActivePopulation ||
-                    s_expectedActivePopulation == 0 ||
-                    (s_expectedActivePopulationUs > 0 &&
-                     nowUs >= s_expectedActivePopulationUs &&
-                     (nowUs - s_expectedActivePopulationUs) > 60000000u)) {
+                    s_expectedActivePopulation == 0) {
                     s_expectedActivePopulation = observedPopulation;
                     s_expectedActivePopulationUs = nowUs;
+                    s_stableLowPopulationValue = 0;
+                    s_stableLowPopulationSinceUs = 0;
+                } else if (observedPopulation < s_expectedActivePopulation) {
+                    if (s_stableLowPopulationValue != observedPopulation) {
+                        s_stableLowPopulationValue = observedPopulation;
+                        s_stableLowPopulationSinceUs = nowUs;
+                    } else if (s_stableLowPopulationSinceUs > 0 &&
+                               nowUs >= s_stableLowPopulationSinceUs &&
+                               (nowUs - s_stableLowPopulationSinceUs) >= 2500000u) {
+                        s_expectedActivePopulation = observedPopulation;
+                        s_expectedActivePopulationUs = nowUs;
+                        s_stableLowPopulationValue = 0;
+                        s_stableLowPopulationSinceUs = 0;
+                    }
+                } else {
+                    s_stableLowPopulationValue = 0;
+                    s_stableLowPopulationSinceUs = 0;
+                }
+                if (s_expectedActivePopulationUs > 0 &&
+                    nowUs >= s_expectedActivePopulationUs &&
+                    (nowUs - s_expectedActivePopulationUs) > 5000000u) {
+                    const int emaInt = (s_emaActivePopulationScaled + 50) / 100;
+                    if (emaInt > 0 && emaInt < s_expectedActivePopulation)
+                        s_expectedActivePopulation = emaInt;
+                    s_expectedActivePopulationUs = nowUs;
+                }
+                if (observedPopulation >= 10 &&
+                    s_expectedActivePopulation > observedPopulation) {
+                    s_expectedActivePopulation = observedPopulation;
+                    s_expectedActivePopulationUs = nowUs;
+                    s_stableLowPopulationValue = 0;
+                    s_stableLowPopulationSinceUs = 0;
                 }
             }
 
@@ -718,6 +794,46 @@
             } else {
                 s_populationWatchdogStreak = 0;
                 s_populationWatchdogSinceUs = 0;
+            }
+
+            const int expectedPopulationForMissingFew =
+                (observedPopulation >= 10 && s_expectedActivePopulation > observedPopulation)
+                ? observedPopulation
+                : s_expectedActivePopulation;
+            const int missingDelta =
+                std::max(0, expectedPopulationForMissingFew - resolvedLiveCount);
+            const bool missingFewPopulation =
+                watchdogEligible &&
+                localAliveEvidence &&
+                !populationBroken &&
+                expectedPopulationForMissingFew >= 3 &&
+                resolvedLiveCount > 0 &&
+                missingDelta >= 1;
+            if (missingFewPopulation) {
+                if (s_missingFewSinceUs == 0)
+                    s_missingFewSinceUs = nowUs;
+                if (s_missingFewStreak < 0xFFFFFFFFu)
+                    ++s_missingFewStreak;
+                const uint64_t missingAgeUs =
+                    nowUs >= s_missingFewSinceUs
+                    ? nowUs - s_missingFewSinceUs
+                    : 0;
+                const bool missingCooldownElapsed =
+                    s_lastMissingFewRefreshUs == 0 ||
+                    nowUs <= s_lastMissingFewRefreshUs ||
+                    (nowUs - s_lastMissingFewRefreshUs) >= 6000000u;
+                if (missingCooldownElapsed &&
+                    s_missingFewStreak >= 8u &&
+                    missingAgeUs >= 1500000u) {
+                    s_lastMissingFewRefreshUs = nowUs;
+                    refreshDmaCaches(
+                        "population_watchdog_missing_few_players",
+                        DmaRefreshTier::Probe,
+                        false);
+                }
+            } else {
+                s_missingFewStreak = 0;
+                s_missingFewSinceUs = 0;
             }
         }
 

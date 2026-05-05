@@ -140,6 +140,8 @@
     g::fontSegoeBold = nullptr;
     g::fontComicSans = nullptr;
     g::fontWeaponIcons = nullptr;
+    g::fontWeaponIconsSmall = nullptr;
+    g::fontWeaponIconsLarge = nullptr;
 
     if (std::filesystem::exists(comicRegularPath))
         g::fontDefault = io.Fonts->AddFontFromFileTTF(comicRegularPath.c_str(), baseFontSize, nullptr, glyphRanges);
@@ -170,10 +172,22 @@
     weaponCfg.OversampleV = 1;
     weaponCfg.FontDataOwnedByAtlas = false;
     static const ImWchar weaponRanges[] = { 0x20, 0x7E, 0 };
+    g::fontWeaponIconsSmall = io.Fonts->AddFontFromMemoryTTF(
+        resources::fonts::weapons,
+        sizeof(resources::fonts::weapons),
+        12.0f,
+        &weaponCfg,
+        weaponRanges);
     g::fontWeaponIcons = io.Fonts->AddFontFromMemoryTTF(
         resources::fonts::weapons,
         sizeof(resources::fonts::weapons),
         17.0f,
+        &weaponCfg,
+        weaponRanges);
+    g::fontWeaponIconsLarge = io.Fonts->AddFontFromMemoryTTF(
+        resources::fonts::weapons,
+        sizeof(resources::fonts::weapons),
+        24.0f,
         &weaponCfg,
         weaponRanges);
 

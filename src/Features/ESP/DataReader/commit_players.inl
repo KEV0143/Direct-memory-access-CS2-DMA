@@ -36,9 +36,9 @@
         
         
         
-        constexpr uint64_t kCoreStaleHoldUs = 2400000;
-        constexpr uint64_t kCoreStaleHoldAfterResetUs = 3200000;
-        constexpr uint64_t kZeroPawnGraceUs = 2600000;
+        constexpr uint64_t kCoreStaleHoldUs = 250000;
+        constexpr uint64_t kCoreStaleHoldAfterResetUs = 1000000;
+        constexpr uint64_t kZeroPawnGraceUs = 250000;
         constexpr uint64_t kDeathConfirmUs = 80000;
         constexpr float kRespawnTeleportDistance2D = 512.0f;
         const uint64_t recentResetUs = s_lastSceneResetUs.load(std::memory_order_relaxed);

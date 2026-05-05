@@ -493,12 +493,23 @@
                 localControllerPawnHandle != 0xFFFFFFFFu &&
                 ((targetHandle & kEntityHandleMask) == (localControllerPawnHandle & kEntityHandleMask)))
                 return true;
+            if (s_localPawnFarewellHandle != 0u &&
+                s_localPawnFarewellHandle != 0xFFFFFFFFu &&
+                s_localPawnFarewellExpiryUs != 0 &&
+                playerAuxNowUs < s_localPawnFarewellExpiryUs &&
+                ((targetHandle & kEntityHandleMask) == (s_localPawnFarewellHandle & kEntityHandleMask)))
+                return true;
 
             const uintptr_t targetEntity =
                 resolveEntityFromHandlePreferredStride(targetHandle, kEntitySlotSizeFallback);
             if (!targetEntity)
                 return false;
             if (targetEntity == localPawn || (s_localPawn != 0 && targetEntity == s_localPawn))
+                return true;
+            if (s_localPawnFarewellPtr != 0 &&
+                s_localPawnFarewellExpiryUs != 0 &&
+                playerAuxNowUs < s_localPawnFarewellExpiryUs &&
+                targetEntity == s_localPawnFarewellPtr)
                 return true;
             return false;
         };
@@ -553,7 +564,8 @@
                 uintptr_t candidateObserverServices = 0;
                 if (!readPointer(
                         candidatePawn + ofs.C_BasePlayerPawn_m_pObserverServices,
-                        &candidateObserverServices)) {
+                        &candidateObserverServices) ||
+                    !isLikelyGamePointer(candidateObserverServices)) {
                     continue;
                 }
 
@@ -569,7 +581,7 @@
                         sizeof(candidateTarget))) {
                     continue;
                 }
-                if (candidateMode == 0 || !isValidEntityHandle(candidateTarget))
+                if (candidateMode <= 2 || !isValidEntityHandle(candidateTarget))
                     continue;
 
                 observerPawn = candidatePawn;
@@ -606,7 +618,7 @@
                 liveObserverMode = observerModes[i];
                 liveObserverTarget = observerTargets[i];
             }
-            if (liveObserverMode == 0 || !observerTargetIsLocal(liveObserverTarget))
+            if (liveObserverMode <= 2 || !observerTargetIsLocal(liveObserverTarget))
                 continue;
 
             SpectatorEntry& out = resolvedSpectators[resolvedSpectatorCount++];

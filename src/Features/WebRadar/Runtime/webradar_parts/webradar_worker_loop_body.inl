@@ -2,11 +2,11 @@
     uint64_t stickyMapStampMs = 0;
     uint64_t frameSeq = 0;
     int nextWaitMs = cfg::kMinRealtimeIntervalMs;
-    std::string lastBroadcastPayload;
-    std::string lastBroadcastPayloadV2;
+    uint64_t lastBroadcastPayloadVersion = 0;
     uint64_t lastPublishedSnapshotVersion = 0;
     uint64_t lastSeenSettingsVersion = 0;
     uint64_t lastPublishMs = 0;
+    uint64_t earliestPublishMs = 0;
     uint64_t lastEntityPayloadMs = 0;
     std::string lastEntityPayloadMap;
     int lastEntityTeamT = 0;
@@ -94,11 +94,15 @@
 
         {
             std::unique_lock<std::mutex> lock(mutex_);
-            const int waitMs = std::clamp(nextWaitMs, 1, cfg::kMaxRealtimeIntervalMs);
-            cv_.wait_for(lock, std::chrono::milliseconds(waitMs), [this, lastSeenSettingsVersion, lastPublishedSnapshotVersion] {
+            const uint64_t waitNowMs = UnixNowMs();
+            const bool publishThrottleActive = earliestPublishMs > waitNowMs;
+            const int waitMs = publishThrottleActive
+                ? std::clamp(static_cast<int>(earliestPublishMs - waitNowMs), 1, cfg::kMaxRealtimeIntervalMs)
+                : std::clamp(nextWaitMs, 1, cfg::kMaxRealtimeIntervalMs);
+            cv_.wait_for(lock, std::chrono::milliseconds(waitMs), [this, lastSeenSettingsVersion, lastPublishedSnapshotVersion, publishThrottleActive] {
                 return !running_.load(std::memory_order_relaxed) ||
                     settingsVersion_ != lastSeenSettingsVersion ||
-                    (hasSnapshot_ && snapshotVersion_ != lastPublishedSnapshotVersion);
+                    (!publishThrottleActive && hasSnapshot_ && snapshotVersion_ != lastPublishedSnapshotVersion);
             });
 
             if (!running_.load(std::memory_order_relaxed))
@@ -121,6 +125,7 @@
 
         const uint64_t nowMs = UnixNowMs();
         nextWaitMs = std::clamp(settings.intervalMs, cfg::kMinRealtimeIntervalMs, cfg::kMaxRealtimeIntervalMs);
+        const bool publishEnabled = settings.enabled || remote::HasActiveConsumerDemand();
 
         bool snapshotHasLiveEntities = false;
         if (hasSnapshot) {
@@ -181,6 +186,16 @@
             }
         }
 
+        if (!publishEnabled) {
+            std::lock_guard<std::mutex> lock(mutex_);
+            stats_.activeMap = mapName;
+            stats_.lastPayloadRows = 0;
+            stats_.targetHz = 0.0;
+            stats_.statusText = "WEBRadar disabled";
+            nextWaitMs = cfg::kFallbackPublishIntervalMs;
+            continue;
+        }
+
         if (!hasSnapshot) {
             const bool holdRecentLivePayload =
                 lastEntityPayloadMs > 0 &&
@@ -201,6 +216,7 @@
             const size_t legacyPayloadBytes = payloadJson.size();
             const size_t compactPayloadBytes = payloadJsonV2.size();
             const size_t payloadBytes = compactPayloadBytes;
+            uint64_t currentPayloadVersion = 0;
             {
                 std::lock_guard<std::mutex> lock(mutex_);
                 stats_.activeMap = mapName;
@@ -214,14 +230,14 @@
                 if (hasLegacyConsumers)
                     latestPayloadJson_ = payloadJson;
                 latestPayloadJsonV2_ = payloadJsonV2;
-                ++latestPayloadVersion_;
+                currentPayloadVersion = ++latestPayloadVersion_;
                 stats_.statusText = stats_.serverListening
                     ? (settings.enabled ? "Server listening, waiting for ESP snapshot" : "Server listening, WEBRadar disabled")
                     : (settings.enabled ? "Waiting for HTTP listener" : "WEBRadar disabled");
             }
             lastPublishMs = nowMs;
             cv_.notify_all();
-            if (lastBroadcastPayload != payloadJson || lastBroadcastPayloadV2 != payloadJsonV2) {
+            if (currentPayloadVersion != lastBroadcastPayloadVersion) {
                 const auto broadcastStart = std::chrono::steady_clock::now();
                 BroadcastLivePayload(payloadJson, payloadJsonV2);
                 const auto broadcastEnd = std::chrono::steady_clock::now();
@@ -231,61 +247,20 @@
                     std::lock_guard<std::mutex> lock(mutex_);
                     stats_.broadcastUsAvg = Ema(stats_.broadcastUsAvg, static_cast<double>(broadcastUs), 0.10);
                 }
-                lastBroadcastPayload = payloadJson;
-                lastBroadcastPayloadV2 = payloadJsonV2;
-            }
-            continue;
-        }
-
-        if (!settings.enabled) {
-            const uint64_t elapsedSincePublish = lastPublishMs > 0 && nowMs >= lastPublishMs ? (nowMs - lastPublishMs) : 0;
-            if (!settingsChanged && lastPublishMs > 0 && elapsedSincePublish < cfg::kFallbackPublishIntervalMs) {
-                nextWaitMs = static_cast<int>(cfg::kFallbackPublishIntervalMs - elapsedSincePublish);
-                continue;
-            }
-            const std::string payloadJson = hasLegacyConsumers ? BuildFallbackLiveJson(settings, mapName, nowMs) : std::string();
-            const std::string payloadJsonV2 = BuildFallbackLiveJsonV2(settings, mapName, nowMs);
-            const size_t legacyPayloadBytes = payloadJson.size();
-            const size_t compactPayloadBytes = payloadJsonV2.size();
-            const size_t payloadBytes = compactPayloadBytes;
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                stats_.activeMap = mapName;
-                stats_.lastPayloadRows = 0;
-                stats_.lastPayloadBytes = payloadBytes;
-                stats_.lastLegacyPayloadBytes = legacyPayloadBytes;
-                stats_.lastCompactPayloadBytes = compactPayloadBytes;
-                stats_.avgPayloadBytes = Ema(stats_.avgPayloadBytes, static_cast<double>(payloadBytes), 0.08);
-                stats_.maxPayloadBytes = std::max(stats_.maxPayloadBytes, payloadBytes);
-                stats_.targetHz = 1000.0 / static_cast<double>(cfg::kFallbackPublishIntervalMs);
-                if (hasLegacyConsumers)
-                    latestPayloadJson_ = payloadJson;
-                latestPayloadJsonV2_ = payloadJsonV2;
-                ++latestPayloadVersion_;
-                stats_.statusText = stats_.serverListening
-                    ? "Server listening, WEBRadar disabled"
-                    : "WEBRadar disabled";
-            }
-            lastPublishMs = nowMs;
-            cv_.notify_all();
-            if (lastBroadcastPayload != payloadJson || lastBroadcastPayloadV2 != payloadJsonV2) {
-                const auto broadcastStart = std::chrono::steady_clock::now();
-                BroadcastLivePayload(payloadJson, payloadJsonV2);
-                const auto broadcastEnd = std::chrono::steady_clock::now();
-                const uint64_t broadcastUs = static_cast<uint64_t>(
-                    std::chrono::duration_cast<std::chrono::microseconds>(broadcastEnd - broadcastStart).count());
-                {
-                    std::lock_guard<std::mutex> lock(mutex_);
-                    stats_.broadcastUsAvg = Ema(stats_.broadcastUsAvg, static_cast<double>(broadcastUs), 0.10);
-                }
-                lastBroadcastPayload = payloadJson;
-                lastBroadcastPayloadV2 = payloadJsonV2;
+                lastBroadcastPayloadVersion = currentPayloadVersion;
             }
             continue;
         }
 
         if (snapshotVersion == lastPublishedSnapshotVersion && !settingsChanged)
             continue;
+
+        if (!settingsChanged && lastPublishMs > 0) {
+            if (nowMs < earliestPublishMs) {
+                nextWaitMs = std::max(1, static_cast<int>(earliestPublishMs - nowMs));
+                continue;
+            }
+        }
 
         ++frameSeq;
         size_t entityCount = 0;
@@ -661,12 +636,13 @@
             previousPublishMs > 0 && nowMs > previousPublishMs
                 ? (1000.0 / static_cast<double>(nowMs - previousPublishMs))
                 : (1000.0 / static_cast<double>(std::max(1, nextWaitMs)));
+        uint64_t publishedPayloadVersion = 0;
         {
             std::lock_guard<std::mutex> lock(mutex_);
             if (buildLegacyPayload)
                 latestPayloadJson_ = payloadJson;
             latestPayloadJsonV2_ = payloadJsonV2;
-            ++latestPayloadVersion_;
+            publishedPayloadVersion = ++latestPayloadVersion_;
             stats_.lastUpdateUnixMs = nowMs;
             stats_.lastPayloadRows = entityCount;
             stats_.lastPayloadBytes = payloadBytes;
@@ -687,6 +663,7 @@
         }
         lastPublishedSnapshotVersion = snapshotVersion;
         lastPublishMs = nowMs;
+        earliestPublishMs = nowMs + static_cast<uint64_t>(std::max(1, nextWaitMs));
         if (entityCount > 0) {
             lastEntityPayloadMs = nowMs;
             lastEntityPayloadMap = mapName;
@@ -695,7 +672,7 @@
         }
         cv_.notify_all();
 
-        if (lastBroadcastPayload != payloadJson || lastBroadcastPayloadV2 != payloadJsonV2) {
+        if (publishedPayloadVersion != lastBroadcastPayloadVersion) {
             const auto broadcastStart = std::chrono::steady_clock::now();
             BroadcastLivePayload(payloadJson, payloadJsonV2);
             const auto broadcastEnd = std::chrono::steady_clock::now();
@@ -705,7 +682,6 @@
                 std::lock_guard<std::mutex> lock(mutex_);
                 stats_.broadcastUsAvg = Ema(stats_.broadcastUsAvg, static_cast<double>(broadcastUs), 0.10);
             }
-            lastBroadcastPayload = payloadJson;
-            lastBroadcastPayloadV2 = payloadJsonV2;
+            lastBroadcastPayloadVersion = publishedPayloadVersion;
         }
     }

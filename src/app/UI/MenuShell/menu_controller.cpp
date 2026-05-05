@@ -190,20 +190,81 @@ void ui::MenuController::EnsureInitialized()
     state_.profileInit = true;
 }
 
+namespace
+{
+    bool IsForbiddenCaptureVk(int vk)
+    {
+        switch (vk) {
+        case VK_LBUTTON:
+        case VK_RBUTTON:
+        case VK_MBUTTON:
+        case VK_XBUTTON1:
+        case VK_XBUTTON2:
+        case VK_LWIN:
+        case VK_RWIN:
+        case VK_SHIFT:
+        case VK_CONTROL:
+        case VK_MENU:
+        case VK_LSHIFT:
+        case VK_RSHIFT:
+        case VK_LCONTROL:
+        case VK_RCONTROL:
+        case VK_LMENU:
+        case VK_RMENU:
+        case VK_END:
+        case VK_CANCEL:
+        case VK_PACKET:
+        case VK_PROCESSKEY:
+        case VK_KANA:
+#if VK_HANGUL != VK_KANA
+        case VK_HANGUL:
+#endif
+        case VK_JUNJA:
+        case VK_FINAL:
+        case VK_HANJA:
+#if VK_KANJI != VK_HANJA
+        case VK_KANJI:
+#endif
+        case VK_CONVERT:
+        case VK_NONCONVERT:
+        case VK_ACCEPT:
+        case VK_MODECHANGE:
+        case VK_APPS:
+        case VK_SLEEP:
+        case VK_NUMLOCK:
+        case VK_SCROLL:
+            return true;
+        default:
+            break;
+        }
+        if (vk >= 0xE0)
+            return true;
+        return false;
+    }
+}
+
 void ui::MenuController::HandleMenuKeyCapture()
 {
-    if (!state_.waitingForMenuKey)
+    if (!state_.waitingForMenuKey) {
+        for (int vk = 0; vk < 256; ++vk)
+            state_.menuKeyCaptureSnapshot[vk] = 0;
         return;
+    }
 
     for (int vk = 0x08; vk <= 0xFE; ++vk) {
-        if (!(GetAsyncKeyState(vk) & 1))
+        const bool isDown = (GetAsyncKeyState(vk) & 0x8000) != 0;
+        const bool wasDown = state_.menuKeyCaptureSnapshot[vk] != 0;
+        state_.menuKeyCaptureSnapshot[vk] = isDown ? 1 : 0;
+        if (!isDown || wasDown)
             continue;
-        if (vk == VK_END)
+        if (IsForbiddenCaptureVk(vk))
             continue;
 
         g::menuToggleKey = vk;
         state_.waitingForMenuKey = false;
         SetStatus("Menu key updated.");
+        for (int reset = 0; reset < 256; ++reset)
+            state_.menuKeyCaptureSnapshot[reset] = 0;
         break;
     }
 }

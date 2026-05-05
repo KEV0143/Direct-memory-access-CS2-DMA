@@ -57,9 +57,12 @@ static const char* WorldMarkerName(WorldMarkerType type, uint16_t weaponId)
     switch (type) {
     case WorldMarkerType::DroppedWeapon: return WeaponNameFromItemId(weaponId);
     case WorldMarkerType::Smoke: return "Smoke";
-    case WorldMarkerType::Inferno: return "Fire";
+    case WorldMarkerType::Inferno:
+        if (weaponId == 48) return "Incendiary";
+        if (weaponId == 46) return "Molotov";
+        return "Fire";
     case WorldMarkerType::Decoy: return "Decoy";
-    case WorldMarkerType::Explosive: return "Grenade";
+    case WorldMarkerType::Explosive: return "HE";
     case WorldMarkerType::SmokeProjectile: return "Smoke Projectile";
     case WorldMarkerType::MolotovProjectile: return (weaponId == 48) ? "Incendiary Projectile" : "Molotov Projectile";
     case WorldMarkerType::DecoyProjectile: return "Decoy Projectile";

@@ -4,6 +4,7 @@
 #pragma comment(lib, "winmm.lib")
 #include <DMALibrary/Memory/Memory.h>
 
+#include "app/Bootstrap/crash_handler.h"
 #include "app/Bootstrap/runtime_console.h"
 #include "app/Bootstrap/version_update.h"
 #include "app/Config/config.h"
@@ -380,8 +381,8 @@ namespace
 
 int main(int argc, char* argv[])
 {
-    
-    
+    bootstrap::InstallCrashHandler();
+
     TimerResolutionGuard timerResolutionGuard;
 
     const bool verboseLogs = HasFlag(argc, argv, "--verbose");

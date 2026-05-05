@@ -100,6 +100,28 @@
         LoadBool(root, "WEBRadar", "Enabled", g::webRadarEnabled);
         LoadInt(root, "WEBRadar", "Port", g::webRadarPort);
         LoadString(root, "WEBRadar", "MapOverride", g::webRadarMapOverride);
+        LoadBool(root, "WEBRadar", "BindLan", g::webRadarBindLan);
+        {
+            int loadedIntervalMs = g::webRadarIntervalMs;
+            LoadInt(root, "WEBRadar", "IntervalMs", loadedIntervalMs);
+            g::webRadarIntervalMs = std::clamp(
+                loadedIntervalMs,
+                webradar::cfg::kMinRealtimeIntervalMs,
+                webradar::cfg::kMaxRealtimeIntervalMs);
+        }
+        {
+            const auto webRadarIt = root.find("WEBRadar");
+            if (webRadarIt != root.end() && webRadarIt->is_object()) {
+                const auto originIt = webRadarIt->find("OriginAllowlist");
+                if (originIt != webRadarIt->end() && originIt->is_array()) {
+                    g::webRadarOriginAllowlist.clear();
+                    for (const auto& entry : *originIt) {
+                        if (entry.is_string())
+                            g::webRadarOriginAllowlist.push_back(entry.get<std::string>());
+                    }
+                }
+            }
+        }
 
         LoadBool(root, "Screen", "VSync", g::vsyncEnabled);
         LoadInt(root, "Screen", "FPSLimit", g::fpsLimit);

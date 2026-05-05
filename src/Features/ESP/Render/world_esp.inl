@@ -96,8 +96,7 @@ if (g::espEnabled && (g::espWorld || g::espItem)) {
         const bool showTimer =
             (marker.type == WorldMarkerType::Smoke && g::espWorldSmokeTimer) ||
             (marker.type == WorldMarkerType::Inferno && g::espWorldInfernoTimer) ||
-            (marker.type == WorldMarkerType::Decoy && g::espWorldDecoyTimer) ||
-            (marker.type == WorldMarkerType::Explosive && g::espWorldExplosiveTimer);
+            (marker.type == WorldMarkerType::Decoy && g::espWorldDecoyTimer);
         char markerText[96] = {};
         if (showTimer && lifeLeft > 0.0f)
             std::snprintf(markerText, sizeof(markerText), "%s %.1fs", markerName, static_cast<double>(lifeLeft));
@@ -105,7 +104,7 @@ if (g::espEnabled && (g::espWorld || g::espItem)) {
             std::snprintf(markerText, sizeof(markerText), "%s", markerName);
 
         const char* icon = nullptr;
-        ImFont* iconFont = g::fontWeaponIcons;
+        ImFont* iconFont = PickWeaponIconFont(16.0f);
         const char* iconFallbackToken = nullptr;
         if (isDroppedWeapon || isUtilityProjectile) {
             
@@ -117,7 +116,7 @@ if (g::espEnabled && (g::espWorld || g::espItem)) {
                     iconFallbackToken = WeaponIconFallbackTokenFromItemId(marker.weaponId);
             }
         }
-        if ((icon && g::fontWeaponIcons) || iconFallbackToken) {
+        if ((icon && iconFont) || iconFallbackToken) {
             const char* iconText = icon ? icon : iconFallbackToken;
             if (!icon)
                 iconFont = g::fontSegoeBold ? g::fontSegoeBold : ImGui::GetFont();

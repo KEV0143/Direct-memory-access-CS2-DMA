@@ -3,6 +3,7 @@
 #include "app/Config/project_paths.h"
 #include "app/Config/user_state.h"
 #include "Features/WebRadar/webradar.h"
+#include "Features/WebRadar/web_remote.h"
 
 #include <json/json.hpp>
 
@@ -159,7 +160,10 @@ namespace {
         g::radarSettings = snapshot.radar;
         g::webRadarSettings = snapshot.webRadar;
         g::uiSettings = snapshot.ui;
-        g::webRadarIntervalMs = webradar::cfg::kMinRealtimeIntervalMs;
+        g::webRadarIntervalMs = std::clamp(
+            g::webRadarIntervalMs,
+            webradar::cfg::kMinRealtimeIntervalMs,
+            webradar::cfg::kMaxRealtimeIntervalMs);
         g::vsyncEnabled = snapshot.screen.vsyncEnabled;
         g::fpsLimit = snapshot.screen.fpsLimit;
     }
@@ -500,7 +504,10 @@ namespace {
             if (app::state::IsKnifeItemId(id))
                 g::espItemEnabledMask.set(id, false);
         }
-        g::webRadarIntervalMs = webradar::cfg::kMinRealtimeIntervalMs;
+        g::webRadarIntervalMs = std::clamp(
+            g::webRadarIntervalMs,
+            webradar::cfg::kMinRealtimeIntervalMs,
+            webradar::cfg::kMaxRealtimeIntervalMs);
     }
 
     void ApplyLoadedConfig(const json& root)
@@ -797,6 +804,7 @@ bool config::SaveNamed(const std::string& profileName)
     if (!SaveToPath(BuildProfilePath(cleanName)))
         return false;
 
+    webradar::remote::SaveSettings(cleanName);
     DeleteLegacyProfileFiles(cleanName);
     s_activeProfile = cleanName;
     PersistActiveProfileName(s_activeProfile);
@@ -812,6 +820,7 @@ bool config::LoadNamed(const std::string& profileName)
         return false;
 
     s_activeProfile = cleanName;
+    webradar::remote::LoadSettings(s_activeProfile);
     PersistActiveProfileName(s_activeProfile);
     return true;
 }

@@ -112,6 +112,14 @@
         webRadar["Enabled"] = g::webRadarEnabled;
         webRadar["Port"] = g::webRadarPort;
         webRadar["MapOverride"] = g::webRadarMapOverride;
+        webRadar["BindLan"] = g::webRadarBindLan;
+        webRadar["IntervalMs"] = g::webRadarIntervalMs;
+        {
+            json originList = json::array();
+            for (const auto& origin : g::webRadarOriginAllowlist)
+                originList.push_back(origin);
+            webRadar["OriginAllowlist"] = std::move(originList);
+        }
 
         json& screen = EnsureSection(root, "Screen");
         screen["VSync"] = g::vsyncEnabled;

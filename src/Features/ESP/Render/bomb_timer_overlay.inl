@@ -39,6 +39,13 @@ if (g::espBombInfo && g::espBombTime) {
         bombState.defuseEndTime > bombState.currentGameTime &&
         bombState.defuseEndTime <= bombState.currentGameTime + defuseTotalFromState + 1.0f;
     const bool liveTimerVisible = bombState.ticking || (bombState.planted && bombState.beingDefused);
+    const float freshPlantBlowLeft = blowTimerValid
+        ? (bombState.blowTime - bombState.currentGameTime)
+        : -1.0f;
+    if (liveTimerVisible && freshPlantBlowLeft > 5.0f) {
+        s_expiredSuppressUntil = 0.0;
+        s_bombDisplayedLeft = 0.0f;
+    }
     const bool timerSuppressed = liveTimerVisible && timerNow < s_expiredSuppressUntil;
 
     if (liveTimerVisible && !timerSuppressed) {
@@ -51,7 +58,14 @@ if (g::espBombInfo && g::espBombTime) {
 
         const float frameDt = std::clamp(ImGui::GetIO().DeltaTime, 0.0f, 0.10f);
         if (blowTimerValid) {
-            s_bombDisplayedLeft = std::clamp(rawBlowLeft, 0.0f, bombTotal);
+            const float rawClamped = std::clamp(rawBlowLeft, 0.0f, bombTotal);
+            if (!s_prevBombTimerVisible || s_bombDisplayedLeft <= 0.0f) {
+                s_bombDisplayedLeft = rawClamped;
+            } else {
+                s_bombDisplayedLeft = std::max(0.0f, s_bombDisplayedLeft - frameDt);
+                if (std::fabs(rawClamped - s_bombDisplayedLeft) > 0.5f)
+                    s_bombDisplayedLeft = rawClamped;
+            }
         } else if (!s_prevBombTimerVisible || s_bombDisplayedLeft <= 0.0f) {
             s_bombDisplayedLeft = bombTotal;
         } else {
@@ -78,7 +92,8 @@ if (g::espBombInfo && g::espBombTime) {
                 s_defuseDisplayedLeft = normalizedRawDefuseLeft;
             } else {
                 s_defuseDisplayedLeft = std::max(0.0f, s_defuseDisplayedLeft - frameDt);
-                if (defuseTimerValid && normalizedRawDefuseLeft < s_defuseDisplayedLeft)
+                if (defuseTimerValid &&
+                    std::fabs(normalizedRawDefuseLeft - s_defuseDisplayedLeft) > 0.4f)
                     s_defuseDisplayedLeft = normalizedRawDefuseLeft;
             }
             s_prevDefusing = true;

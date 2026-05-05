@@ -1,6 +1,8 @@
 #pragma once
+#include <atomic>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "app/Core/app_state.h"
 
@@ -10,6 +12,7 @@ namespace g {
     using EspSettings = app::state::EspSettings;
     using RadarSettings = app::state::RadarSettings;
     using WebRadarSettings = app::state::WebRadarSettings;
+    using WebRadarRemoteSettings = app::state::WebRadarRemoteSettings;
     using UiSettings = app::state::UiSettings;
     using FontState = app::state::FontState;
     using AppState = app::state::AppState;
@@ -20,13 +23,14 @@ namespace g {
     inline EspSettings& espSettings = state.esp;
     inline RadarSettings& radarSettings = state.radar;
     inline WebRadarSettings& webRadarSettings = state.webRadar;
+    inline WebRadarRemoteSettings& webRadarRemoteSettings = state.webRadarRemote;
     inline UiSettings& uiSettings = state.ui;
     inline FontState& fontState = state.fonts;
 
     inline int& screenWidth = displaySettings.width;
     inline int& screenHeight = displaySettings.height;
-    inline uintptr_t& clientBase = runtimeState.clientBase;
-    inline uintptr_t& engine2Base = runtimeState.engine2Base;
+    inline std::atomic<uintptr_t>& clientBase = runtimeState.clientBase;
+    inline std::atomic<uintptr_t>& engine2Base = runtimeState.engine2Base;
     inline bool& running = runtimeState.running;
     inline bool& menuOpen = runtimeState.menuOpen;
 
@@ -137,6 +141,16 @@ namespace g {
     inline std::string& webRadarMapOverride = webRadarSettings.mapOverride;
     inline bool& webRadarQrOpen = webRadarSettings.qrOpen;
     inline bool& webRadarDebugOpen = webRadarSettings.debugOpen;
+    inline bool& webRadarBindLan = webRadarSettings.bindLan;
+    inline std::vector<std::string>& webRadarOriginAllowlist = webRadarSettings.originAllowlist;
+    inline bool& webRadarRemoteEnabled = webRadarRemoteSettings.enabled;
+    inline bool& webRadarRemoteSettingsOpen = webRadarRemoteSettings.settingsOpen;
+    inline std::string& webRadarRemoteHost = webRadarRemoteSettings.host;
+    inline int& webRadarRemoteWebPort = webRadarRemoteSettings.webPort;
+    inline int& webRadarRemoteSshPort = webRadarRemoteSettings.sshPort;
+    inline std::string& webRadarRemoteLogin = webRadarRemoteSettings.login;
+    inline std::string& webRadarRemotePassword = webRadarRemoteSettings.password;
+    inline std::string& webRadarRemotePath = webRadarRemoteSettings.remotePath;
 
     inline int& menuToggleKey = uiSettings.menuToggleKey;
     inline bool& vsyncEnabled = displaySettings.vsyncEnabled;
@@ -146,5 +160,7 @@ namespace g {
     inline ImFont*& fontSegoeBold = fontState.fontSegoeBold;
     inline ImFont*& fontComicSans = fontState.fontComicSans;
     inline ImFont*& fontWeaponIcons = fontState.fontWeaponIcons;
+    inline ImFont*& fontWeaponIconsSmall = fontState.fontWeaponIconsSmall;
+    inline ImFont*& fontWeaponIconsLarge = fontState.fontWeaponIconsLarge;
     inline app::state::EspUiIconState& espUiIcons = state.espUiIcons;
 }

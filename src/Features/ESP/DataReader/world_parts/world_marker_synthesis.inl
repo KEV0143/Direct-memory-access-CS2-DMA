@@ -203,14 +203,14 @@
             pushLatchedUtility(false, latched, startUs, fallbackDurationUs, type, weaponId, pos, lifeHint);
         };
 
-        constexpr float kSmokeDurationSec = 20.0f;
-        constexpr float kMolotovDurationSec = 5.5f;
+        constexpr float kSmokeDurationSec = 18.0f;
+        constexpr float kMolotovDurationSec = 7.0f;
         constexpr float kDecoyDurationSec = 15.0f;
-        constexpr float kExplosiveDurationSec = 1.5f;
-        constexpr uint64_t kSmokeFallbackMs = 20000000;
-        constexpr uint64_t kMolotovFallbackMs = 5500000;
-        constexpr uint64_t kDecoyFallbackMs = 15000000;
-        constexpr uint64_t kExplosiveFallbackMs = 1500000;
+        constexpr float kExplosiveDurationSec = 0.1f;
+        constexpr uint64_t kSmokeFallbackUs = 18000000;
+        constexpr uint64_t kMolotovFallbackUs = 7000000;
+        constexpr uint64_t kDecoyFallbackUs = 15000000;
+        constexpr uint64_t kExplosiveFallbackUs = 100000;
         struct DebugSample {
             int idx = 0;
             uint16_t itemId = 0;

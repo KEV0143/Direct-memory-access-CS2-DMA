@@ -1,10 +1,12 @@
         static uintptr_t s_cachedNoKnifePrimaryPawns[64] = {};
         static uint16_t s_cachedNoKnifePrimaryIconIds[64] = {};
+        static uint16_t s_lastGoodWeaponIconId[64] = {};
         for (int i = 0; i < 64; ++i) {
             if (s_cachedNoKnifePrimaryPawns[i] == pawns[i])
                 continue;
             s_cachedNoKnifePrimaryPawns[i] = pawns[i];
             s_cachedNoKnifePrimaryIconIds[i] = 0;
+            s_lastGoodWeaponIconId[i] = 0;
         }
 
         auto resolvePrimaryInventoryWeaponState = [&](int playerSlot, bool& inventoryKnown) -> uint16_t {
@@ -22,24 +24,31 @@
         };
 
         auto resolveDisplayWeaponIconId = [&](int playerSlot, uint16_t activeWeaponId) -> uint16_t {
-            if (activeWeaponId == 0)
-                return 0;
-            if (!g::espWeaponIconNoKnife || !IsKnifeItemId(activeWeaponId))
-                return activeWeaponId;
-
-            bool inventoryKnown = false;
-            const uint16_t primaryWeaponId = resolvePrimaryInventoryWeaponState(playerSlot, inventoryKnown);
-            if (primaryWeaponId != 0) {
-                s_cachedNoKnifePrimaryIconIds[playerSlot] = primaryWeaponId;
-                return primaryWeaponId;
+            uint16_t result = 0;
+            if (activeWeaponId == 0) {
+                result = s_lastGoodWeaponIconId[playerSlot];
+            } else if (!g::espWeaponIconNoKnife || !IsKnifeItemId(activeWeaponId)) {
+                result = activeWeaponId;
+            } else {
+                bool inventoryKnown = false;
+                const uint16_t primaryWeaponId = resolvePrimaryInventoryWeaponState(playerSlot, inventoryKnown);
+                if (primaryWeaponId != 0) {
+                    s_cachedNoKnifePrimaryIconIds[playerSlot] = primaryWeaponId;
+                    result = primaryWeaponId;
+                } else if (inventoryKnown) {
+                    s_cachedNoKnifePrimaryIconIds[playerSlot] = 0;
+                    result = activeWeaponId;
+                } else {
+                    result = s_cachedNoKnifePrimaryIconIds[playerSlot];
+                    if (result == 0)
+                        result = s_lastGoodWeaponIconId[playerSlot];
+                    if (result == 0)
+                        result = activeWeaponId;
+                }
             }
-
-            if (inventoryKnown) {
-                s_cachedNoKnifePrimaryIconIds[playerSlot] = 0;
-                return 0;
-            }
-
-            return s_cachedNoKnifePrimaryIconIds[playerSlot];
+            if (result != 0)
+                s_lastGoodWeaponIconId[playerSlot] = result;
+            return result;
         };
 
         for (int i = 0; i < 64; ++i) {

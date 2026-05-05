@@ -18,6 +18,27 @@
     if (request.path == "/favicon.ico")
         return SendHttpResponse(socketHandle, 200, "image/x-icon", "");
 
+    std::vector<std::string> allowlistCopy;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        allowlistCopy = settings_.originAllowlist;
+    }
+    const bool isApiPath =
+        request.path == "/api/ws" ||
+        request.path == "/api/live" ||
+        request.path == "/api/stream" ||
+        request.path == "/api/status" ||
+        request.path == "/api/ping";
+    std::string corsOrigin = isApiPath
+        ? ResolveAllowedOrigin(allowlistCopy, request.headers)
+        : std::string("*");
+    if (isApiPath && corsOrigin.empty()) {
+        SendHttpResponseEx(socketHandle, 403, "text/plain; charset=utf-8", "Origin not allowed", "no-store", false, std::string());
+        std::lock_guard<std::mutex> lock(mutex_);
+        ++stats_.failedPackets;
+        return false;
+    }
+
     if (request.path == "/api/ws") {
         const bool isUpgrade = HeaderContainsValue(request.headers, "connection", "upgrade") &&
             HeaderContainsValue(request.headers, "upgrade", "websocket");
@@ -31,7 +52,7 @@
         }
 
         const std::string acceptKey = BuildWebSocketAcceptKey(Trim(keyIt->second));
-        if (!SendWebSocketHandshakeResponse(socketHandle, acceptKey)) {
+        if (!SendWebSocketHandshakeResponse(socketHandle, acceptKey, corsOrigin)) {
             std::lock_guard<std::mutex> lock(mutex_);
             ++stats_.failedPackets;
             return false;
@@ -68,7 +89,7 @@
         }
         if (protocolVersion < 2)
             cv_.notify_one();
-        const bool sent = SendHttpResponseEx(socketHandle, 200, "application/json; charset=utf-8", body, "no-store", false);
+        const bool sent = SendHttpResponseEx(socketHandle, 200, "application/json; charset=utf-8", body, "no-store", false, corsOrigin);
         if (sent)
             RecordBytesOut(body.size());
         return sent;
@@ -96,7 +117,7 @@
         const int sseSndbuf = 8192;
         setsockopt(socketHandle, SOL_SOCKET, SO_SNDBUF, reinterpret_cast<const char*>(&sseSndbuf), sizeof(sseSndbuf));
 
-        if (!SendSseHeaders(socketHandle) || !SendSseEvent(socketHandle, "snapshot", body)) {
+        if (!SendSseHeaders(socketHandle, corsOrigin) || !SendSseEvent(socketHandle, "snapshot", body)) {
             std::lock_guard<std::mutex> lock(mutex_);
             ++stats_.failedPackets;
             return false;
@@ -120,7 +141,7 @@
             ++stats_.servedRequests;
             stats_.lastRequestUnixMs = UnixNowMs();
         }
-        return SendHttpResponse(socketHandle, 200, "application/json; charset=utf-8", body);
+        return SendHttpResponseEx(socketHandle, 200, "application/json; charset=utf-8", body, "no-store", false, corsOrigin);
     }
 
     if (request.path == "/api/ping") {
@@ -130,7 +151,7 @@
             stats_.lastRequestUnixMs = UnixNowMs();
         }
 
-        return SendHttpResponseEx(socketHandle, 200, "text/plain; charset=utf-8", "ok", "no-store", false);
+        return SendHttpResponseEx(socketHandle, 200, "text/plain; charset=utf-8", "ok", "no-store", false, corsOrigin);
     }
 
     if (request.path == "/maps.json") {
@@ -160,7 +181,12 @@
         }
 
         const std::string contentType = GuessContentTypeFromUrl(servePath);
-        const char* cacheControl = (servePath == "/index.html" || servePath.rfind(".js") != std::string::npos || servePath.rfind(".css") != std::string::npos)
+        const std::string lowerServePath = ToLower(servePath);
+        const bool volatileAsset =
+            servePath == "/index.html" ||
+            lowerServePath.ends_with(".js") ||
+            lowerServePath.ends_with(".css");
+        const char* cacheControl = volatileAsset
             ? "no-store"
             : "public, max-age=86400, stale-while-revalidate=43200";
         return SendHttpResponseEx(socketHandle, 200, contentType.c_str(), body, cacheControl, false);

@@ -37,7 +37,7 @@
             const int decoyClientTick = reuseCachedWorldUtilityDetails ? s_worldPrevDecoyClientTick[idx] : worldDecoyClientTick[idx];
             const int explodeTick = reuseCachedWorldUtilityDetails ? s_worldPrevExplodeTick[idx] : worldExplodeTick[idx];
 
-            constexpr int kMinUsefulTick = 16;
+            constexpr int kMinUsefulTick = 4;
             bool smokeTickValid = (smokeTick >= kMinUsefulTick && smokeTick < 20000000);
             bool infernoTickValid = (infernoTick >= kMinUsefulTick && infernoTick < 20000000);
             bool decoyTickValid = (decoyTick >= kMinUsefulTick && decoyTick < 20000000);
@@ -85,7 +85,7 @@
                 infernoTickValid = false;
 
             const float infernoDurationSec = kMolotovDurationSec;
-            const uint64_t infernoFallbackMs = kMolotovFallbackMs;
+            const uint64_t infernoFallbackUs = kMolotovFallbackUs;
             const float smokeRemaining = calcRemainingFromTick(smokeTick, kSmokeDurationSec);
             const float infernoRemaining = calcRemainingFromTick(infernoTick, infernoDurationSec);
             const int decoyBestTick = decoyTickValid ? decoyTick : (decoyClientTickValid ? decoyClientTick : 0);
@@ -230,10 +230,10 @@
                 }
             }
 
-            pushUtility(smokeSignal, smokeRemaining, s_worldSmokeLatched[idx], s_worldSmokeStartUs[idx], kSmokeFallbackMs, WorldMarkerType::Smoke, 45, pos, 0.0f);
-            pushUtility(infernoSignal, infernoRemaining, s_worldInfernoLatched[idx], s_worldInfernoStartUs[idx], infernoFallbackMs, WorldMarkerType::Inferno, isIncendiaryGrenade ? 48 : (isMolotovGrenade ? 46 : 0), pos, infernoLife);
-            pushUtility(decoySignal, decoyRemaining, s_worldDecoyLatched[idx], s_worldDecoyStartUs[idx], kDecoyFallbackMs, WorldMarkerType::Decoy, 47, pos, 0.0f);
-            pushUtility(explosiveSignal, explodeRemaining, s_worldExplosiveLatched[idx], s_worldExplosiveStartUs[idx], kExplosiveFallbackMs, WorldMarkerType::Explosive, 44, pos, 0.0f);
+            pushUtility(smokeSignal, smokeRemaining, s_worldSmokeLatched[idx], s_worldSmokeStartUs[idx], kSmokeFallbackUs, WorldMarkerType::Smoke, 45, pos, 0.0f);
+            pushUtility(infernoSignal, infernoRemaining, s_worldInfernoLatched[idx], s_worldInfernoStartUs[idx], infernoFallbackUs, WorldMarkerType::Inferno, isIncendiaryGrenade ? 48 : (isMolotovGrenade ? 46 : 0), pos, infernoLife);
+            pushUtility(decoySignal, decoyRemaining, s_worldDecoyLatched[idx], s_worldDecoyStartUs[idx], kDecoyFallbackUs, WorldMarkerType::Decoy, 47, pos, 0.0f);
+            pushUtility(explosiveSignal, explodeRemaining, s_worldExplosiveLatched[idx], s_worldExplosiveStartUs[idx], kExplosiveFallbackUs, WorldMarkerType::Explosive, 44, pos, 0.0f);
 
             if (wantsWorldProjectiles) {
                 const Vector3 velocity = reuseCachedWorldUtilityDetails ? s_worldPrevVelocity[idx] : worldVelocities[idx];

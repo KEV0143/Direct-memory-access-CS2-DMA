@@ -193,6 +193,24 @@
     s_prevCaptureTimeUs = s_captureTimeUs;
     s_captureTimeUs = nowUs;
 
+    if (localControllerPawnHandleValid)
+        s_localPawnHandleLastSeen = localControllerPawnHandle;
+
+    if (localPawnResolved == 0 && s_localPawn != 0) {
+        s_localPawnFarewellPtr = s_localPawn;
+        s_localPawnFarewellHandle = localControllerPawnHandleValid
+            ? localControllerPawnHandle
+            : s_localPawnHandleLastSeen;
+        s_localPawnFarewellExpiryUs = nowUs + kLocalPawnFarewellWindowUs;
+    } else if (localPawnResolved != 0) {
+        s_localPawnFarewellPtr = 0;
+        s_localPawnFarewellHandle = 0;
+        s_localPawnFarewellExpiryUs = 0;
+    } else if (s_localPawnFarewellExpiryUs != 0 && nowUs >= s_localPawnFarewellExpiryUs) {
+        s_localPawnFarewellPtr = 0;
+        s_localPawnFarewellHandle = 0;
+        s_localPawnFarewellExpiryUs = 0;
+    }
     s_localPawn = localPawnResolved;
     s_localPlayerIndex =
         (localPlayerIndexValid && localPlayerIndexHasLiveEvidence)

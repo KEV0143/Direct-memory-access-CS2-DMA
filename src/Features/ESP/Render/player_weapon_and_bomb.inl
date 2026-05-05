@@ -10,8 +10,9 @@ if (g::espWeapon) {
     const char* weaponIconFallback = WeaponIconFallbackTokenFromItemId(weaponIconId);
     const char* weaponName = WeaponNameFromItemId(p.weaponId);
     if (g::espWeaponIcon && weaponName) {
-        if (weaponIcon && g::fontWeaponIcons) {
-            drawBottomLabel(weaponIcon, ColorToImU32(g::espWeaponIconColor), false, true, g::fontWeaponIcons, g::espWeaponIconSize);
+        ImFont* iconFont = PickWeaponIconFont(g::espWeaponIconSize);
+        if (weaponIcon && iconFont) {
+            drawBottomLabel(weaponIcon, ColorToImU32(g::espWeaponIconColor), false, true, iconFont, g::espWeaponIconSize);
         } else if (hasWeaponVisualAsset && weaponIconFallback) {
             drawBottomLabel(weaponIconFallback, ColorToImU32(g::espWeaponIconColor), false, true, g::fontSegoeBold, g::espWeaponIconSize - 1.0f);
         }

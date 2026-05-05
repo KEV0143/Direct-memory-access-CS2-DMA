@@ -115,16 +115,17 @@ void esp::Draw()
             extrapolationSec = std::clamp(
                 static_cast<float>(targetUs - captureTimeUs) / 1000000.0f,
                 0.0f,
-                0.055f);
+                0.080f);
         }
     }
 
-    const float hermiteT = snapshotLerpAlpha * snapshotLerpAlpha * (3.0f - 2.0f * snapshotLerpAlpha);
+    const float quinticT = snapshotLerpAlpha * snapshotLerpAlpha * snapshotLerpAlpha *
+                           (snapshotLerpAlpha * (snapshotLerpAlpha * 6.0f - 15.0f) + 10.0f);
     auto lerpVec3 = [&](const Vector3& a, const Vector3& b) -> Vector3 {
         return {
-            a.x + (b.x - a.x) * hermiteT,
-            a.y + (b.y - a.y) * hermiteT,
-            a.z + (b.z - a.z) * hermiteT
+            a.x + (b.x - a.x) * quinticT,
+            a.y + (b.y - a.y) * quinticT,
+            a.z + (b.z - a.z) * quinticT
         };
     };
 
@@ -349,10 +350,31 @@ void esp::Draw()
                     feetPos = renderPlayerPos;
                 feetPos.z -= 4.0f;
 
+                static Vector3 s_lastValidBonePos[64][esp::kPlayerStoredBoneCount] = {};
+                static uint64_t s_lastValidBoneUs[64][esp::kPlayerStoredBoneCount] = {};
+                static uint64_t s_lastValidBonePawn[64] = {};
+                constexpr uint64_t kBonePersistUs = 150000;
+                if (s_lastValidBonePawn[i] != p.pawn) {
+                    for (int rb = 0; rb < esp::kPlayerStoredBoneCount; ++rb) {
+                        s_lastValidBonePos[i][rb] = {};
+                        s_lastValidBoneUs[i][rb] = 0;
+                    }
+                    s_lastValidBonePawn[i] = p.pawn;
+                }
                 for (int bIdx = 0; bIdx < esp::kPlayerStoredBoneCount; ++bIdx) {
                     const int b = esp::kPlayerStoredBoneIds[bIdx];
                     Vector3 bonePos = getPlayerBone(p, b);
-                    if (bonePos.x == 0.0f && bonePos.y == 0.0f && bonePos.z == 0.0f) {
+                    const bool bonePosValid =
+                        isFiniteVec(bonePos) &&
+                        !(bonePos.x == 0.0f && bonePos.y == 0.0f && bonePos.z == 0.0f);
+                    if (bonePosValid) {
+                        s_lastValidBonePos[i][bIdx] = bonePos;
+                        s_lastValidBoneUs[i][bIdx] = nowUs;
+                    } else if (s_lastValidBoneUs[i][bIdx] > 0 &&
+                               nowUs >= s_lastValidBoneUs[i][bIdx] &&
+                               (nowUs - s_lastValidBoneUs[i][bIdx]) <= kBonePersistUs) {
+                        bonePos = s_lastValidBonePos[i][bIdx];
+                    } else {
                         boneScreenValid[b] = false;
                         continue;
                     }

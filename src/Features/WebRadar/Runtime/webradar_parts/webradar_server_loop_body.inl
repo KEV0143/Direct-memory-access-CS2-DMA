@@ -9,6 +9,24 @@
 
     while (running_.load(std::memory_order_relaxed)) {
         const uint16_t targetPort = NormalizePort(requestedPort_.load(std::memory_order_relaxed));
+        bool bindLan = false;
+        {
+            std::unique_lock<std::mutex> lock(mutex_);
+            stats_.enabled = settings_.enabled;
+            stats_.listenPort = targetPort;
+            bindLan = settings_.bindLan;
+            if (!settings_.enabled) {
+                stats_.serverListening = false;
+                stats_.statusText = "Local WebRadar disabled";
+                cv_.wait_for(lock, std::chrono::milliseconds(250), [this, targetPort] {
+                    return !running_.load(std::memory_order_relaxed) ||
+                        settings_.enabled ||
+                        requestedPort_.load(std::memory_order_relaxed) != targetPort;
+                });
+                continue;
+            }
+        }
+
         SOCKET listenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
         if (listenSocket == INVALID_SOCKET) {
             {
@@ -28,7 +46,7 @@
         sockaddr_in addr = {};
         addr.sin_family = AF_INET;
         addr.sin_port = htons(targetPort);
-        addr.sin_addr.s_addr = htonl(INADDR_ANY);
+        addr.sin_addr.s_addr = bindLan ? htonl(INADDR_ANY) : htonl(INADDR_LOOPBACK);
 
         if (bind(listenSocket, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr)) == SOCKET_ERROR ||
             listen(listenSocket, SOMAXCONN) == SOCKET_ERROR) {

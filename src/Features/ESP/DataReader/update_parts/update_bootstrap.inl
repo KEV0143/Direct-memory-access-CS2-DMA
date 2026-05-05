@@ -122,7 +122,8 @@
     const uint64_t _stagePipelineStart = TickNowUs();
     static bool s_cachedWebRadarConsumerDemand = false;
     static uint64_t s_lastWebRadarConsumerDemandCheckUs = 0;
-    if (!g::webRadarEnabled) {
+    const bool webRadarEnabledForDemand = g::webRadarEnabled || g::webRadarRemoteEnabled;
+    if (!webRadarEnabledForDemand) {
         s_cachedWebRadarConsumerDemand = false;
         s_lastWebRadarConsumerDemandCheckUs = 0;
     } else if (s_lastWebRadarConsumerDemandCheckUs == 0 ||
@@ -130,6 +131,6 @@
         s_cachedWebRadarConsumerDemand = webradar::HasActiveConsumers();
         s_lastWebRadarConsumerDemandCheckUs = _stagePipelineStart;
     }
-    const bool webRadarDemandActive = g::webRadarEnabled && s_cachedWebRadarConsumerDemand;
+    const bool webRadarDemandActive = webRadarEnabledForDemand && s_cachedWebRadarConsumerDemand;
 
     promoteInGameFrame("client_attached");

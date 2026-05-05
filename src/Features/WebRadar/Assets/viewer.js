@@ -77,8 +77,17 @@ const DEFAULT_SETTINGS = {
 const STORAGE_KEY = "kevq_webradar_clau_style_v4";
 const SNAPSHOT_BUFFER_LIMIT = 10;
 const UI_RENDER_INTERVAL_MS = 40;
-const INITIAL_RENDER_DELAY_MS = 18;
 const POLLING_FALLBACK_INTERVAL_MS = 67;
+const HOSTNAME = window.location.hostname.toLowerCase();
+const IS_PRIVATE_OR_LOCAL_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|::1)/.test(HOSTNAME) ||
+  /^172\.(1[6-9]|2\d|3[0-1])\./.test(HOSTNAME);
+const IS_MOBILE_CLIENT =
+  (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) ||
+  /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+const RENDER_DELAY_MIN_MS = IS_MOBILE_CLIENT ? 72 : (IS_PRIVATE_OR_LOCAL_HOST ? 18 : 44);
+const RENDER_DELAY_MAX_MS = IS_MOBILE_CLIENT ? 132 : (IS_PRIVATE_OR_LOCAL_HOST ? 58 : 106);
+const INITIAL_RENDER_DELAY_MS = IS_MOBILE_CLIENT ? 90 : (IS_PRIVATE_OR_LOCAL_HOST ? 24 : 64);
+const OVERLAY_DPR_LIMIT = IS_MOBILE_CLIENT ? 2 : 2.5;
 
 const S = {
   payload: null,
@@ -355,7 +364,7 @@ async function pingLoop() {
       }
       S.socket = null;
     }
-    startEventStream();
+    connectWebSocket();
   }
   setTimeout(pingLoop, 1500);
 }
@@ -666,12 +675,13 @@ function updateAdaptiveDelay() {
   const halfRtt = Number.isFinite(S.rttMedianMs) ? (S.rttMedianMs * 0.5) : 0;
   const gap = Number.isFinite(S.frameGapMs) ? S.frameGapMs : 8;
   const jitter = Number.isFinite(S.arrivalJitterMs) ? S.arrivalJitterMs : 0;
-  const target = Math.max(gap * 1.8, halfRtt + 6 + jitter * 1.35);
+  const networkFloor = IS_PRIVATE_OR_LOCAL_HOST && !IS_MOBILE_CLIENT ? 0 : RENDER_DELAY_MIN_MS;
+  const target = Math.max(networkFloor, gap * 2.2, halfRtt + 10 + jitter * 1.55);
   if (!Number.isFinite(S.renderDelayMs) || S.renderDelayMs <= 0) {
-    S.renderDelayMs = clamp(target, 12, 48);
+    S.renderDelayMs = clamp(target, RENDER_DELAY_MIN_MS, RENDER_DELAY_MAX_MS);
     return;
   }
-  S.renderDelayMs = clamp(S.renderDelayMs * 0.82 + target * 0.18, 12, 48);
+  S.renderDelayMs = clamp(S.renderDelayMs * 0.82 + target * 0.18, RENDER_DELAY_MIN_MS, RENDER_DELAY_MAX_MS);
 }
 
 const PLAYER_FLAGS_V2 = {
@@ -1579,7 +1589,7 @@ function refreshOverlayMetrics() {
 
   const width = el.mapImage.clientWidth;
   const height = el.mapImage.clientHeight;
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const dpr = clamp(window.devicePixelRatio || 1, 1, OVERLAY_DPR_LIMIT);
   const pixelWidth = Math.max(1, Math.round(width * dpr));
   const pixelHeight = Math.max(1, Math.round(height * dpr));
 
@@ -2265,20 +2275,22 @@ function updateBombStatus(bomb) {
     S.bombUi.bombTotal = timerLength;
     if (!S.bombUi.active || S.bombUi.bombLeft <= 0) {
       S.bombUi.bombLeft = blowValid ? rawBlow : timerLength;
-    } else if (blowValid) {
-      S.bombUi.bombLeft = rawBlow;
     } else {
       S.bombUi.bombLeft = Math.max(0, S.bombUi.bombLeft - dt);
+      if (blowValid && Math.abs(rawBlow - S.bombUi.bombLeft) > 0.5) {
+        S.bombUi.bombLeft = rawBlow;
+      }
     }
 
     if (bomb.m_is_defusing) {
       S.bombUi.defuseTotal = defuseLength;
       if (!S.bombUi.defusing || S.bombUi.defuseLeft <= 0) {
         S.bombUi.defuseLeft = defuseValid ? rawDefuse : defuseLength;
-      } else if (defuseValid) {
-        S.bombUi.defuseLeft = rawDefuse;
       } else {
         S.bombUi.defuseLeft = Math.max(0, S.bombUi.defuseLeft - dt);
+        if (defuseValid && Math.abs(rawDefuse - S.bombUi.defuseLeft) > 0.4) {
+          S.bombUi.defuseLeft = rawDefuse;
+        }
       }
       S.bombUi.defusing = true;
     } else {
@@ -2719,7 +2731,7 @@ function startPolling() {
 bindUi();
 render();
 primeStatus();
-startEventStream();
+connectWebSocket();
 pingLoop();
 S.animationHandle = window.requestAnimationFrame(animateScene);
 

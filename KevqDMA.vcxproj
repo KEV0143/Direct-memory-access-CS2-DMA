@@ -89,7 +89,7 @@
       <FunctionLevelLinking>false</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
@@ -110,7 +110,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <DebugInformationFormat>None</DebugInformationFormat>
     </ClCompile>
@@ -131,7 +131,7 @@
       <FunctionLevelLinking>false</FunctionLevelLinking>
       <IntrinsicFunctions>false</IntrinsicFunctions>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
@@ -153,7 +153,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;NOMINMAX;WIN32_LEAN_AND_MEAN;UNICODE;_UNICODE;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)include;$(ProjectDir)src;$(ProjectDir)src\assets;$(ProjectDir)src\vendor;$(ProjectDir)src\vendor\imgui;$(ProjectDir)src\vendor\imgui\backends;$(ProjectDir)src\vendor\qrcodegen;$(ProjectDir)src\vendor\DMALibrary;$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExceptionHandling>Async</ExceptionHandling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <DiagnosticsFormat>Column</DiagnosticsFormat>
@@ -168,7 +168,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <AdditionalDependencies>d3d11.lib;dxgi.lib;vmm.lib;leechcore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>d3d11.lib;dxgi.lib;vmm.lib;leechcore.lib;crypt32.lib;bcrypt.lib;ws2_32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)src\vendor\DMALibrary\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <StackReserveSize>8388608</StackReserveSize>
     </Link>
@@ -181,6 +181,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\app\Bootstrap\main.cpp" />
+    <ClCompile Include="src\app\Bootstrap\crash_handler.cpp" />
     <ClCompile Include="src\app\Bootstrap\runtime_console.cpp" />
     <ClCompile Include="src\app\Bootstrap\version_update.cpp" />
     <ClCompile Include="src\app\Config\config.cpp" />
@@ -199,6 +200,189 @@
     <ClCompile Include="src\Features\Settings\UI\settings_sections.cpp" />
     <ClCompile Include="src\Features\Settings\UI\settings_tab.cpp" />
     <ClCompile Include="src\Features\WebRadar\Runtime\embedded_assets.cpp" />
+    <ClCompile Include="src\Features\WebRadar\Runtime\web_remote.cpp" />
+    <ClCompile Include="src\vendor\libssh2\src\agent.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\bcrypt_pbkdf.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\channel.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\comp.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\chacha.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\cipher-chachapoly.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\crypt.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\crypto.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\global.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\hostkey.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\keepalive.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\kex.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\knownhost.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\mac.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\misc.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\packet.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\pem.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\poly1305.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\publickey.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\scp.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\session.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\sftp.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\transport.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\userauth.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\userauth_kbd_packet.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\version.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PreprocessorDefinitions>LIBSSH2_WINCNG;LIBSSH2_ECDSA_WINCNG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ProjectDir)src\vendor\libssh2\include;$(ProjectDir)src\vendor\libssh2\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <AdditionalOptions>/wd4100 /wd4127 /wd4244 /wd4267 /wd4706 /wd4996 %(AdditionalOptions)</AdditionalOptions>
+    </ClCompile>
     <ClCompile Include="src\Features\WebRadar\Runtime\webradar.cpp" />
     <ClCompile Include="src\Features\WebRadar\UI\webradar_sections.cpp" />
     <ClCompile Include="src\Features\WebRadar\UI\webradar_tab.cpp" />
@@ -216,6 +400,7 @@
     <ClCompile Include="src\vendor\qrcodegen\qrcodegen.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\app\Bootstrap\crash_handler.h" />
     <ClInclude Include="include\app\Bootstrap\runtime_console.h" />
     <ClInclude Include="include\app\Bootstrap\version_update.h" />
     <ClInclude Include="include\app\Config\config.h" />
@@ -241,6 +426,7 @@
     <ClInclude Include="include\Features\WebRadar\embedded_assets.h" />
     <ClInclude Include="include\Features\WebRadar\UI\webradar_sections.h" />
     <ClInclude Include="include\Features\WebRadar\UI\webradar_tab.h" />
+    <ClInclude Include="include\Features\WebRadar\web_remote.h" />
     <ClInclude Include="include\Features\WebRadar\webradar.h" />
     <ClInclude Include="include\Game\Offsets\runtime_offsets.h" />
     <ClInclude Include="include\Game\Schema\structs.h" />
@@ -290,3 +476,4 @@
     <ClInclude Include="src\Features\Radar\Render\radar_overlay.inl" />
   </ItemGroup>
 </Project>
+

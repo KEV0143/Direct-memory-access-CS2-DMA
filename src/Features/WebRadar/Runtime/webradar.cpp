@@ -1,5 +1,6 @@
 #include "Features/WebRadar/webradar.h"
 #include "Features/WebRadar/embedded_assets.h"
+#include "Features/WebRadar/web_remote.h"
 #include "Features/Radar/map_registry.h"
 #include "app/Core/globals.h"
 #include "app/Config/project_paths.h"
@@ -248,9 +249,26 @@ namespace
         return static_cast<uint16_t>(port);
     }
 
-    int RequestedProtocolVersion(const std::unordered_map<std::string, std::string>&)
+    int RequestedProtocolVersion(const std::unordered_map<std::string, std::string>& query)
     {
-        return 2;
+        const auto it = query.find("pv");
+        if (it == query.end())
+            return webradar::cfg::kDefaultProtocolVersion;
+        const std::string& v = it->second;
+        if (v.empty())
+            return webradar::cfg::kDefaultProtocolVersion;
+        int parsed = 0;
+        for (char c : v) {
+            if (c < '0' || c > '9')
+                return webradar::cfg::kDefaultProtocolVersion;
+            parsed = parsed * 10 + (c - '0');
+            if (parsed > 99)
+                return webradar::cfg::kDefaultProtocolVersion;
+        }
+        if (parsed < webradar::cfg::kMinProtocolVersion ||
+            parsed > webradar::cfg::kMaxProtocolVersion)
+            return webradar::cfg::kDefaultProtocolVersion;
+        return parsed;
     }
 
     std::string UrlDecode(std::string_view encoded)
@@ -440,17 +458,24 @@ namespace
         const char* contentType,
         const std::string& body,
         const char* cacheControl,
-        bool keepAlive)
+        bool keepAlive,
+        const std::string& accessControlOrigin = std::string("*"))
     {
         const std::string cacheControlValue = cacheControl ? cacheControl : "no-store";
         const std::string noCacheCompatHeaders =
             cacheControlValue.find("no-store") != std::string::npos
                 ? "Pragma: no-cache\r\nExpires: 0\r\n"
                 : "";
+        const std::string corsHeader = accessControlOrigin.empty()
+            ? std::string()
+            : std::format(
+                "Access-Control-Allow-Origin: {}\r\n"
+                "Vary: Origin\r\n",
+                accessControlOrigin);
         const std::string header = std::format(
             "HTTP/1.1 {} {}\r\n"
             "Connection: {}\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
+            "{}"
             "X-Content-Type-Options: nosniff\r\n"
             "Cache-Control: {}\r\n"
             "{}"
@@ -459,6 +484,7 @@ namespace
             statusCode,
             HttpStatusText(statusCode),
             keepAlive ? "keep-alive" : "close",
+            corsHeader,
             cacheControlValue,
             noCacheCompatHeaders,
             contentType ? contentType : "application/octet-stream",
@@ -473,16 +499,23 @@ namespace
         return SendHttpResponseEx(socketHandle, statusCode, contentType, body, "no-store", false);
     }
 
-    bool SendSseHeaders(SOCKET socketHandle)
+    bool SendSseHeaders(SOCKET socketHandle, const std::string& accessControlOrigin = std::string("*"))
     {
-        const std::string header =
+        const std::string corsHeader = accessControlOrigin.empty()
+            ? std::string()
+            : std::format(
+                "Access-Control-Allow-Origin: {}\r\n"
+                "Vary: Origin\r\n",
+                accessControlOrigin);
+        const std::string header = std::format(
             "HTTP/1.1 200 OK\r\n"
             "Connection: keep-alive\r\n"
             "Cache-Control: no-store\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
+            "{}"
             "X-Content-Type-Options: nosniff\r\n"
             "Content-Type: text/event-stream\r\n"
-            "X-Accel-Buffering: no\r\n\r\n";
+            "X-Accel-Buffering: no\r\n\r\n",
+            corsHeader);
         return SendAll(socketHandle, header.data(), header.size());
     }
 
@@ -496,6 +529,32 @@ namespace
         payload += body;
         payload += "\n\n";
         return SendAll(socketHandle, payload.data(), payload.size());
+    }
+
+    std::string ResolveAllowedOrigin(
+        const std::vector<std::string>& allowlist,
+        const std::unordered_map<std::string, std::string>& headers)
+    {
+        if (allowlist.empty())
+            return std::string("*");
+
+        const auto it = headers.find("origin");
+        if (it == headers.end())
+            return std::string();
+
+        const std::string& origin = it->second;
+        if (origin.empty())
+            return std::string();
+
+        for (const auto& allowed : allowlist) {
+            if (allowed.empty())
+                continue;
+            if (allowed == "*")
+                return origin;
+            if (_stricmp(allowed.c_str(), origin.c_str()) == 0)
+                return origin;
+        }
+        return std::string();
     }
 
     bool HeaderContainsValue(
@@ -614,28 +673,36 @@ namespace
         return Base64Encode(digest.data(), digest.size());
     }
 
-    bool SendWebSocketHandshakeResponse(SOCKET socketHandle, const std::string& acceptKey)
+    bool SendWebSocketHandshakeResponse(
+        SOCKET socketHandle,
+        const std::string& acceptKey,
+        const std::string& accessControlOrigin = std::string("*"))
     {
         if (acceptKey.empty())
             return false;
 
+        const std::string corsHeader = accessControlOrigin.empty()
+            ? std::string()
+            : std::format(
+                "Access-Control-Allow-Origin: {}\r\n",
+                accessControlOrigin);
         const std::string response = std::format(
             "HTTP/1.1 101 Switching Protocols\r\n"
             "Upgrade: websocket\r\n"
             "Connection: Upgrade\r\n"
-            "Access-Control-Allow-Origin: *\r\n"
+            "{}"
             "Sec-WebSocket-Accept: {}\r\n\r\n",
+            corsHeader,
             acceptKey);
         return SendAll(socketHandle, response.data(), response.size());
     }
 
-    bool SendWebSocketTextFrame(SOCKET socketHandle, const std::string& payload)
+    bool SendWebSocketFrame(SOCKET socketHandle, unsigned char opcode, const void* payload, size_t payloadSize)
     {
         std::array<unsigned char, 10> header = {};
         size_t headerSize = 0;
-        header[headerSize++] = 0x81; 
+        header[headerSize++] = static_cast<unsigned char>(0x80 | (opcode & 0x0F));
 
-        const uint64_t payloadSize = static_cast<uint64_t>(payload.size());
         if (payloadSize < 126) {
             header[headerSize++] = static_cast<unsigned char>(payloadSize);
         } else if (payloadSize <= 0xFFFFu) {
@@ -649,8 +716,72 @@ namespace
             }
         }
 
-        return SendAll(socketHandle, reinterpret_cast<const char*>(header.data()), headerSize) &&
-            SendAll(socketHandle, payload.data(), payload.size());
+        if (!SendAll(socketHandle, reinterpret_cast<const char*>(header.data()), headerSize))
+            return false;
+        if (payloadSize == 0)
+            return true;
+        return SendAll(socketHandle, static_cast<const char*>(payload), payloadSize);
+    }
+
+    bool SendWebSocketTextFrame(SOCKET socketHandle, const std::string& payload)
+    {
+        return SendWebSocketFrame(socketHandle, 0x1, payload.data(), payload.size());
+    }
+
+    bool SendWebSocketBinaryFrame(SOCKET socketHandle, const void* data, size_t size)
+    {
+        return SendWebSocketFrame(socketHandle, 0x2, data, size);
+    }
+
+    bool SendWebSocketPing(SOCKET socketHandle)
+    {
+        return SendWebSocketFrame(socketHandle, 0x9, nullptr, 0);
+    }
+
+    bool SendWebSocketCloseFrame(SOCKET socketHandle, uint16_t code = 1000)
+    {
+        unsigned char payload[2];
+        payload[0] = static_cast<unsigned char>((code >> 8) & 0xFF);
+        payload[1] = static_cast<unsigned char>(code & 0xFF);
+        return SendWebSocketFrame(socketHandle, 0x8, payload, sizeof(payload));
+    }
+
+    int DrainWebSocketIncoming(SOCKET socketHandle, bool* closeRequested)
+    {
+        if (closeRequested)
+            *closeRequested = false;
+        int totalConsumed = 0;
+        for (int iter = 0; iter < 4; ++iter) {
+            char buf[256];
+            const int r = recv(socketHandle, buf, sizeof(buf), 0);
+            if (r > 0) {
+                totalConsumed += r;
+                for (int i = 0; i + 1 < r; ++i) {
+                    const unsigned char first = static_cast<unsigned char>(buf[i]);
+                    const unsigned char opcode = first & 0x0F;
+                    if (opcode == 0x8) {
+                        if (closeRequested)
+                            *closeRequested = true;
+                        break;
+                    }
+                }
+                if (r < static_cast<int>(sizeof(buf)))
+                    break;
+                continue;
+            }
+            if (r == 0) {
+                if (closeRequested)
+                    *closeRequested = true;
+                break;
+            }
+            const int err = WSAGetLastError();
+            if (err == WSAEWOULDBLOCK || err == WSAETIMEDOUT)
+                break;
+            if (closeRequested)
+                *closeRequested = true;
+            break;
+        }
+        return totalConsumed;
     }
 
     std::string GuessContentTypeByExtension(const std::string& extension)
@@ -836,30 +967,41 @@ void WEBRadar::Stop()
         serverThread_.join();
 }
 
-void WEBRadar::Configure(bool enabled, int intervalMs, uint16_t listenPort, const std::string& mapOverride)
+void WEBRadar::Configure(bool enabled, int intervalMs, uint16_t listenPort, const std::string& mapOverride,
+                         bool bindLan, std::vector<std::string> originAllowlist)
 {
     bool portChanged = false;
+    bool disableLocal = false;
+    bool bindChanged = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         const bool prevEnabled = settings_.enabled;
         const int prevInterval = settings_.intervalMs;
         const uint16_t prevPort = settings_.listenPort;
         const std::string prevMapOverride = settings_.mapOverride;
+        const bool prevBindLan = settings_.bindLan;
+        const auto prevAllowlist = settings_.originAllowlist;
 
         settings_.enabled = enabled;
         settings_.intervalMs = std::clamp(intervalMs, cfg::kMinRealtimeIntervalMs, cfg::kMaxRealtimeIntervalMs);
         settings_.listenPort = NormalizePort(listenPort);
         settings_.mapOverride = NormalizeMapName(mapOverride);
+        settings_.bindLan = bindLan;
+        settings_.originAllowlist = std::move(originAllowlist);
         stats_.enabled = settings_.enabled;
         stats_.listenPort = settings_.listenPort;
         requestedPort_.store(settings_.listenPort, std::memory_order_relaxed);
         portChanged = (prevPort != settings_.listenPort);
+        bindChanged = (prevBindLan != settings_.bindLan);
+        disableLocal = prevEnabled && !settings_.enabled;
 
         const bool changed =
             prevEnabled != settings_.enabled ||
             prevInterval != settings_.intervalMs ||
             portChanged ||
-            prevMapOverride != settings_.mapOverride;
+            bindChanged ||
+            prevMapOverride != settings_.mapOverride ||
+            prevAllowlist != settings_.originAllowlist;
 
         if (changed) {
             ++settingsVersion_;
@@ -867,7 +1009,7 @@ void WEBRadar::Configure(bool enabled, int intervalMs, uint16_t listenPort, cons
         }
     }
 
-    if (!portChanged)
+    if (!portChanged && !bindChanged && !disableLocal)
         return;
 
     const uintptr_t handle = listenSocket_.exchange(0);
@@ -900,6 +1042,9 @@ RuntimeStats WEBRadar::GetStats() const
 
 bool WEBRadar::HasActiveConsumers() const
 {
+    if (!IsLocalEnabled())
+        return false;
+
     {
         std::lock_guard<std::mutex> streamLock(streamMutex_);
         if (!streamClients_.empty())
@@ -913,6 +1058,12 @@ bool WEBRadar::HasActiveConsumers() const
         }
     }
     return false;
+}
+
+bool WEBRadar::IsLocalEnabled() const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    return settings_.enabled;
 }
 
 void WEBRadar::CloseStreamClients()
@@ -990,6 +1141,14 @@ bool WEBRadar::RegisterWebSocketClient(uintptr_t socketHandleValue, int protocol
 
     PruneWebSocketClients();
 
+    const SOCKET socketHandle = static_cast<SOCKET>(socketHandleValue);
+    u_long nonBlocking = 1;
+    ioctlsocket(socketHandle, FIONBIO, &nonBlocking);
+    const BOOL noDelay = TRUE;
+    setsockopt(socketHandle, IPPROTO_TCP, TCP_NODELAY, reinterpret_cast<const char*>(&noDelay), sizeof(noDelay));
+    const DWORD wsSendTimeoutMs = 1500;
+    setsockopt(socketHandle, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&wsSendTimeoutMs), sizeof(wsSendTimeoutMs));
+
     auto client = std::make_unique<WebSocketClient>();
     client->socketHandle.store(socketHandleValue, std::memory_order_relaxed);
     client->protocolVersion = protocolVersion >= 2 ? 2 : 1;
@@ -1021,6 +1180,12 @@ void WEBRadar::WebSocketClientLoop(WebSocketClient* client, uint64_t lastSeenVer
     if (!client)
         return;
 
+    constexpr uint64_t kIdlePingIntervalMs = 25000;
+    constexpr uint64_t kIdleDropMs = 75000;
+    const uint64_t startMs = UnixNowMs();
+    uint64_t lastPingMs = startMs;
+    uint64_t lastActivityMs = startMs;
+
     while (running_.load(std::memory_order_relaxed) && client->active.load(std::memory_order_relaxed)) {
         std::string payloadJson;
         uint64_t payloadVersion = 0;
@@ -1038,26 +1203,56 @@ void WEBRadar::WebSocketClientLoop(WebSocketClient* client, uint64_t lastSeenVer
 
             payloadJson = client->protocolVersion >= 2 ? latestPayloadJsonV2_ : latestPayloadJson_;
             payloadVersion = latestPayloadVersion_;
-            if (payloadVersion == lastSeenVersion || payloadJson.empty())
-                continue;
         }
 
         const uintptr_t handleValue = client->socketHandle.load(std::memory_order_relaxed);
         if (handleValue == 0)
             break;
+        const SOCKET socketHandle = static_cast<SOCKET>(handleValue);
 
-        if (!SendWebSocketTextFrame(static_cast<SOCKET>(handleValue), payloadJson)) {
+        bool peerClose = false;
+        const int drained = DrainWebSocketIncoming(socketHandle, &peerClose);
+        if (drained > 0)
+            lastActivityMs = UnixNowMs();
+        if (peerClose) {
             client->active.store(false, std::memory_order_relaxed);
             break;
         }
-        RecordBytesOut(payloadJson.size());
 
-        lastSeenVersion = payloadVersion;
+        const uint64_t nowMs = UnixNowMs();
+        if (nowMs - lastActivityMs > kIdleDropMs) {
+            client->active.store(false, std::memory_order_relaxed);
+            break;
+        }
+
+        bool sentSomething = false;
+        if (payloadVersion != lastSeenVersion && !payloadJson.empty()) {
+            if (!SendWebSocketTextFrame(socketHandle, payloadJson)) {
+                client->active.store(false, std::memory_order_relaxed);
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    ++stats_.droppedFramesSlowClient;
+                }
+                break;
+            }
+            RecordBytesOut(payloadJson.size());
+            lastSeenVersion = payloadVersion;
+            sentSomething = true;
+        }
+
+        if (!sentSomething && (nowMs - lastPingMs) >= kIdlePingIntervalMs) {
+            if (!SendWebSocketPing(socketHandle)) {
+                client->active.store(false, std::memory_order_relaxed);
+                break;
+            }
+            lastPingMs = nowMs;
+        }
     }
 
     const uintptr_t handleValue = client->socketHandle.exchange(0, std::memory_order_relaxed);
     if (handleValue != 0) {
         const SOCKET socketHandle = static_cast<SOCKET>(handleValue);
+        SendWebSocketCloseFrame(socketHandle, 1000);
         shutdown(socketHandle, SD_BOTH);
         closesocket(socketHandle);
     }
@@ -1067,6 +1262,11 @@ void WEBRadar::WebSocketClientLoop(WebSocketClient* client, uint64_t lastSeenVer
 void WEBRadar::BroadcastLivePayload(const std::string& payloadJsonV1, const std::string& payloadJsonV2)
 {
     size_t bytesSent = 0;
+    if (remote::HasActiveConsumerDemand())
+        remote::Publish(payloadJsonV2);
+
+    if (!IsLocalEnabled())
+        return;
 
     std::vector<StreamClient> clients;
     uint64_t generation = 0;
@@ -1106,6 +1306,10 @@ void WEBRadar::BroadcastLivePayload(const std::string& payloadJsonV1, const std:
             if (!SendSseEvent(socketHandle, "snapshot", payloadJson)) {
                 shutdown(socketHandle, SD_BOTH);
                 closesocket(socketHandle);
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    ++stats_.droppedFramesSlowClient;
+                }
                 continue;
             }
             bytesSent += payloadJson.size();
@@ -1248,12 +1452,14 @@ WEBRadar& Instance()
 
 void Initialize()
 {
+    remote::Start();
     Instance().Start();
 }
 
 void Shutdown()
 {
     Instance().Stop();
+    remote::Stop();
 }
 
 void ApplySettingsFromGlobals()
@@ -1262,7 +1468,10 @@ void ApplySettingsFromGlobals()
         g::webRadarEnabled,
         g::webRadarIntervalMs,
         static_cast<uint16_t>(g::webRadarPort),
-        g::webRadarMapOverride);
+        g::webRadarMapOverride,
+        g::webRadarBindLan,
+        g::webRadarOriginAllowlist);
+    remote::Configure(remote::CaptureSettingsFromGlobals());
 }
 
 void CaptureFromEsp()
@@ -1287,7 +1496,7 @@ RuntimeStats GetRuntimeStats()
 
 bool HasActiveConsumers()
 {
-    return Instance().HasActiveConsumers();
+    return Instance().HasActiveConsumers() || remote::HasActiveConsumerDemand();
 }
 
 } 

@@ -16,10 +16,13 @@ namespace webradar {
 
 namespace cfg {
 inline constexpr unsigned short kDefaultListenPort = 22006;
-inline constexpr int kMinRealtimeIntervalMs = 15;
+inline constexpr int kMinRealtimeIntervalMs = 17;
 inline constexpr int kMaxRealtimeIntervalMs = 2000;
 inline constexpr int kFallbackPublishIntervalMs = 1000;
 inline constexpr int kPollingFallbackIntervalMs = 67;
+inline constexpr int kMinProtocolVersion = 2;
+inline constexpr int kMaxProtocolVersion = 2;
+inline constexpr int kDefaultProtocolVersion = 2;
 }
 
 struct RuntimeStats {
@@ -63,7 +66,8 @@ public:
     void Start();
     void Stop();
 
-    void Configure(bool enabled, int intervalMs, uint16_t listenPort, const std::string& mapOverride);
+    void Configure(bool enabled, int intervalMs, uint16_t listenPort, const std::string& mapOverride,
+                   bool bindLan, std::vector<std::string> originAllowlist);
     void UpdateSnapshot(const esp::WebRadarSnapshot& snapshot);
 
     RuntimeStats GetStats() const;
@@ -78,6 +82,8 @@ private:
         int intervalMs = cfg::kMinRealtimeIntervalMs;
         uint16_t listenPort = 0;
         std::string mapOverride;
+        bool bindLan = false;
+        std::vector<std::string> originAllowlist;
     };
 
     void WorkerLoop();
@@ -87,6 +93,7 @@ private:
     void CloseStreamClients();
     void CloseWebSocketClients();
     void PruneWebSocketClients();
+    bool IsLocalEnabled() const;
     bool RegisterWebSocketClient(uintptr_t socketHandleValue, int protocolVersion);
     void WebSocketClientLoop(WebSocketClient* client, uint64_t lastSeenVersion);
     void RecordBytesOut(size_t bytes);

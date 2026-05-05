@@ -131,6 +131,9 @@
     <Filter Include="Source Files\vendor\qrcodegen">
       <UniqueIdentifier>{B17F6C0D-93E8-4FAF-BF16-00703FFC1EBC}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\vendor\libssh2">
+      <UniqueIdentifier>{0B3C700D-F7E9-4318-A0D1-F2C8C77591DA}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Header Files\app\UI\MenuShell">
       <UniqueIdentifier>{2006A0CC-A3FD-4895-B9BF-57311973A6AE}</UniqueIdentifier>
     </Filter>
@@ -199,6 +202,9 @@
     <ClCompile Include="src\app\Bootstrap\main.cpp">
       <Filter>Source Files\app\Bootstrap</Filter>
     </ClCompile>
+    <ClCompile Include="src\app\Bootstrap\crash_handler.cpp">
+      <Filter>Source Files\app\Bootstrap</Filter>
+    </ClCompile>
     <ClCompile Include="src\app\Bootstrap\runtime_console.cpp">
       <Filter>Source Files\app\Bootstrap</Filter>
     </ClCompile>
@@ -253,6 +259,87 @@
     <ClCompile Include="src\Features\WebRadar\Runtime\embedded_assets.cpp">
       <Filter>Source Files\Features\WebRadar\Runtime</Filter>
     </ClCompile>
+    <ClCompile Include="src\Features\WebRadar\Runtime\web_remote.cpp">
+      <Filter>Source Files\Features\WebRadar\Runtime</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\agent.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\bcrypt_pbkdf.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\channel.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\comp.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\chacha.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\cipher-chachapoly.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\crypt.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\crypto.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\global.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\hostkey.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\keepalive.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\kex.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\knownhost.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\mac.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\misc.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\packet.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\pem.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\poly1305.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\publickey.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\scp.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\session.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\sftp.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\transport.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\userauth.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\userauth_kbd_packet.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vendor\libssh2\src\version.c">
+      <Filter>Source Files\vendor\libssh2</Filter>
+    </ClCompile>
     <ClCompile Include="src\Features\WebRadar\Runtime\webradar.cpp">
       <Filter>Source Files\Features\WebRadar\Runtime</Filter>
     </ClCompile>
@@ -298,6 +385,9 @@
     <ClCompile Include="src\vendor\qrcodegen\qrcodegen.cpp">
       <Filter>Source Files\vendor\qrcodegen</Filter>
     </ClCompile>
+    <ClInclude Include="include\app\Bootstrap\crash_handler.h">
+      <Filter>Header Files\app\Bootstrap</Filter>
+    </ClInclude>
     <ClInclude Include="include\app\Bootstrap\runtime_console.h">
       <Filter>Header Files\app\Bootstrap</Filter>
     </ClInclude>
@@ -372,6 +462,9 @@
     </ClInclude>
     <ClInclude Include="include\Features\WebRadar\UI\webradar_tab.h">
       <Filter>Header Files\Features\WebRadar\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Features\WebRadar\web_remote.h">
+      <Filter>Header Files\Features\WebRadar</Filter>
     </ClInclude>
     <ClInclude Include="include\Features\WebRadar\webradar.h">
       <Filter>Header Files\Features\WebRadar</Filter>

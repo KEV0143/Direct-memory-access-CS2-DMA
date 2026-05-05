@@ -1,8 +1,10 @@
 #pragma once
 
+#include <atomic>
 #include <bitset>
 #include <cstdint>
 #include <string>
+#include <vector>
 
 struct ImFont;
 
@@ -39,8 +41,8 @@ namespace app::state {
     };
 
     struct RuntimeState {
-        uintptr_t clientBase = 0;
-        uintptr_t engine2Base = 0;
+        std::atomic<uintptr_t> clientBase{ 0 };
+        std::atomic<uintptr_t> engine2Base{ 0 };
         bool running = true;
         bool menuOpen = true;
     };
@@ -152,11 +154,24 @@ namespace app::state {
 
     struct WebRadarSettings {
         bool enabled = true;
-        int intervalMs = 15;
+        int intervalMs = 33;
         int port = 22006;
         std::string mapOverride;
         bool qrOpen = true;
         bool debugOpen = false;
+        bool bindLan = true;
+        std::vector<std::string> originAllowlist;
+    };
+
+    struct WebRadarRemoteSettings {
+        bool enabled = false;
+        bool settingsOpen = false;
+        std::string host;
+        int webPort = 8080;
+        int sshPort = 22;
+        std::string login = "root";
+        std::string password;
+        std::string remotePath = "/opt/kevqdma-webradar";
     };
 
     struct UiSettings {
@@ -168,6 +183,8 @@ namespace app::state {
         ImFont* fontSegoeBold = nullptr;
         ImFont* fontComicSans = nullptr;
         ImFont* fontWeaponIcons = nullptr;
+        ImFont* fontWeaponIconsSmall = nullptr;
+        ImFont* fontWeaponIconsLarge = nullptr;
     };
 
     struct EspUiIconState {
@@ -191,6 +208,7 @@ namespace app::state {
         EspSettings esp = {};
         RadarSettings radar = {};
         WebRadarSettings webRadar = {};
+        WebRadarRemoteSettings webRadarRemote = {};
         UiSettings ui = {};
         FontState fonts = {};
         EspUiIconState espUiIcons = {};
