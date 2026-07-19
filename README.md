@@ -7,6 +7,7 @@ An open-source software framework designed for the research and implementation o
 </p>
 
 <p style="color: #ff6b6b; font-weight: 600; font-size: 0.95em; margin: 10px 0;">
+{ ! } The repository is no longer maintained and the files have been deleted <br>
 { ! } This project is for educational and research purposes only <br>
 { ! } This is an external method and requires a 
 <a href="https://github.com/ufrisk/pcileech-fpga" target="_blank">DMA Card</a> to work.
@@ -35,7 +36,7 @@ An open-source software framework designed for the research and implementation o
 
 <p style="font-size: 1.05em; color: #7f8c8d; margin: 20px 0;">
 <b>Are you a developer?</b> Suggest improvements to the project!<br>
-<b>Telegram:</b> <a href="https://t.me/ne_sravnim" style="text-decoration: none; color: #0088cc;">@ne_sravnim</a> &nbsp;|&nbsp; 💬 <b>Discord:</b> CoraKevq
+<b>Telegram:</b> <a href="https://t.me/ne_sravnim" style="text-decoration: none; color: #0088cc;">@ne_sravnim</a> &nbsp;|&nbsp;
 </p>
 
 <p style="font-size: 1.05em; color: #7f8c8d; margin: 15px 0;">
