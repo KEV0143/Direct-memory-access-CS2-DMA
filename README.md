@@ -1,5 +1,5 @@
 <div align="center">
-{ ! } The repository is no longer maintained and the files have been deleted <br>
+{ ! } The repository has moved https://github.com/cs2-dma/CS2-DMA <br>
   
 <h1>{ ... } Direct Memory Access — CS2 DMA</h1>
 
