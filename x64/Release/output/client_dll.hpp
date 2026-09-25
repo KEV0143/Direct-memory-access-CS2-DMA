@@ -1,5 +1,5 @@
 // Generated using https://github.com/a2x/cs2-dumper
-// 2026-09-25 07:07:05.929442400 UTC
+// 2026-09-25 21:58:33.291203900 UTC
 
 #pragma once
 
@@ -3688,7 +3688,7 @@ namespace cs2_dumper {
                 constexpr std::ptrdiff_t m_petItem = 0x1730; // C_EconItemView
             }
             // Parent: None
-            // Field count: 10
+            // Field count: 11
             namespace C_SmokeGrenadeProjectile {
                 constexpr std::ptrdiff_t m_nSmokeEffectTickBegin = 0x1360; // int32
                 constexpr std::ptrdiff_t m_bDidSmokeEffect = 0x1364; // bool
@@ -3698,8 +3698,9 @@ namespace cs2_dumper {
                 constexpr std::ptrdiff_t m_VoxelFrameData = 0x1388; // C_NetworkUtlVectorBase<uint8>
                 constexpr std::ptrdiff_t m_nVoxelFrameDataSize = 0x13A0; // int32
                 constexpr std::ptrdiff_t m_nVoxelUpdate = 0x13A4; // int32
-                constexpr std::ptrdiff_t m_bSmokeVolumeDataReceived = 0x13A8; // bool
-                constexpr std::ptrdiff_t m_bSmokeEffectSpawned = 0x13A9; // bool
+                constexpr std::ptrdiff_t m_nSmokeLightProbeRegen = 0x13A8; // uint8
+                constexpr std::ptrdiff_t m_bSmokeVolumeDataReceived = 0x13A9; // bool
+                constexpr std::ptrdiff_t m_bSmokeEffectSpawned = 0x13AA; // bool
             }
             // Parent: None
             // Field count: 1
