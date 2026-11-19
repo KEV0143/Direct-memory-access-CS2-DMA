@@ -1,5 +1,5 @@
 // Generated using https://github.com/a2x/cs2-dumper
-// 2026-11-18 14:22:36.825656500 UTC
+// 2026-11-19 17:25:11.274421400 UTC
 
 #pragma once
 
@@ -19,7 +19,11 @@ namespace cs2_dumper {
             constexpr std::ptrdiff_t dwGlowManager = 0x2553B90;
             constexpr std::ptrdiff_t dwLocalPlayerController = 0x252ED78;
             constexpr std::ptrdiff_t dwLocalPlayerPawn = 0x2557538;
+            constexpr std::ptrdiff_t dwPlantedC4 = 0x24BD9E8;
             constexpr std::ptrdiff_t dwPrediction = 0x2557440;
+            constexpr std::ptrdiff_t dwSensitivity = 0x2554648;
+            constexpr std::ptrdiff_t dwSensitivity_sensitivity = 0x58;
+            constexpr std::ptrdiff_t dwServerConfirmedReservation = 0x256E1C8;
             constexpr std::ptrdiff_t dwViewAngles = 0x256D668;
             constexpr std::ptrdiff_t dwViewMatrix = 0x255CE50;
             constexpr std::ptrdiff_t dwViewRender = 0x255D818;
@@ -50,6 +54,7 @@ namespace cs2_dumper {
         // Module: soundsystem.dll
         namespace soundsystem_dll {
             constexpr std::ptrdiff_t dwSoundSystem = 0x532470;
+            constexpr std::ptrdiff_t dwSoundSystem_engineViewData = 0x6C;
         }
     }
 }
